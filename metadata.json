@@ -1,0 +1,5 @@
+{
+  "name": "User Management Dashboard",
+  "description": "A comprehensive dashboard for managing user accounts, including adding, editing, and deleting users within a personnel management system.",
+  "requestFramePermissions": []
+}

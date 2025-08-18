@@ -1,0 +1,86 @@
+
+import React, { useState } from 'react';
+import { useAuth } from '../hooks/useAuth';
+import { UserIcon, LockIcon } from './icons';
+import type { User } from '../types';
+
+export const LoginPage: React.FC = () => {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const { login } = useAuth();
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    // NOTE: This is a mock login. In a real application, you would make an API call
+    // to your Vercel backend to verify credentials.
+    if (username === 'admin' && password === '5221157') {
+      const adminUser: User = {
+        id: 1,
+        firstName: 'مدیر',
+        lastName: 'سیستم',
+        username: 'admin',
+        role: 'Administrator',
+      };
+      login(adminUser);
+    } else {
+      setError('نام کاربری یا رمز عبور اشتباه است.');
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-gray-100">
+      <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-2xl shadow-lg">
+        <div className="text-center">
+          <h1 className="text-3xl font-bold text-gray-800">سیستم جامع کارگزینی</h1>
+          <p className="mt-2 text-gray-600">برای ورود به حساب کاربری خود وارد شوید</p>
+        </div>
+        <form className="mt-8 space-y-6" onSubmit={handleLogin}>
+          <div className="relative">
+             <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+              <UserIcon className="w-5 h-5 text-gray-400" />
+            </div>
+            <input
+              id="username"
+              name="username"
+              type="text"
+              required
+              className="w-full px-4 py-3 pr-10 text-gray-900 placeholder-gray-500 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="نام کاربری"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+            />
+          </div>
+          <div className="relative">
+            <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                <LockIcon className="w-5 h-5 text-gray-400" />
+            </div>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              required
+              className="w-full px-4 py-3 pr-10 text-gray-900 placeholder-gray-500 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="رمز عبور"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
+          
+          {error && <p className="text-sm text-red-600 text-center">{error}</p>}
+
+          <div>
+            <button
+              type="submit"
+              className="w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150 ease-in-out"
+            >
+              ورود
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
