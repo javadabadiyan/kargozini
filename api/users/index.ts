@@ -13,7 +13,8 @@ export default async function handler(
       return res.status(200).json(rows);
     } catch (error) {
       console.error(error);
-      return res.status(500).json({ error: 'Failed to fetch users' });
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      return res.status(500).json({ error: 'Failed to fetch users', details: errorMessage });
     }
   }
 
@@ -40,7 +41,8 @@ export default async function handler(
       }
     } catch (error) {
       console.error(error);
-      return res.status(500).json({ error: 'Failed to save user' });
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      return res.status(500).json({ error: 'Failed to save user', details: errorMessage });
     }
   }
 
@@ -54,7 +56,8 @@ export default async function handler(
       return res.status(204).send(null); // No Content
     } catch (error) {
       console.error(error);
-      return res.status(500).json({ error: 'Failed to delete user' });
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      return res.status(500).json({ error: 'Failed to delete user', details: errorMessage });
     }
   }
 

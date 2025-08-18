@@ -18,6 +18,10 @@ export default async function handler(
     return response.status(200).json({ result });
   } catch (error) {
     console.error(error);
-    return response.status(500).json({ error: 'Failed to create table' });
+    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+    return response.status(500).json({ 
+        error: 'Failed to create table', 
+        details: errorMessage 
+    });
   }
 }
