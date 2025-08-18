@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import type { User } from '../types';
+import type { User, Role } from '../types';
 import { CloseIcon } from './icons';
 
 interface AddUserModalProps {
@@ -8,9 +8,10 @@ interface AddUserModalProps {
   onClose: () => void;
   onSave: (user: Omit<User, 'id'>) => void;
   userToEdit?: User | null;
+  roles: Role[];
 }
 
-export const AddUserModal: React.FC<AddUserModalProps> = ({ isOpen, onClose, onSave, userToEdit }) => {
+export const AddUserModal: React.FC<AddUserModalProps> = ({ isOpen, onClose, onSave, userToEdit, roles }) => {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [username, setUsername] = useState('');
@@ -18,24 +19,27 @@ export const AddUserModal: React.FC<AddUserModalProps> = ({ isOpen, onClose, onS
   const [password, setPassword] = useState('');
 
   useEffect(() => {
-    if (userToEdit) {
-      setFirstName(userToEdit.firstName);
-      setLastName(userToEdit.lastName);
-      setUsername(userToEdit.username);
-      setRole(userToEdit.role);
-      setPassword(''); // Don't pre-fill password for editing
-    } else {
-      setFirstName('');
-      setLastName('');
-      setUsername('');
-      setRole('');
-      setPassword('');
+    if (isOpen) {
+        if (userToEdit) {
+            setFirstName(userToEdit.firstName);
+            setLastName(userToEdit.lastName);
+            setUsername(userToEdit.username);
+            setRole(userToEdit.role);
+            setPassword(''); // Don't pre-fill password for editing
+        } else {
+            // Reset form for new user
+            setFirstName('');
+            setLastName('');
+            setUsername('');
+            // Set default role to the first one in the list if available
+            setRole(roles.length > 0 ? roles[0].name : '');
+            setPassword('');
+        }
     }
-  }, [userToEdit, isOpen]);
+  }, [userToEdit, isOpen, roles]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Simple validation
     if (!firstName || !lastName || !username || !role || (!userToEdit && !password)) {
         alert("لطفا تمام فیلد ها را پر کنید.");
         return;
@@ -75,7 +79,18 @@ export const AddUserModal: React.FC<AddUserModalProps> = ({ isOpen, onClose, onS
           )}
           <div>
             <label htmlFor="role" className="block text-sm font-medium text-gray-700 mb-1">نقش</label>
-            <input type="text" id="role" value={role} onChange={(e) => setRole(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" required />
+            <select 
+                id="role" 
+                value={role} 
+                onChange={(e) => setRole(e.target.value)} 
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 bg-white" 
+                required
+            >
+                <option value="" disabled>یک نقش انتخاب کنید</option>
+                {roles.map(r => (
+                    <option key={r.id} value={r.name}>{r.name}</option>
+                ))}
+            </select>
           </div>
           <div className="flex justify-end pt-4 space-x-2 space-x-reverse">
             <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition">انصراف</button>

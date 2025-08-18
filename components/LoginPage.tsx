@@ -16,12 +16,12 @@ export const LoginPage: React.FC = () => {
 
     // NOTE: This is a mock login. In a real application, you would make an API call
     // to your Vercel backend to verify credentials.
-    if (username === 'admin' && password === '5221157') {
+    if (username === 'ادمین' && password === '5221157') {
       const adminUser: User = {
         id: 1,
         firstName: 'مدیر',
         lastName: 'سیستم',
-        username: 'admin',
+        username: 'ادمین',
         role: 'Administrator',
       };
       login(adminUser);
