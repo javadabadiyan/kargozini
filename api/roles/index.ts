@@ -1,4 +1,3 @@
-
 import { sql } from '@vercel/postgres';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import type { Role } from '../../types';
@@ -10,6 +9,19 @@ export default async function handler(
   // GET: Fetch all roles
   if (req.method === 'GET') {
     try {
+      // Ensure the 'roles' table exists.
+      await sql`
+        CREATE TABLE IF NOT EXISTS roles (
+          id SERIAL PRIMARY KEY,
+          name VARCHAR(50) UNIQUE NOT NULL
+        );
+      `;
+    
+      // Add some default roles if they don't exist to ensure the app has initial data.
+      await sql`
+          INSERT INTO roles (name) VALUES ('مدیر'), ('کاربر') ON CONFLICT (name) DO NOTHING;
+      `;
+
       const { rows } = await sql<Role>`SELECT * FROM roles ORDER BY name;`;
       return res.status(200).json(rows);
     } catch (error) {

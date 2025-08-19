@@ -9,6 +9,17 @@ export default async function handler(
   // GET: Fetch all users
   if (req.method === 'GET') {
     try {
+      // Ensure the 'users' table exists before trying to query it.
+      await sql`
+        CREATE TABLE IF NOT EXISTS users (
+          id SERIAL PRIMARY KEY,
+          "firstName" VARCHAR(50) NOT NULL,
+          "lastName" VARCHAR(50) NOT NULL,
+          username VARCHAR(50) UNIQUE NOT NULL,
+          role VARCHAR(50) NOT NULL
+        );
+      `;
+
       const { rows } = await sql<User>`SELECT id, "firstName", "lastName", username, role FROM users ORDER BY id DESC;`;
       return res.status(200).json(rows);
     } catch (error) {
