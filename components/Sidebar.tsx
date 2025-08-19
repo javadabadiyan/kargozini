@@ -1,9 +1,10 @@
-import React from 'react';
-import { UserIcon, SettingsIcon, LockIcon, DashboardIcon } from './icons';
+import React, { useState } from 'react';
+import { UserIcon, SettingsIcon, LockIcon, DashboardIcon, BriefcaseIcon, ChevronDownIcon } from './icons';
 import { useSettings } from '../context/SettingsContext';
 
 
-type Page = 'dashboard' | 'users' | 'settings' | 'user-management';
+type Page = 'dashboard' | 'users' | 'settings' | 'user-management' | 
+            'commitment_letter' | 'disciplinary_committee' | 'performance_evaluation' | 'job_group' | 'bonus_management';
 
 interface SidebarProps {
   activePage: Page;
@@ -14,12 +15,32 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, isOpen, onClose }) => {
   const { settings } = useSettings();
+  const [isHrMenuOpen, setIsHrMenuOpen] = useState(false);
+
   const navItems = [
     { id: 'dashboard', label: 'داشبورد', icon: DashboardIcon },
     { id: 'users', label: 'مدیریت پرسنل', icon: UserIcon },
+    { 
+      id: 'hr_menu', 
+      label: 'کارگزینی', 
+      icon: BriefcaseIcon,
+      children: [
+        { id: 'commitment_letter', label: 'نامه تعهد حسابداری' },
+        { id: 'disciplinary_committee', label: 'کمیته تشویق و انضباطی' },
+        { id: 'performance_evaluation', label: 'ارزیابی عملکرد' },
+        { id: 'job_group', label: 'گروه شغلی پرسنل' },
+        { id: 'bonus_management', label: 'مدیریت کارانه' },
+      ]
+    },
     { id: 'user-management', label: 'مدیریت کاربران', icon: LockIcon },
     { id: 'settings', label: 'تنظیمات', icon: SettingsIcon },
   ];
+
+  // Helper to check if a parent menu is active
+  const isParentActive = (item: any) => {
+    return item.children && item.children.some((child: any) => child.id === activePage);
+  };
+
 
   const handleNavigation = (page: Page) => {
     setActivePage(page);
@@ -45,17 +66,54 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, isO
           <ul className="space-y-2">
             {navItems.map((item) => (
               <li key={item.id}>
-                <button
-                  onClick={() => handleNavigation(item.id as Page)}
-                  className={`w-full flex items-center px-4 py-3 rounded-lg transition-colors duration-200 ${
-                    activePage === item.id
-                      ? 'bg-gray-700 text-white'
-                      : 'text-gray-400 hover:bg-gray-700 hover:text-white'
-                  }`}
-                >
-                  <item.icon className="w-6 h-6 ml-3" />
-                  <span>{item.label}</span>
-                </button>
+                {item.children ? (
+                  <>
+                    <button
+                      onClick={() => setIsHrMenuOpen(!isHrMenuOpen)}
+                      className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-colors duration-200 ${
+                        isParentActive(item)
+                          ? 'bg-gray-700 text-white'
+                          : 'text-gray-400 hover:bg-gray-700 hover:text-white'
+                      }`}
+                    >
+                      <div className="flex items-center">
+                        <item.icon className="w-6 h-6 ml-3" />
+                        <span>{item.label}</span>
+                      </div>
+                      <ChevronDownIcon className={`w-5 h-5 transition-transform ${isHrMenuOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    {isHrMenuOpen && (
+                      <ul className="pr-4 mt-2 space-y-2">
+                        {item.children.map(child => (
+                           <li key={child.id}>
+                            <button
+                              onClick={() => handleNavigation(child.id as Page)}
+                              className={`w-full flex items-center px-4 py-2 rounded-lg transition-colors duration-200 text-sm ${
+                                activePage === child.id
+                                  ? 'bg-gray-600 text-white'
+                                  : 'text-gray-400 hover:bg-gray-700 hover:text-white'
+                              }`}
+                            >
+                              <span>{child.label}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </>
+                ) : (
+                  <button
+                    onClick={() => handleNavigation(item.id as Page)}
+                    className={`w-full flex items-center px-4 py-3 rounded-lg transition-colors duration-200 ${
+                      activePage === item.id
+                        ? 'bg-gray-700 text-white'
+                        : 'text-gray-400 hover:bg-gray-700 hover:text-white'
+                    }`}
+                  >
+                    <item.icon className="w-6 h-6 ml-3" />
+                    <span>{item.label}</span>
+                  </button>
+                )}
               </li>
             ))}
           </ul>

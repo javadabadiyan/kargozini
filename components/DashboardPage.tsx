@@ -11,7 +11,8 @@ import { DashboardView } from './DashboardView';
 import type { Personnel, User } from '../types';
 import * as XLSX from 'xlsx';
 
-type Page = 'dashboard' | 'users' | 'settings' | 'user-management';
+type Page = 'dashboard' | 'users' | 'settings' | 'user-management' |
+            'commitment_letter' | 'disciplinary_committee' | 'performance_evaluation' | 'job_group' | 'bonus_management';
 
 export const DashboardPage: React.FC = () => {
   const [activePage, setActivePage] = useState<Page>('dashboard');
@@ -240,6 +241,14 @@ export const DashboardPage: React.FC = () => {
   };
   
   const renderContent = () => {
+    const PlaceholderPage = ({ title }: { title: string }) => (
+        <div>
+            <h1 className="text-2xl font-semibold text-gray-700 mb-6">{title}</h1>
+            <div className="bg-white rounded-lg shadow p-6 text-center">
+                <p className="text-gray-600">این صفحه در حال ساخت است.</p>
+            </div>
+        </div>
+    );
     switch(activePage) {
         case 'dashboard':
             return <DashboardView personnelCount={personnel.length} userCount={appUsers.length} />;
@@ -302,6 +311,16 @@ export const DashboardPage: React.FC = () => {
             return <UserManagementPage users={appUsers} onUsersChange={fetchAppUsers} />;
         case 'settings':
             return <SettingsPage />;
+        case 'commitment_letter':
+            return <PlaceholderPage title="نامه تعهد حسابداری" />;
+        case 'disciplinary_committee':
+            return <PlaceholderPage title="کمیته تشویق و انضباطی" />;
+        case 'performance_evaluation':
+            return <PlaceholderPage title="ارزیابی عملکرد" />;
+        case 'job_group':
+            return <PlaceholderPage title="گروه شغلی پرسنل" />;
+        case 'bonus_management':
+            return <PlaceholderPage title="مدیریت کارانه" />;
         default:
             return null;
     }
