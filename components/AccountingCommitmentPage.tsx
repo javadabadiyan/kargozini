@@ -94,6 +94,13 @@ const PersonnelSearch = ({
   );
 };
 
+// --- Footer Icons for Printable Letter ---
+const PhoneIcon = ({ className = 'w-4 h-4' }: { className?: string }) => (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" /></svg>);
+const GlobeIcon = ({ className = 'w-4 h-4' }: { className?: string }) => (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A11.953 11.953 0 0012 16.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 003 12c0 .778.099 1.533.284 2.253m0 0A11.953 11.953 0 0112 13.5c2.998 0 5.74 1.1 7.843 2.918" /></svg>);
+const MailIcon = ({ className = 'w-4 h-4' }: { className?: string }) => (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" /></svg>);
+const LocationIcon = ({ className = 'w-4 h-4' }: { className?: string }) => (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" /></svg>);
+
+
 const ViewLetterModal = ({
   commitment,
   onClose,
@@ -108,42 +115,109 @@ const ViewLetterModal = ({
   const handlePrint = () => {
     const content = printableRef.current;
     if (content) {
-      const printWindow = window.open('', '', 'height=800,width=800');
+      const printWindow = window.open('', '', 'height=842,width=595'); // A5 dimensions in pixels approx
       if (printWindow) {
-        printWindow.document.write('<html><head><title>چاپ نامه</title>');
-        printWindow.document.write('<style>@import url("https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;700&display=swap"); body { font-family: "Vazirmatn", sans-serif; direction: rtl; padding: 20px; } .content { white-space: pre-line; line-height: 2; text-align: justify; } .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 3rem; } .title { text-align: center; margin-bottom: 3rem; } .signature { margin-top: 6rem; text-align: center; } </style>');
-        printWindow.document.write('</head><body>');
+        printWindow.document.write('<html><head><title>چاپ نامه تعهد</title>');
+        // We inject Tailwind's CDN and custom print styles for the letterhead
+        printWindow.document.write('<script src="https://cdn.tailwindcss.com"><\/script>');
+        printWindow.document.write(`
+          <style>
+            @import url("https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;700&display=swap");
+            @page { size: A5; margin: 0; }
+            body { 
+              font-family: "Vazirmatn", sans-serif; 
+              direction: rtl; 
+              -webkit-print-color-adjust: exact !important; 
+              print-color-adjust: exact !important;
+              background-color: white;
+            }
+          </style>
+        `);
+        printWindow.document.write('</head><body class="bg-white">');
         printWindow.document.write(content.innerHTML);
         printWindow.document.write('</body></html>');
         printWindow.document.close();
-        printWindow.focus();
-        printWindow.print();
-        printWindow.close();
+        setTimeout(() => { // Timeout to allow styles and fonts to load
+            printWindow.focus();
+            printWindow.print();
+            printWindow.close();
+        }, 500);
       }
     }
   };
 
+  const PrintableLetter = React.forwardRef<HTMLDivElement, { commitment: AccountingCommitmentWithDetails }>(({ commitment }, ref) => (
+      <div ref={ref} className="w-[148mm] h-[210mm] bg-white relative p-6 mx-auto flex flex-col font-['Vazirmatn'] text-black overflow-hidden">
+        {/* Decorative Side Bar */}
+        <div className="absolute top-0 right-0 h-full w-[12mm] bg-[#333745]"></div>
+        <div className="absolute top-0 right-[4mm] h-full w-[4mm] bg-[#366FB3]"></div>
+        <div className="absolute top-[25mm] right-0 w-[24mm] h-[12mm] bg-[#F3D04E]" style={{ clipPath: 'polygon(0 0, 100% 0, 100% 100%, 0 100%, 20% 50%)'}}></div>
+
+        {/* Faded Background Logo */}
+        <div className="absolute inset-0 flex items-center justify-center opacity-5 -z-10">
+          <div className="w-64 h-64 border-[16px] border-gray-300 rounded-full flex items-center justify-center text-gray-300">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-32 h-32" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5l10-5l-10-5zM2 17l10 5l10-5l-10-5l-10 5z" /></svg>
+          </div>
+        </div>
+
+        {/* Header */}
+        <header className="flex-shrink-0">
+          <h1 className="text-center text-2xl font-bold mb-8">بسمه تعالی</h1>
+          <div className="flex justify-between items-start text-sm">
+            <div className="space-y-2">
+              <p>تاریخ : <span className="font-semibold">{toPersianDigits(commitment.letter_date)}</span></p>
+              <p>شماره : ........................</p>
+              <p>پیوست : ........................</p>
+            </div>
+            <div className="text-center -mr-8">
+               <div className="w-24 h-24 mx-auto rounded-full flex items-center justify-center bg-white border-4 border-blue-600 shadow-md">
+                 <p className="text-gray-400 text-xs">Logo</p>
+               </div>
+               <h2 className="font-bold text-lg mt-2">شرکت نگین گهر خاورمیانه</h2>
+               <p className="text-xs">Negin Gohar Khavarmianeh Co.</p>
+            </div>
+          </div>
+        </header>
+
+        {/* Body */}
+        <main className="flex-grow pt-8 text-justify text-base leading-loose">
+           <h2 className="text-xl font-bold mb-4">{commitment.addressee}</h2>
+           <h3 className="text-lg font-semibold mb-6">موضوع: {commitment.title}</h3>
+           <p style={{ whiteSpace: 'pre-line' }}>{commitment.body}</p>
+        </main>
+        
+        {/* Footer */}
+        <footer className="absolute bottom-0 left-0 right-0 text-xs flex-shrink-0">
+          <div className="h-1 bg-red-500"></div>
+          <div className="bg-[#F3D04E] p-1 flex justify-around items-center text-black font-semibold">
+              <div className="flex items-center gap-1"><PhoneIcon /><span>فکس : ۳۲۲۷۱۲۲۰-۰۳۴</span></div>
+              <div className="flex items-center gap-1"><PhoneIcon /><span>تلفن : ۳۲۲۷۱۶۸۱۳-۰۳۴ | ۳۲۲۷۱۲۲۰۹-۰۳۴</span></div>
+              <div className="flex items-center gap-1"><GlobeIcon /><span>www.negingoharco.com</span></div>
+              <div className="flex items-center gap-1"><MailIcon /><span>info@negingoharco.com</span></div>
+          </div>
+          <div className="flex justify-between items-center text-black px-4 py-1">
+             <div className="flex items-center gap-1"><LocationIcon /><span>آدرس : بلوار پارادیس – بلوار مهاجرین – کوچه مهاجرین ۹ – پلاک ۱۱۷ – طبقه همکف – کد پستی ۷۶۱۴۷۶۴۱۹۳</span></div>
+             <div className="flex items-center gap-2">
+                <div className="w-12 h-6 bg-gray-200 flex items-center justify-center text-gray-500 text-[8px]">ISO</div>
+                <div className="w-12 h-6 bg-gray-200 flex items-center justify-center text-gray-500 text-[8px]">ISO</div>
+                <div className="w-12 h-6 bg-gray-200 flex items-center justify-center text-gray-500 text-[8px]">ISO</div>
+             </div>
+          </div>
+        </footer>
+      </div>
+  ));
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl p-6 relative animate-fade-in-down max-h-[90vh] flex flex-col">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl p-6 relative animate-fade-in-down max-h-[90vh] flex flex-col">
         <div className="flex justify-between items-center border-b pb-3 mb-4">
             <h2 className="text-xl font-bold text-slate-800">نمایش نامه تعهد</h2>
             <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100">
                 <CloseIcon />
             </button>
         </div>
-        <div className="overflow-y-auto flex-1" ref={printableRef}>
-           <div className="header">
-             <div className="text-sm">تاریخ: {toPersianDigits(commitment.letter_date)}</div>
-             <div className="text-sm">شماره: .................</div>
-           </div>
-           <h1 className="title text-2xl font-bold">{commitment.addressee}</h1>
-           <h2 className="title text-xl">موضوع: {commitment.title}</h2>
-           <p className="content">{commitment.body}</p>
-           <div className="signature">
-             <p>با تشکر</p>
-             <p className="font-bold">مدیریت سرمایه انسانی</p>
-           </div>
+        <div className="overflow-auto flex-1 bg-slate-100 p-4 rounded-md">
+           <PrintableLetter ref={printableRef} commitment={commitment} />
         </div>
         <div className="flex justify-end pt-4 mt-4 border-t">
           <button onClick={onClose} className="px-4 py-2 bg-slate-200 text-slate-800 rounded-md hover:bg-slate-300 transition ml-2">بستن</button>
@@ -159,7 +233,7 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
   const [addressee, setAddressee] = useState('ریاست محترم بانک رفاه شعبه مرکزی سیرجان');
   const [title, setTitle] = useState('تعهد حسابداری');
   const [letterBody, setLetterBody] = useState('');
-  const [date, setDate] = useState(new Date().toLocaleDateString('fa-IR', { year: 'numeric', month: '2-digit', day: '2-digit' }));
+  const [date, setDate] = useState(new Date().toLocaleDateString('fa-IR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-'));
   const [amount, setAmount] = useState<number | ''>('');
   const [totalFactors, setTotalFactors] = useState<number | ''>('');
   const [personnelFactors, setPersonnelFactors] = useState<Record<string, number>>({});
@@ -331,7 +405,7 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
     setTotalFactors('');
     setAddressee('ریاست محترم بانک رفاه شعبه مرکزی سیرجان');
     setTitle('تعهد حسابداری');
-    setDate(new Date().toLocaleDateString('fa-IR', { year: 'numeric', month: '2-digit', day: '2-digit' }));
+    setDate(new Date().toLocaleDateString('fa-IR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-'));
   };
 
   const handleSave = async () => {
@@ -544,7 +618,7 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
 
   return (
     <div className="animate-fade-in-up">
-        <ViewLetterModal commitment={commitmentToView} onClose={closeViewModal} />
+        {isViewModalOpen && <ViewLetterModal commitment={commitmentToView} onClose={closeViewModal} />}
         <h1 className="text-3xl font-bold text-slate-700 mb-6">نامه تعهد حسابداری</h1>
         
         <div className="bg-white rounded-xl shadow-md p-6 border border-slate-200 mb-8" ref={formRef}>
@@ -621,64 +695,71 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
         <div className="bg-white rounded-xl shadow-md p-6 border border-slate-200">
             <h2 className="text-xl font-bold text-slate-800 mb-4 border-b pb-3">آرشیو نامه‌های ذخیره شده</h2>
             <input type="text" placeholder="جستجو در آرشیو..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full md:w-1/3 mb-4 px-4 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
-             <div className="space-y-3">
-                {isLoading ? (
-                    <div className="text-center py-8 text-slate-500">در حال بارگذاری...</div>
-                ) : groupedCommitments.length === 0 ? (
-                    <div className="text-center py-8 text-slate-500">هیچ نامه‌ای یافت نشد.</div>
-                ) : (
-                    groupedCommitments.map(group => (
-                        <div key={group.key} className="border border-slate-200 rounded-lg overflow-hidden transition-all duration-300">
-                            <button 
-                                className="w-full flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 bg-slate-50 hover:bg-slate-100 transition text-right"
-                                onClick={() => setExpandedKey(expandedKey === group.key ? null : group.key)}
-                                aria-expanded={expandedKey === group.key}
-                            >
-                                <div className="mb-2 sm:mb-0">
-                                    <p className="font-bold text-slate-800">{group.borrowerName}</p>
-                                    <p className="text-sm text-slate-500">{group.borrowerIdentifier ? `کد: ${toPersianDigits(group.borrowerIdentifier)}` : ''}</p>
-                                </div>
-                                <div className="flex items-center space-x-2 space-x-reverse text-sm w-full sm:w-auto justify-end">
-                                    <span className="bg-slate-200 text-slate-700 px-2 py-1 rounded-md font-medium">تعداد: {toPersianDigits(group.count)}</span>
-                                    <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-md font-semibold">مجموع: {formatRial(group.totalAmount)} ریال</span>
-                                    <ChevronDownIcon className={`w-5 h-5 text-slate-500 transition-transform ${expandedKey === group.key ? 'rotate-180' : ''}`} />
-                                </div>
-                            </button>
-                            {expandedKey === group.key && (
-                                <div className="p-2 bg-white animate-fade-in-down">
-                                    <div className="overflow-x-auto">
-                                        <table className="min-w-full divide-y divide-slate-100">
-                                            <thead className="bg-white">
-                                                <tr>
-                                                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">ضامن</th>
-                                                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">مبلغ</th>
-                                                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">تاریخ</th>
-                                                    <th className="relative px-4 py-2"><span className="sr-only">عملیات</span></th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="bg-white divide-y divide-slate-100">
-                                                {group.letters.map(c => (
-                                                    <tr key={c.id}>
-                                                        <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-600">{c.guarantor_first_name} {c.guarantor_last_name}</td>
-                                                        <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-600">{formatRial(c.amount)}</td>
-                                                        <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-600">{toPersianDigits(c.letter_date)}</td>
-                                                        <td className="px-4 py-3 whitespace-nowrap text-left text-sm font-medium">
-                                                            <div className="flex items-center justify-end space-x-4 space-x-reverse">
-                                                                <button onClick={() => handleView(c)} className="text-slate-500 hover:text-blue-600 transition" title="نمایش نامه"><EyeIcon className="w-5 h-5"/></button>
-                                                                <button onClick={() => handleEdit(c)} className="text-slate-500 hover:text-indigo-600 transition" title="ویرایش"><EditIcon className="w-5 h-5"/></button>
-                                                                <button onClick={() => handleDelete(c.id)} className="text-slate-500 hover:text-red-600 transition" title="حذف"><DeleteIcon className="w-5 h-5"/></button>
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    ))
-                )}
+             <div className="overflow-x-auto">
+                <table className="min-w-full">
+                    <thead className="bg-slate-50">
+                        <tr>
+                            <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase w-10"></th>
+                            <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">وام گیرنده</th>
+                            <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">شناسه</th>
+                            <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">تعداد نامه‌ها</th>
+                            <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">جمع کل تعهدات</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                        {isLoading ? (
+                           <tr><td colSpan={5} className="text-center py-8 text-slate-500">در حال بارگذاری...</td></tr>
+                        ) : groupedCommitments.length === 0 ? (
+                            <tr><td colSpan={5} className="text-center py-8 text-slate-500">هیچ نامه‌ای یافت نشد.</td></tr>
+                        ) : (
+                            groupedCommitments.map(group => (
+                                <React.Fragment key={group.key}>
+                                    <tr className="cursor-pointer hover:bg-slate-50" onClick={() => setExpandedKey(expandedKey === group.key ? null : group.key)}>
+                                        <td className="px-4 py-3"><ChevronDownIcon className={`w-5 h-5 text-slate-400 transition-transform ${expandedKey === group.key ? 'rotate-180' : ''}`} /></td>
+                                        <td className="px-4 py-3 font-semibold text-slate-800">{group.borrowerName}</td>
+                                        <td className="px-4 py-3 text-slate-600">{toPersianDigits(group.borrowerIdentifier)}</td>
+                                        <td className="px-4 py-3 text-slate-600">{toPersianDigits(group.count)}</td>
+                                        <td className="px-4 py-3 font-bold text-blue-600">{formatRial(group.totalAmount)}</td>
+                                    </tr>
+                                    {expandedKey === group.key && (
+                                        <tr className="bg-slate-50/70">
+                                            <td colSpan={5} className="p-0">
+                                                <div className="p-4">
+                                                    <table className="min-w-full bg-white rounded-md shadow-inner">
+                                                        <thead className="bg-slate-100">
+                                                          <tr>
+                                                              <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">ضامن</th>
+                                                              <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">مبلغ</th>
+                                                              <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">تاریخ</th>
+                                                              <th className="relative px-4 py-2"><span className="sr-only">عملیات</span></th>
+                                                          </tr>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-slate-100">
+                                                            {group.letters.map(c => (
+                                                                <tr key={c.id}>
+                                                                    <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-600">{c.guarantor_first_name} {c.guarantor_last_name}</td>
+                                                                    <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-600">{formatRial(c.amount)}</td>
+                                                                    <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-600">{toPersianDigits(c.letter_date)}</td>
+                                                                    <td className="px-4 py-3 whitespace-nowrap text-left text-sm font-medium">
+                                                                        <div className="flex items-center justify-end space-x-4 space-x-reverse">
+                                                                            <button onClick={() => handleView(c)} className="text-slate-500 hover:text-blue-600 transition" title="نمایش نامه"><EyeIcon className="w-5 h-5"/></button>
+                                                                            <button onClick={() => handleEdit(c)} className="text-slate-500 hover:text-indigo-600 transition" title="ویرایش"><EditIcon className="w-5 h-5"/></button>
+                                                                            <button onClick={() => handleDelete(c.id)} className="text-slate-500 hover:text-red-600 transition" title="حذف"><DeleteIcon className="w-5 h-5"/></button>
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    )}
+                                </React.Fragment>
+                            ))
+                        )}
+                    </tbody>
+                </table>
              </div>
         </div>
     </div>
