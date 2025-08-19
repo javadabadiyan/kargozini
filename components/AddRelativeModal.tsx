@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import type { Personnel, Relative } from '../types';
 import { CloseIcon } from './icons';
 import { toPersianDigits } from './format';
@@ -22,24 +22,76 @@ export const AddRelativeModal: React.FC<AddRelativeModalProps> = ({ isOpen, onCl
   };
 
   const [formData, setFormData] = useState(initialFormState);
+  const [personnelSearch, setPersonnelSearch] = useState('');
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isOpen) {
       if (relativeToEdit) {
         setFormData({
             ...relativeToEdit,
-            personnel_id: String(relativeToEdit.personnel_id) // Ensure it's a string for select value
+            personnel_id: String(relativeToEdit.personnel_id)
         });
+        const selectedPersonnel = personnelList.find(p => p.id === relativeToEdit.personnel_id);
+        if (selectedPersonnel) {
+            setPersonnelSearch(`${selectedPersonnel.first_name} ${selectedPersonnel.last_name} (${toPersianDigits(selectedPersonnel.personnel_code)})`);
+        } else {
+            setPersonnelSearch('');
+        }
       } else {
         setFormData(initialFormState);
+        setPersonnelSearch('');
       }
+      setIsDropdownOpen(false);
     }
-  }, [relativeToEdit, isOpen]);
+  }, [relativeToEdit, isOpen, personnelList]);
   
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+        if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+            setIsDropdownOpen(false);
+        }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
+
+  const handlePersonnelSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPersonnelSearch(e.target.value);
+    if (formData.personnel_id) {
+        setFormData(prev => ({ ...prev, personnel_id: '' }));
+    }
+    if (!isDropdownOpen) {
+        setIsDropdownOpen(true);
+    }
+  };
+
+  const handleSelectPersonnel = (p: Personnel) => {
+    setFormData(prev => ({ ...prev, personnel_id: String(p.id) }));
+    setPersonnelSearch(`${p.first_name} ${p.last_name} (${toPersianDigits(p.personnel_code)})`);
+    setIsDropdownOpen(false);
+  };
+  
+  const filteredPersonnel = personnelList.filter(p => {
+    if (!personnelSearch) return true;
+
+    const selectedPerson = formData.personnel_id ? personnelList.find(sp => String(sp.id) === formData.personnel_id) : null;
+    const isSearchUnchanged = selectedPerson && personnelSearch === `${selectedPerson.first_name} ${selectedPerson.last_name} (${toPersianDigits(selectedPerson.personnel_code)})`;
+
+    if (isSearchUnchanged) return true;
+
+    const searchTerm = personnelSearch.toLowerCase();
+    return (
+        `${p.first_name} ${p.last_name}`.toLowerCase().includes(searchTerm) ||
+        p.personnel_code.toLowerCase().includes(searchTerm)
+    );
+  });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,23 +122,36 @@ export const AddRelativeModal: React.FC<AddRelativeModalProps> = ({ isOpen, onCl
         <h2 className="text-2xl font-bold mb-6 text-slate-800">{relativeToEdit ? 'ویرایش اطلاعات بستگان' : 'افزودن بستگان'}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            <div>
-              <label htmlFor="personnel_id" className="block text-sm font-medium text-slate-700 mb-1">پرسنل<span className="text-red-500 mr-1">*</span></label>
-              <select 
-                id="personnel_id" 
-                name="personnel_id" 
-                value={formData.personnel_id}
-                onChange={handleChange} 
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-                required
-              >
-                <option value="">یک پرسنل را انتخاب کنید</option>
-                {personnelList.map(p => (
-                    <option key={p.id} value={p.id}>
-                        {p.first_name} {p.last_name} ({toPersianDigits(p.personnel_code)})
-                    </option>
-                ))}
-              </select>
+            <div className="relative" ref={dropdownRef}>
+              <label htmlFor="personnel_search" className="block text-sm font-medium text-slate-700 mb-1">پرسنل<span className="text-red-500 mr-1">*</span></label>
+              <input
+                id="personnel_search"
+                type="text"
+                value={personnelSearch}
+                onChange={handlePersonnelSearchChange}
+                onFocus={() => setIsDropdownOpen(true)}
+                placeholder="جستجوی نام یا کد پرسنلی..."
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                required={!formData.personnel_id}
+                autoComplete="off"
+              />
+              {isDropdownOpen && (
+                <ul className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                    {filteredPersonnel.length > 0 ? (
+                        filteredPersonnel.map(p => (
+                            <li
+                                key={p.id}
+                                onClick={() => handleSelectPersonnel(p)}
+                                className="px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 cursor-pointer"
+                            >
+                                {p.first_name} {p.last_name} ({toPersianDigits(p.personnel_code)})
+                            </li>
+                        ))
+                    ) : (
+                        <li className="px-4 py-2 text-sm text-slate-500">پرسنلی یافت نشد.</li>
+                    )}
+                </ul>
+              )}
             </div>
             <div>
                 <label htmlFor="relation" className="block text-sm font-medium text-slate-700 mb-1">نسبت</label>

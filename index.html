@@ -38,6 +38,31 @@
       .animate-fade-in-up {
         animation: fade-in-up 0.5s ease-out forwards;
       }
+
+      /* Print styles */
+      @media print {
+        body * {
+          visibility: hidden;
+        }
+        .printable-area, .printable-area * {
+          visibility: visible;
+        }
+        .printable-area {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 100%;
+          margin: 0;
+          padding: 20px;
+          font-size: 12pt;
+          color: #000;
+        }
+        .no-print, .no-print * {
+          display: none !important;
+        }
+        .print\:block { display: block !important; }
+        .print\:text-black { color: #000 !important; }
+      }
     </style>
 <script type="importmap">
 {

@@ -9,6 +9,7 @@ import { SettingsPage } from './SettingsPage';
 import { UserManagementPage } from './UserManagementPage';
 import { DashboardView } from './DashboardView';
 import { RelativesPage } from './RelativesPage';
+import { AccountingCommitmentPage } from './AccountingCommitmentPage';
 import type { Personnel, User } from '../types';
 import * as XLSX from 'xlsx';
 import { toPersianDigits } from './format';
@@ -326,7 +327,7 @@ export const DashboardPage: React.FC = () => {
         case 'settings':
             return <SettingsPage />;
         case 'commitment_letter':
-            return <PlaceholderPage title="نامه تعهد حسابداری" />;
+            return <AccountingCommitmentPage personnelList={personnel} />;
         case 'disciplinary_committee':
             return <PlaceholderPage title="کمیته تشویق و انضباطی" />;
         case 'performance_evaluation':
@@ -352,19 +353,23 @@ export const DashboardPage: React.FC = () => {
 
   return (
     <div className="relative flex h-screen bg-slate-50 overflow-hidden">
-      <Sidebar 
-        activePage={activePage} 
-        setActivePage={setActivePage}
-        isOpen={isSidebarOpen}
-        onClose={() => setIsSidebarOpen(false)}
-      />
+      <div className="no-print">
+        <Sidebar 
+          activePage={activePage} 
+          setActivePage={setActivePage}
+          isOpen={isSidebarOpen}
+          onClose={() => setIsSidebarOpen(false)}
+        />
+      </div>
       <div className="flex-1 flex flex-col overflow-hidden md:mr-64">
-        <Header onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)} />
+        <div className="no-print">
+            <Header onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)} />
+        </div>
         <main className="flex-1 flex flex-col overflow-y-auto p-4 sm:p-8">
           <div className="container mx-auto">
             {renderContent()}
           </div>
-           <footer className="text-center text-slate-500 text-sm mt-auto pt-4">
+           <footer className="text-center text-slate-500 text-sm mt-auto pt-4 no-print">
               طراحی و کدنویسی جواد آبادیان
             </footer>
         </main>
