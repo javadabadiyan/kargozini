@@ -3,7 +3,10 @@ import type { Personnel, AccountingCommitment, AccountingCommitmentWithDetails }
 import { toPersianDigits, formatRial, toEnglishDigits } from './format';
 import { CloseIcon, UploadIcon, EyeIcon, EditIcon, DeleteIcon, ChevronDownIcon } from './icons';
 import * as XLSX from 'xlsx';
+import { GoogleGenAI } from "@google/genai";
 
+// Initialize the Gemini client. Ensure API_KEY is set in the environment.
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 interface AccountingCommitmentPageProps {
   personnelList: Personnel[];
@@ -229,7 +232,7 @@ const CommitmentArchive = ({
             const key = c.personnel_id ? `p_${c.personnel_id}` : `e_${c.borrower_first_name}_${c.borrower_last_name}`;
             if (!acc[key]) {
                 acc[key] = {
-                    borrowerName: `${c.personnel_first_name} ${c.personnel_last_name}`,
+                    borrowerName: `${c.personnel_first_name || ''} ${c.personnel_last_name || ''}`.trim(),
                     commitments: [],
                     totalAmount: 0,
                 };
@@ -327,6 +330,77 @@ const CommitmentArchive = ({
     );
 }
 
+const CommitmentSummary = ({ commitments }: { commitments: AccountingCommitmentWithDetails[] }) => {
+    const [insights, setInsights] = useState<string>('');
+    const [isLoading, setIsLoading] = useState(false);
+
+    const stats = useMemo(() => {
+        if (commitments.length === 0) {
+            return { count: 0, sum: 0, avg: 0, min: 0, max: 0 };
+        }
+        const amounts = commitments.map(c => Number(c.amount));
+        const sum = amounts.reduce((acc, val) => acc + val, 0);
+        return {
+            count: commitments.length,
+            sum,
+            avg: sum / commitments.length,
+            min: Math.min(...amounts),
+            max: Math.max(...amounts),
+        };
+    }, [commitments]);
+
+    useEffect(() => {
+        const generateInsights = async () => {
+            if (commitments.length < 2) {
+                setInsights('برای تحلیل داده، حداقل به دو نامه تعهد ثبت شده نیاز است.');
+                return;
+            };
+            setIsLoading(true);
+            try {
+                const simplifiedData = JSON.stringify(commitments.map(c => ({ 
+                    amount: c.amount, 
+                    title: c.title, 
+                    date: c.letter_date 
+                })));
+                
+                const prompt = `شما یک تحلیلگر داده مالی هستید. داده‌های JSON زیر مربوط به نامه‌های تعهد حسابداری صادر شده است. یک خلاصه مدیریتی ارائه دهید. این خلاصه باید شامل ۳ نکته یا بینش کلیدی (insight) در مورد این داده‌ها باشد. مثلا الگوهای موجود در مبالغ، دلایل تعهد، یا روند زمانی. پاسخ را به زبان فارسی و به صورت یک لیست کوتاه سه موردی (با خط تیره) ارائه دهید. داده‌ها: ${simplifiedData}`;
+                
+                const response = await ai.models.generateContent({
+                  model: 'gemini-2.5-flash',
+                  contents: prompt,
+                });
+                
+                setInsights(response.text);
+            } catch (e) {
+                console.error("Error generating insights:", e);
+                setInsights("خطا در تحلیل داده‌ها با هوش مصنوعی.");
+            } finally {
+                setIsLoading(false);
+            }
+        };
+        generateInsights();
+    }, [commitments]);
+
+    return (
+        <div className="bg-white rounded-xl shadow-md p-6 border border-slate-200">
+            <h2 className="text-xl font-bold text-slate-700 mb-4">تحلیل و خلاصه تعهدات</h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6 text-center">
+                <div className="bg-slate-50 p-3 rounded-lg"><p className="text-xs text-slate-500">تعداد کل</p><p className="font-bold text-lg text-slate-800">{toPersianDigits(stats.count)}</p></div>
+                <div className="bg-slate-50 p-3 rounded-lg col-span-2 lg:col-span-1"><p className="text-xs text-slate-500">مجموع تعهدات (ریال)</p><p className="font-bold text-lg text-slate-800">{formatRial(stats.sum)}</p></div>
+                <div className="bg-slate-50 p-3 rounded-lg"><p className="text-xs text-slate-500">میانگین (ریال)</p><p className="font-bold text-lg text-slate-800">{formatRial(stats.avg)}</p></div>
+                <div className="bg-slate-50 p-3 rounded-lg"><p className="text-xs text-slate-500">کمترین (ریال)</p><p className="font-bold text-lg text-slate-800">{formatRial(stats.min)}</p></div>
+                <div className="bg-slate-50 p-3 rounded-lg"><p className="text-xs text-slate-500">بیشترین (ریال)</p><p className="font-bold text-lg text-slate-800">{formatRial(stats.max)}</p></div>
+            </div>
+            <div>
+                <h3 className="text-md font-semibold text-slate-600 mb-2">بینش‌های کلیدی (AI)</h3>
+                <div className="bg-blue-50 border border-blue-200 text-blue-800 p-4 rounded-lg text-sm leading-relaxed">
+                    {isLoading ? <p>در حال تحلیل داده‌ها...</p> : <div style={{ whiteSpace: 'pre-line' }}>{insights}</div>}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 
 export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> = ({ personnelList }) => {
   const [commitmentToEdit, setCommitmentToEdit] = useState<AccountingCommitmentWithDetails | null>(null);
@@ -334,6 +408,7 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
   const [addressee, setAddressee] = useState('ریاست محترم بانک رفاه شعبه مرکزی سیرجان');
   const [title, setTitle] = useState('تعهد حسابداری');
   const [letterBody, setLetterBody] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
   const [date, setDate] = useState(new Date().toLocaleDateString('fa-IR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-'));
   const [amount, setAmount] = useState<number | ''>('');
   const [totalFactors, setTotalFactors] = useState<number | ''>('');
@@ -373,13 +448,42 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
   };
 
   useEffect(() => { fetchCommitments(); }, []);
-
-  const generateLetterBody = useCallback(() => {
-    const template = `احتراماً حسابداری این شرکت تعهد می نماید در صورت عدم پرداخت اقساط وام به مبلغ ${amount ? formatRial(amount) : '[مبلغ وام]'} ریال بنام آقای ${borrowerDetails.first_name || borrowerDetails.last_name ? `${borrowerDetails.first_name} ${borrowerDetails.last_name}` : '[نام وام گیرنده]'} فرزند ${borrowerDetails.father_name || '[نام پدر]'} با کد ملی ${borrowerDetails.national_id ? toPersianDigits(borrowerDetails.national_id) : '[کد ملی]'} از حقوق ضامن نامبرده آقای ${guarantor.first_name || guarantor.last_name ? `${guarantor.first_name} ${guarantor.last_name}` : '[نام ضامن]'} در این شرکت شاغل باشد بعد از اعلام بانک و با رعایت سقف قانونی کسر و به حساب آن بانک واریز نماید.\n\nاین گواهی بنا به درخواست نامبرده جهت ارائه به بانک فوق صادر گردیده است و فاقد هرگونه ارزش دیگری می باشد.`;
-    setLetterBody(template);
-  }, [borrowerDetails, guarantor, amount]);
   
-  useEffect(generateLetterBody, [generateLetterBody]);
+  const handleGenerateLetterBody = async () => {
+        setIsGenerating(true);
+        setLetterBody("در حال تولید متن...");
+        try {
+            const prompt = `شما یک کارشناس حقوقی در واحد کارگزینی یک شرکت معتبر هستید. یک متن رسمی و استاندارد برای «نامه تعهد حسابداری» جهت ضمانت وام بنویسید.
+اطلاعات زیر را در متن نامه بگنجانید و جایگذاری کنید:
+- گیرنده نامه: ${addressee || '[گیرنده نامه]'}
+- موضوع: ${title || '[موضوع]'}
+- نام ضامن: ${guarantor.first_name || '[نام ضامن]'} ${guarantor.last_name || '[نام خانوادگی ضامن]'}
+- نام وام گیرنده: ${borrowerDetails.first_name || '[نام وام گیرنده]'} ${borrowerDetails.last_name || '[نام خانوادگی وام گیرنده]'}
+- نام پدر وام گیرنده: ${borrowerDetails.father_name || '—'}
+- کد ملی وام گیرنده: ${toPersianDigits(borrowerDetails.national_id) || '—'}
+- مبلغ وام: ${amount ? formatRial(amount) : '[مبلغ وام]'} ریال (این مبلغ را به حروف نیز در پرانتز بنویسید).
+- تاریخ: ${toPersianDigits(date) || '[تاریخ]'}
+
+متن باید شامل موارد زیر باشد:
+1.  تعهد شرکت به کسر اقساط از حقوق و مزایای ضامن در صورت عدم پرداخت توسط وام گیرنده.
+2.  ذکر شود که این تعهد تا سقف قانونی از حقوق ضامن قابل کسر است.
+3.  یک جمله مبنی بر اینکه این نامه صرفا جهت ارائه به بانک مذکور صادر شده و فاقد ارزش دیگری است.
+
+لحن باید کاملا رسمی، اداری و حقوقی باشد. خروجی فقط متن نامه باشد.`;
+
+            const response = await ai.models.generateContent({
+              model: 'gemini-2.5-flash',
+              contents: prompt,
+            });
+
+            setLetterBody(response.text);
+        } catch (e) {
+            console.error("AI Generation Error:", e);
+            setLetterBody("خطا در تولید متن. لطفاً اطلاعات را بررسی کرده و مجدداً تلاش کنید.");
+        } finally {
+            setIsGenerating(false);
+        }
+  };
 
   useEffect(() => {
     if (selectedPersonnel && totalFactors !== '' && amount !== '') {
@@ -431,6 +535,7 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
     setGuarantor({ first_name: '', last_name: '' });
     setGuarantorSearch('');
     setAmount('');
+    setLetterBody('');
     setTotalFactors('');
     setAddressee('ریاست محترم بانک رفاه شعبه مرکزی سیرجان');
     setTitle('تعهد حسابداری');
@@ -443,6 +548,7 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
         setTitle(commitmentToEdit.title);
         setDate(commitmentToEdit.letter_date);
         setAmount(commitmentToEdit.amount);
+        setLetterBody(commitmentToEdit.body);
         
         const p = personnelList.find(p => p.id === commitmentToEdit.personnel_id);
         if(p) { handleSelectBorrower(p); } 
@@ -684,8 +790,13 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
                  </div>
             </div>
             <div className="mt-4">
-                <label className="block text-sm font-medium text-slate-700 mb-1">متن نامه (پیش‌نمایش خودکار)</label>
-                <textarea value={letterBody} readOnly rows={6} className="w-full px-3 py-2 border border-slate-200 bg-slate-50 rounded-lg shadow-sm leading-relaxed"/>
+                <div className="flex justify-between items-center mb-1">
+                    <label className="block text-sm font-medium text-slate-700">متن نامه</label>
+                     <button onClick={handleGenerateLetterBody} disabled={isGenerating} className="px-4 py-1.5 text-xs bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition disabled:bg-indigo-300">
+                        {isGenerating ? 'در حال تولید...' : 'تولید متن با هوش مصنوعی'}
+                    </button>
+                </div>
+                <textarea value={letterBody} onChange={e => setLetterBody(e.target.value)} rows={8} className="w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed"/>
             </div>
             <div className="flex justify-end pt-6 mt-4 border-t border-slate-200 space-x-2 space-x-reverse">
                 <button onClick={resetForm} className="px-5 py-2 bg-slate-100 text-slate-800 rounded-lg hover:bg-slate-200 transition font-medium">{commitmentToEdit ? 'لغو ویرایش' : 'پاک کردن فرم'}</button>
@@ -694,9 +805,12 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
             </div>
         </div>
 
-        <div>
-            <h2 className="text-2xl font-bold text-slate-700 mb-4">آرشیو نامه‌های تعهد</h2>
-            <CommitmentArchive commitments={commitments} onView={handlePreview} onEdit={setCommitmentToEdit} onDelete={handleDeleteCommitment} />
+        <div className="space-y-4">
+            <CommitmentSummary commitments={commitments} />
+            <div>
+                <h2 className="text-2xl font-bold text-slate-700 mb-4">آرشیو نامه‌های تعهد</h2>
+                <CommitmentArchive commitments={commitments} onView={handlePreview} onEdit={setCommitmentToEdit} onDelete={handleDeleteCommitment} />
+            </div>
         </div>
     </div>
   );
