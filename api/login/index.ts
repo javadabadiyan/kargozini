@@ -6,6 +6,49 @@ import type { User } from '../../types';
 
 const scryptAsync = promisify(scrypt);
 
+async function hashPassword(password: string) {
+  const salt = randomBytes(16).toString('hex');
+  const hash = (await scryptAsync(password, salt, 64)) as Buffer;
+  return `${salt}:${hash.toString('hex')}`;
+}
+
+async function setupTables() {
+    await sql`
+        CREATE TABLE IF NOT EXISTS app_users (
+            id SERIAL PRIMARY KEY,
+            "firstName" VARCHAR(100) NOT NULL,
+            "lastName" VARCHAR(100) NOT NULL,
+            username VARCHAR(100) UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL
+        );
+    `;
+    await sql`
+        CREATE TABLE IF NOT EXISTS user_permissions (
+            user_id INT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+            permission_name VARCHAR(100) NOT NULL,
+            PRIMARY KEY (user_id, permission_name)
+        );
+    `;
+    
+    // Create a default admin user if no users exist
+    const { rows: countRows } = await sql`SELECT COUNT(*) FROM app_users;`;
+    if (Number(countRows[0].count) === 0) {
+        const defaultPassword = 'password123'; // Users should change this immediately
+        const hashedPassword = await hashPassword(defaultPassword);
+        const { rows: userRows } = await sql`
+            INSERT INTO app_users ("firstName", "lastName", username, password_hash)
+            VALUES ('مدیر', 'سیستم', 'admin', ${hashedPassword})
+            RETURNING id;
+        `;
+        const adminId = userRows[0].id;
+        // Grant all permissions to the default admin
+        const allPermissions = ['manage_personnel', 'manage_users', 'manage_settings', 'perform_backup'];
+        for (const p of allPermissions) {
+            await sql`INSERT INTO user_permissions (user_id, permission_name) VALUES (${adminId}, ${p});`;
+        }
+    }
+}
+
 async function verifyPassword(storedPasswordHash: string, suppliedPassword: string): Promise<boolean> {
   const [salt, key] = storedPasswordHash.split(':');
   if (!salt || !key) return false;
@@ -30,6 +73,9 @@ export default async function handler(
   }
 
   try {
+    // Ensure database tables are created before processing login
+    await setupTables();
+
     const { username, password } = req.body;
     if (!username || !password) {
       return res.status(400).json({ error: 'نام کاربری و رمز عبور الزامی است.' });
