@@ -14,6 +14,7 @@ type Page = 'users' | 'settings' | 'user-management';
 
 export const DashboardPage: React.FC = () => {
   const [activePage, setActivePage] = useState<Page>('users');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [personnel, setPersonnel] = useState<Personnel[]>([]);
   const [appUsers, setAppUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -201,9 +202,9 @@ export const DashboardPage: React.FC = () => {
         case 'users':
             return (
                 <div>
-                  <div className="flex justify-between items-center mb-6 gap-2 flex-wrap">
+                  <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-4">
                     <h1 className="text-2xl font-semibold text-gray-700">لیست پرسنل</h1>
-                    <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-2 flex-wrap justify-start md:justify-end">
                         <button
                           onClick={handleDownloadSample}
                           className="flex items-center bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition"
@@ -221,14 +222,14 @@ export const DashboardPage: React.FC = () => {
                           className="flex items-center bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition"
                         >
                           <PlusIcon className="w-5 h-5 ml-2" />
-                          افزودن پرسنل جدید
+                          افزودن پرسنل
                         </button>
                         <button
                           onClick={handleDeleteAllPersonnel}
                           className="flex items-center bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition"
                         >
                           <DeleteIcon className="w-5 h-5 ml-2" />
-                          حذف کل اطلاعات
+                          حذف کل
                         </button>
                     </div>
                   </div>
@@ -251,11 +252,16 @@ export const DashboardPage: React.FC = () => {
   }
 
   return (
-    <div className="flex h-screen bg-gray-100">
-      <Sidebar activePage={activePage} setActivePage={setActivePage} />
-      <div className="flex-1 flex flex-col overflow-hidden mr-64">
-        <Header />
-        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-8">
+    <div className="relative flex h-screen bg-gray-100 overflow-hidden">
+      <Sidebar 
+        activePage={activePage} 
+        setActivePage={setActivePage}
+        isOpen={isSidebarOpen}
+        onClose={() => setIsSidebarOpen(false)}
+      />
+      <div className="flex-1 flex flex-col overflow-hidden md:mr-64">
+        <Header onMenuToggle={() => setIsSidebarOpen(true)} />
+        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-4 sm:p-8">
           <div className="container mx-auto">
             {renderContent()}
           </div>

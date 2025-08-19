@@ -86,14 +86,14 @@ export const AddUserModal: React.FC<AddPersonnelModalProps> = ({ isOpen, onClose
   );
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center">
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl p-6 relative animate-fade-in-down max-h-[90vh] overflow-y-auto">
         <button onClick={onClose} className="absolute top-4 left-4 text-gray-500 hover:text-gray-800">
             <CloseIcon/>
         </button>
         <h2 className="text-2xl font-bold mb-6 text-gray-800">{personnelToEdit ? 'ویرایش پرسنل' : 'افزودن پرسنل جدید'}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {renderInput('personnel_code', 'کد پرسنلی', true)}
             {renderInput('first_name', 'نام', true)}
             {renderInput('last_name', 'نام خانوادگی', true)}

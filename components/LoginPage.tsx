@@ -42,8 +42,8 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100">
-      <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-2xl shadow-lg">
+    <div className="flex items-center justify-center min-h-screen bg-gray-100 p-4">
+      <div className="w-full max-w-md p-6 sm:p-8 space-y-8 bg-white rounded-2xl shadow-lg">
         <div className="text-center">
             {settings?.app_logo && (
                 <img src={settings.app_logo} alt="App Logo" className="w-24 h-24 mx-auto mb-4 rounded-full object-cover"/>

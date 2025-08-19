@@ -1,14 +1,21 @@
 import React from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { LogoutIcon } from './icons';
+import { LogoutIcon, MenuIcon } from './icons';
 
-export const Header: React.FC = () => {
+interface HeaderProps {
+    onMenuToggle: () => void;
+}
+
+export const Header: React.FC<HeaderProps> = ({ onMenuToggle }) => {
   const { user, logout } = useAuth();
 
   return (
     <header className="bg-white shadow-sm p-4 flex justify-between items-center">
-      <div>
-        <h2 className="text-xl font-semibold text-gray-800">
+      <div className="flex items-center">
+         <button onClick={onMenuToggle} className="text-gray-500 focus:outline-none md:hidden ml-4">
+          <MenuIcon className="w-6 h-6" />
+        </button>
+        <h2 className="text-lg md:text-xl font-semibold text-gray-800">
           خوش آمدید, {user?.firstName} {user?.lastName}
         </h2>
       </div>

@@ -101,9 +101,9 @@ export const UserManagementPage: React.FC<UserManagementPageProps> = ({ users, o
 
     return (
         <div>
-            <div className="flex justify-between items-center mb-6">
+            <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-4">
                 <h1 className="text-2xl font-semibold text-gray-700">مدیریت کاربران</h1>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap justify-start md:justify-end">
                     <button onClick={handleDownloadSample} className="flex items-center bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition">
                         <DownloadIcon className="w-5 h-5 ml-2" /> دانلود نمونه
                     </button>
@@ -112,7 +112,7 @@ export const UserManagementPage: React.FC<UserManagementPageProps> = ({ users, o
                         <input type="file" className="hidden" accept=".xlsx, .xls" onChange={handleExcelImport} />
                     </label>
                     <button onClick={() => handleOpenUserModal()} className="flex items-center bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition">
-                        <PlusIcon className="w-5 h-5 ml-2" /> افزودن کاربر جدید
+                        <PlusIcon className="w-5 h-5 ml-2" /> افزودن کاربر
                     </button>
                 </div>
             </div>
@@ -194,11 +194,11 @@ const UserModal = ({ user, onClose, onSave }: { user: User | null, onClose: () =
     };
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl p-6 relative animate-fade-in-down">
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4">
+            <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl p-6 relative animate-fade-in-down max-h-[90vh] overflow-y-auto">
                 <h2 className="text-xl font-bold mb-4">{user ? 'ویرایش کاربر' : 'افزودن کاربر'}</h2>
                 <form onSubmit={handleSubmit}>
-                    <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                         <input name="firstName" value={formData.firstName} onChange={handleChange} placeholder="نام" required className="p-2 border rounded" />
                         <input name="lastName" value={formData.lastName} onChange={handleChange} placeholder="نام خانوادگی" required className="p-2 border rounded" />
                         <input name="username" value={formData.username} onChange={handleChange} placeholder="نام کاربری" required className="p-2 border rounded" />
@@ -206,7 +206,7 @@ const UserModal = ({ user, onClose, onSave }: { user: User | null, onClose: () =
                     </div>
                     <div className="mb-4">
                         <h3 className="font-semibold mb-2">دسترسی‌ها</h3>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             {ALL_PERMISSIONS.map(p => (
                                 <label key={p.name} className="flex items-center space-x-2 space-x-reverse p-2 bg-gray-50 rounded">
                                     <input type="checkbox" checked={formData.permissions.includes(p.name)} onChange={e => handlePermissionChange(p.name, e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
@@ -255,7 +255,7 @@ const PasswordModal = ({ user, onClose }: { user: User, onClose: () => void }) =
     };
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center">
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4">
             <div className="bg-white rounded-lg shadow-xl w-full max-w-sm p-6 relative animate-fade-in-down">
                  <button onClick={onClose} className="absolute top-4 left-4 text-gray-500 hover:text-gray-800"><CloseIcon/></button>
                 <h2 className="text-xl font-bold mb-4">تغییر رمز عبور برای {user.username}</h2>
