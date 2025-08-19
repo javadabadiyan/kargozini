@@ -51,3 +51,23 @@ export interface RelativeWithPersonnel extends Relative {
   personnel_last_name: string;
   personnel_code: string;
 }
+
+export interface AccountingCommitment {
+  id: number;
+  personnel_id: number;
+  guarantor_personnel_id: number;
+  title: string;
+  letter_date: string;
+  amount: number;
+  body: string;
+  created_at: string;
+}
+
+export interface AccountingCommitmentWithDetails extends AccountingCommitment {
+  personnel_first_name: string;
+  personnel_last_name: string;
+  personnel_code: string;
+  guarantor_first_name: string;
+  guarantor_last_name: string;
+  guarantor_code: string;
+}
