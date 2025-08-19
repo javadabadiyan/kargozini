@@ -53,26 +53,16 @@ export default async function handler(
         );
     `;
     // Add new column and drop old one for compatibility
-    try {
-        await sql`ALTER TABLE accounting_commitments ADD COLUMN IF NOT EXISTS addressee VARCHAR(255) NOT NULL DEFAULT 'ریاست محترم';`;
-        await sql`ALTER TABLE accounting_commitments DROP COLUMN IF EXISTS guarantor_personnel_id;`;
-        await sql`ALTER TABLE accounting_commitments DROP COLUMN IF EXISTS guarantor_father_name;`;
-        await sql`ALTER TABLE accounting_commitments DROP COLUMN IF EXISTS guarantor_personnel_code;`;
-    } catch (e) {
-        if (!(e instanceof Error && (
-            e.message.includes('column "guarantor_personnel_id" of relation "accounting_commitments" does not exist') ||
-            e.message.includes('column "addressee" of relation "accounting_commitments" already exists') ||
-            e.message.includes('column "guarantor_father_name" of relation "accounting_commitments" does not exist') ||
-            e.message.includes('column "guarantor_personnel_code" of relation "accounting_commitments" does not exist')
-        ))) {
-            console.error("Error modifying table columns, might be fine:", e);
-        }
-    }
+    await sql`ALTER TABLE accounting_commitments ADD COLUMN IF NOT EXISTS addressee VARCHAR(255) NOT NULL DEFAULT 'ریاست محترم';`;
+    await sql`ALTER TABLE accounting_commitments DROP COLUMN IF EXISTS guarantor_personnel_id;`;
+    await sql`ALTER TABLE accounting_commitments DROP COLUMN IF EXISTS guarantor_father_name;`;
+    await sql`ALTER TABLE accounting_commitments DROP COLUMN IF EXISTS guarantor_personnel_code;`;
 
   } catch (error) {
     console.error("Database setup error in /api/commitments:", error);
     if (!res.headersSent) {
-      return res.status(500).json({ error: 'Failed to initialize commitments table' });
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      return res.status(500).json({ error: 'Failed to initialize commitments table', details: errorMessage });
     }
     return;
   }

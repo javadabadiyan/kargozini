@@ -381,6 +381,11 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
     }
   };
 
+  const closeViewModal = () => {
+    setIsViewModalOpen(false);
+    setCommitmentToView(null);
+  };
+
   const handleView = (commitment: AccountingCommitmentWithDetails) => {
     setCommitmentToView(commitment);
     setIsViewModalOpen(true);
@@ -536,7 +541,7 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
 
   return (
     <div className="animate-fade-in-up">
-        <ViewLetterModal commitment={commitmentToView} onClose={() => setIsViewModalOpen(false)} />
+        <ViewLetterModal commitment={commitmentToView} onClose={closeViewModal} />
         <h1 className="text-3xl font-bold text-slate-700 mb-6">نامه تعهد حسابداری</h1>
         
         <div className="bg-white rounded-xl shadow-md p-6 border border-slate-200 mb-8" ref={formRef}>
