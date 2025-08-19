@@ -41,11 +41,15 @@ export const UserManagementPage: React.FC<UserManagementPageProps> = ({ users, o
     };
 
     const handleDownloadSample = () => {
-        const headers = [['firstName', 'lastName', 'username', 'password']];
-        const ws = XLSX.utils.aoa_to_sheet(headers);
+        const headers = [
+            'نام', 'نام خانوادگی', 'نام کاربری', 'رمز عبور',
+            ...ALL_PERMISSIONS.map(p => `دسترسی: ${p.description}`)
+        ];
+        
+        const ws = XLSX.utils.aoa_to_sheet([headers]);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Users');
-        XLSX.writeFile(wb, 'Sample_Users.xlsx');
+        XLSX.writeFile(wb, 'نمونه_ورود_کاربران.xlsx');
     };
 
     const handleExcelImport = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -65,11 +69,35 @@ export const UserManagementPage: React.FC<UserManagementPageProps> = ({ users, o
                     alert('فایل اکسل خالی است.');
                     return;
                 }
+                
+                const permissionHeaderMap = ALL_PERMISSIONS.reduce((acc, p) => {
+                    acc[`دسترسی: ${p.description}`] = p.name;
+                    return acc;
+                }, {} as Record<string, string>);
+
+                const mappedUsers = json.map(row => {
+                    const permissions: string[] = [];
+                    for (const header in row) {
+                        const permissionKey = permissionHeaderMap[header];
+                        if (permissionKey && ['بله', 'yes', 'true', '1', 1].includes(String(row[header]).toLowerCase())) {
+                            permissions.push(permissionKey);
+                        }
+                    }
+                    
+                    return {
+                        firstName: row['نام'] || '',
+                        lastName: row['نام خانوادگی'] || '',
+                        username: row['نام کاربری'] || '',
+                        password: row['رمز عبور'] || '',
+                        permissions: permissions
+                    };
+                });
+
 
                 const response = await fetch('/api/app-users?action=import', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(json),
+                    body: JSON.stringify(mappedUsers),
                 });
 
                 if (!response.ok) {

@@ -1,9 +1,9 @@
-
 import React, { useState, useEffect } from 'react';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { UserTable, tableHeaders } from './UserTable';
 import { AddUserModal } from './AddUserModal';
+import { ViewPersonnelModal } from './ViewPersonnelModal';
 import { PlusIcon, UploadIcon, DownloadIcon, DeleteIcon } from './icons';
 import { SettingsPage } from './SettingsPage';
 import { UserManagementPage } from './UserManagementPage';
@@ -18,8 +18,18 @@ export const DashboardPage: React.FC = () => {
   const [personnel, setPersonnel] = useState<Personnel[]>([]);
   const [appUsers, setAppUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // State for modals
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [personnelToEdit, setPersonnelToEdit] = useState<Personnel | null>(null);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [personnelToView, setPersonnelToView] = useState<Personnel | null>(null);
+
+  // State for search and pagination
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 10;
+
 
   const fetchPersonnel = async () => {
     setIsLoading(true);
@@ -42,7 +52,8 @@ export const DashboardPage: React.FC = () => {
       if (!response.ok) throw new Error('Failed to fetch users');
       const data = await response.json();
       setAppUsers(data);
-    } catch (error) {
+    } catch (error)
+ {
       console.error(error);
       alert("خطا در بارگذاری لیست کاربران!");
     }
@@ -58,7 +69,7 @@ export const DashboardPage: React.FC = () => {
     const ws = XLSX.utils.aoa_to_sheet([persianHeaders]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Personnel');
-    XLSX.writeFile(wb, 'Sample_Personnel.xlsx');
+    XLSX.writeFile(wb, 'نمونه_ورود_پرسنل.xlsx');
   };
 
   const handleExcelImport = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -89,7 +100,6 @@ export const DashboardPage: React.FC = () => {
             for (const persianKey in row) {
                 const englishKey = labelToKeyMap[persianKey];
                 if (englishKey) {
-                    // Ensure all values from excel are treated as strings to avoid type issues
                     newRow[englishKey] = row[persianKey] != null ? String(row[persianKey]) : '';
                 }
             }
@@ -109,12 +119,11 @@ export const DashboardPage: React.FC = () => {
         }
 
         alert(`${mappedJson.length} پرسنل با موفقیت وارد شدند.`);
-        fetchPersonnel(); // Refresh the list
+        fetchPersonnel();
       } catch (error) {
         console.error("Excel import error:", error);
         alert(`خطا در ورود اطلاعات از اکسل: ${error instanceof Error ? error.message : 'Unknown error'}`);
       } finally {
-         // Reset file input
         event.target.value = '';
       }
     };
@@ -130,6 +139,16 @@ export const DashboardPage: React.FC = () => {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setPersonnelToEdit(null);
+  };
+
+  const handleOpenViewModal = (p: Personnel) => {
+    setPersonnelToView(p);
+    setIsViewModalOpen(true);
+  };
+
+  const handleCloseViewModal = () => {
+      setIsViewModalOpen(false);
+      setPersonnelToView(null);
   };
 
   const handleSavePersonnel = async (personnelData: Omit<Personnel, 'id'>) => {
@@ -189,12 +208,34 @@ export const DashboardPage: React.FC = () => {
         if (!response.ok) throw new Error('Failed to delete all personnel');
 
         alert('تمام اطلاعات پرسنل با موفقیت حذف شد.');
-        fetchPersonnel(); // Refresh the list to show it's empty
+        fetchPersonnel();
       } catch (error) {
         console.error("Delete all personnel error:", error);
         alert("خطا در حذف تمام پرسنل!");
       }
     }
+  };
+  
+  // Filtering and Pagination Logic
+  const filteredPersonnel = personnel.filter(p =>
+    p.first_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    p.last_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    p.personnel_code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (p.national_id && p.national_id.toLowerCase().includes(searchQuery.toLowerCase()))
+  );
+
+  const totalPages = Math.ceil(filteredPersonnel.length / ITEMS_PER_PAGE);
+  const paginatedPersonnel = filteredPersonnel.slice(
+      (currentPage - 1) * ITEMS_PER_PAGE,
+      currentPage * ITEMS_PER_PAGE
+  );
+  
+  const handleNextPage = () => {
+    if (currentPage < totalPages) setCurrentPage(currentPage + 1);
+  };
+
+  const handlePrevPage = () => {
+      if (currentPage > 1) setCurrentPage(currentPage - 1);
   };
   
   const renderContent = () => {
@@ -205,40 +246,52 @@ export const DashboardPage: React.FC = () => {
                   <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-4">
                     <h1 className="text-2xl font-semibold text-gray-700">لیست پرسنل</h1>
                     <div className="flex items-center gap-2 flex-wrap justify-start md:justify-end">
-                        <button
-                          onClick={handleDownloadSample}
-                          className="flex items-center bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition"
-                        >
-                          <DownloadIcon className="w-5 h-5 ml-2" />
-                          دانلود نمونه
+                        <button onClick={handleDownloadSample} className="flex items-center bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition">
+                          <DownloadIcon className="w-5 h-5 ml-2" /> دانلود نمونه
                         </button>
                         <label className="flex items-center bg-yellow-500 text-white px-4 py-2 rounded-md hover:bg-yellow-600 transition cursor-pointer">
-                            <UploadIcon className="w-5 h-5 ml-2" />
-                            ورود با اکسل
+                            <UploadIcon className="w-5 h-5 ml-2" /> ورود با اکسل
                             <input type="file" className="hidden" accept=".xlsx, .xls" onChange={handleExcelImport} />
                         </label>
-                        <button
-                          onClick={() => handleOpenModal()}
-                          className="flex items-center bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition"
-                        >
-                          <PlusIcon className="w-5 h-5 ml-2" />
-                          افزودن پرسنل
+                        <button onClick={() => handleOpenModal()} className="flex items-center bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition">
+                          <PlusIcon className="w-5 h-5 ml-2" /> افزودن پرسنل
                         </button>
-                        <button
-                          onClick={handleDeleteAllPersonnel}
-                          className="flex items-center bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition"
-                        >
-                          <DeleteIcon className="w-5 h-5 ml-2" />
-                          حذف کل
+                        <button onClick={handleDeleteAllPersonnel} className="flex items-center bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition">
+                          <DeleteIcon className="w-5 h-5 ml-2" /> حذف کل
                         </button>
                     </div>
                   </div>
+                   <div className="mb-4">
+                        <input
+                            type="text"
+                            placeholder="جستجو بر اساس نام، کد پرسنلی، کد ملی و..."
+                            value={searchQuery}
+                            onChange={(e) => {
+                                setSearchQuery(e.target.value);
+                                setCurrentPage(1); // Reset to first page on new search
+                            }}
+                            className="w-full md:w-1/2 lg:w-1/3 px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                    </div>
                   {isLoading ? (
                     <div className="w-full bg-white rounded-lg shadow p-12 text-center text-gray-500">
                       در حال بارگذاری پرسنل...
                     </div>
                   ) : (
-                    <UserTable personnel={personnel} onEdit={handleOpenModal} onDelete={handleDeletePersonnel} />
+                    <>
+                      <UserTable personnel={paginatedPersonnel} onView={handleOpenViewModal} onEdit={handleOpenModal} onDelete={handleDeletePersonnel} />
+                      {totalPages > 1 && (
+                        <div className="mt-4 flex justify-between items-center flex-wrap gap-2">
+                            <button onClick={handlePrevPage} disabled={currentPage === 1} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition">
+                                قبلی
+                            </button>
+                            <span className="text-sm text-gray-700">صفحه {currentPage} از {totalPages} (مجموع: {filteredPersonnel.length} رکورد)</span>
+                            <button onClick={handleNextPage} disabled={currentPage === totalPages} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition">
+                                بعدی
+                            </button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
             );
@@ -268,12 +321,19 @@ export const DashboardPage: React.FC = () => {
         </main>
       </div>
       {activePage === 'users' && (
-        <AddUserModal 
-          isOpen={isModalOpen} 
-          onClose={handleCloseModal} 
-          onSave={handleSavePersonnel}
-          personnelToEdit={personnelToEdit}
-        />
+        <>
+            <AddUserModal 
+              isOpen={isModalOpen} 
+              onClose={handleCloseModal} 
+              onSave={handleSavePersonnel}
+              personnelToEdit={personnelToEdit}
+            />
+            <ViewPersonnelModal
+              isOpen={isViewModalOpen}
+              onClose={handleCloseViewModal}
+              personnel={personnelToView}
+            />
+        </>
       )}
     </div>
   );

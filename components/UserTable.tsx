@@ -1,10 +1,10 @@
-
 import React from 'react';
 import type { Personnel } from '../types';
-import { EditIcon, DeleteIcon } from './icons';
+import { EditIcon, DeleteIcon, EyeIcon } from './icons';
 
 interface PersonnelTableProps {
   personnel: Personnel[];
+  onView: (personnel: Personnel) => void;
   onEdit: (personnel: Personnel) => void;
   onDelete: (personnelId: number) => void;
 }
@@ -33,7 +33,7 @@ export const tableHeaders = [
     { key: 'status', label: 'وضعیت' },
 ];
 
-export const UserTable: React.FC<PersonnelTableProps> = ({ personnel, onEdit, onDelete }) => {
+export const UserTable: React.FC<PersonnelTableProps> = ({ personnel, onView, onEdit, onDelete }) => {
   return (
     <div className="overflow-x-auto bg-white rounded-lg shadow">
       <table className="min-w-full divide-y divide-gray-200">
@@ -66,10 +66,13 @@ export const UserTable: React.FC<PersonnelTableProps> = ({ personnel, onEdit, on
                 ))}
                 <td className="px-6 py-4 whitespace-nowrap text-left text-sm font-medium">
                   <div className="flex items-center justify-end space-x-4 space-x-reverse">
-                    <button onClick={() => onEdit(p)} className="text-indigo-600 hover:text-indigo-900 transition">
+                    <button onClick={() => onView(p)} className="text-green-600 hover:text-green-900 transition" title="نمایش">
+                        <EyeIcon />
+                    </button>
+                    <button onClick={() => onEdit(p)} className="text-indigo-600 hover:text-indigo-900 transition" title="ویرایش">
                       <EditIcon />
                     </button>
-                    <button onClick={() => onDelete(p.id)} className="text-red-600 hover:text-red-900 transition">
+                    <button onClick={() => onDelete(p.id)} className="text-red-600 hover:text-red-900 transition" title="حذف">
                       <DeleteIcon />
                     </button>
                   </div>

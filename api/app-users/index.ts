@@ -6,6 +6,13 @@ import type { User } from '../../types';
 
 const scryptAsync = promisify(scrypt);
 
+const ALL_PERMISSIONS = [
+    { name: 'manage_personnel', description: 'افزودن، ویرایش و حذف پرسنل' },
+    { name: 'manage_users', description: 'مدیریت کاربران و دسترسی‌های آنها' },
+    { name: 'manage_settings', description: 'تغییر تنظیمات کلی برنامه' },
+    { name: 'perform_backup', description: 'ایجاد و بازگردانی پشتیبان' },
+];
+
 async function hashPassword(password: string) {
   const salt = randomBytes(16).toString('hex');
   const hash = (await scryptAsync(password, salt, 64)) as Buffer;
@@ -109,15 +116,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 for (const user of users) {
                     if (!user.username || !user.password || !user.firstName || !user.lastName) continue;
                     const hashedPassword = await hashPassword(user.password);
-                    await client.query(
+                    
+                    const { rows } = await client.query(
                         `INSERT INTO app_users ("firstName", "lastName", username, password_hash)
                          VALUES ($1, $2, $3, $4)
                          ON CONFLICT (username) DO UPDATE SET
                            "firstName" = EXCLUDED."firstName",
                            "lastName" = EXCLUDED."lastName",
-                           password_hash = EXCLUDED.password_hash;`,
+                           password_hash = EXCLUDED.password_hash
+                         RETURNING id;`,
                         [user.firstName, user.lastName, user.username, hashedPassword]
                     );
+                    const userId = rows[0].id;
+
+                    if (userId && Array.isArray(user.permissions)) {
+                        await client.query('DELETE FROM user_permissions WHERE user_id = $1;', [userId]);
+                        for (const permissionName of user.permissions) {
+                            const isValidPermission = ALL_PERMISSIONS.some(p => p.name === permissionName);
+                            if (isValidPermission) {
+                                await client.query(
+                                    'INSERT INTO user_permissions (user_id, permission_name) VALUES ($1, $2) ON CONFLICT DO NOTHING;', 
+                                    [userId, permissionName]
+                                );
+                            }
+                        }
+                    }
                 }
             } 
             // Change Password
