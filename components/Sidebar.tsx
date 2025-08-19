@@ -25,6 +25,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, isO
   const [isPersonnelMenuOpen, setIsPersonnelMenuOpen] = useState(personnelPages.includes(activePage));
   const [isHrMenuOpen, setIsHrMenuOpen] = useState(hrPages.includes(activePage));
   const [isSecurityMenuOpen, setIsSecurityMenuOpen] = useState(securityPages.includes(activePage));
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
 
   useEffect(() => {
     setIsPersonnelMenuOpen(personnelPages.includes(activePage));
@@ -96,6 +103,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, isO
     return false;
   };
 
+  const formattedTime = currentTime.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const formattedDate = currentTime.toLocaleDateString('fa-IR', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+  });
+
   return (
     <>
       {/* Backdrop */}
@@ -107,11 +122,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, isO
 
       {/* Sidebar */}
       <div className={`w-64 h-screen bg-slate-900 text-slate-200 flex flex-col fixed top-0 right-0 z-40 transform transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : 'translate-x-full'} md:translate-x-0`}>
-        <div className="flex items-center justify-center h-20 border-b border-slate-700 px-4">
+        <div className="flex-shrink-0 flex items-center justify-center h-20 border-b border-slate-700 px-4">
           {settings?.app_logo && <img src={settings.app_logo} alt="Logo" className="w-10 h-10 rounded-full ml-3 object-cover" />}
           <h1 className="text-xl font-bold truncate text-white">{settings?.app_name || 'پنل کارگزینی'}</h1>
         </div>
-        <nav className="flex-1 px-4 py-6">
+        <nav className="flex-1 px-4 py-6 overflow-y-auto">
           <ul className="space-y-2">
             {navItems.map((item) => (
               <li key={item.id}>
@@ -172,6 +187,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, isO
             ))}
           </ul>
         </nav>
+        <div className="flex-shrink-0 px-4 py-4 border-t border-slate-700 text-center">
+            <p className="text-2xl font-semibold text-white tracking-wider">{formattedTime}</p>
+            <p className="text-sm text-slate-400 mt-1">{formattedDate}</p>
+        </div>
       </div>
     </>
   );

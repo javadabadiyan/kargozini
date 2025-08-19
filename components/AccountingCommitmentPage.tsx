@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type { Personnel, AccountingCommitmentWithDetails } from '../types';
 import { toPersianDigits, formatRial, toEnglishDigits } from './format';
 import { DeleteIcon, EditIcon, EyeIcon, CloseIcon, UploadIcon, ChevronDownIcon } from './icons';
@@ -335,8 +335,8 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
   };
 
   const handleSave = async () => {
-    if (!addressee || !title || !letterBody || !borrowerDetails.first_name || !guarantor.first_name || !date || !amount) {
-        alert('لطفاً تمام فیلدهای ستاره‌دار را پر کنید.');
+    if (!addressee || !title || !letterBody || (!selectedPersonnel && !borrowerDetails.first_name) || !guarantor.first_name || !date || amount === '') {
+        alert('لطفاً تمام فیلدهای ستاره‌دار و اطلاعات وام گیرنده را پر کنید.');
         return;
     }
     
@@ -381,10 +381,10 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
     }
   };
 
-  const closeViewModal = () => {
+  const closeViewModal = useCallback(() => {
     setIsViewModalOpen(false);
     setCommitmentToView(null);
-  };
+  }, []);
 
   const handleView = (commitment: AccountingCommitmentWithDetails) => {
     setCommitmentToView(commitment);

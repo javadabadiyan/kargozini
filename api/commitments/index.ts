@@ -97,7 +97,7 @@ export default async function handler(
             borrower_first_name, borrower_last_name, borrower_father_name, borrower_national_id
         } = req.body;
 
-        if (!addressee || !title || !letter_date || !amount || !body || !guarantor_first_name || !guarantor_last_name || (!personnel_id && !borrower_first_name)) {
+        if (!addressee || !title || !letter_date || amount == null || !body || !guarantor_first_name || !guarantor_last_name || (!personnel_id && !borrower_first_name)) {
             return res.status(400).json({ error: 'Missing required fields' });
         }
         
@@ -137,7 +137,7 @@ export default async function handler(
             return res.status(201).json(result.rows[0]);
         }
     } catch (error) {
-        console.error(error);
+        console.error("Commitment save error:", error);
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
         return res.status(500).json({ error: 'Failed to save commitment', details: errorMessage });
     }
