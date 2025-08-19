@@ -13,7 +13,8 @@ import * as XLSX from 'xlsx';
 
 type Page = 'dashboard' | 'users' | 'settings' | 'user-management' |
             'commitment_letter' | 'disciplinary_committee' | 'performance_evaluation' | 'job_group' | 'bonus_management' |
-            'security_members' | 'security_log_traffic' | 'security_traffic_report';
+            'security_members' | 'security_log_traffic' | 'security_traffic_report' |
+            'relatives_info' | 'document_upload';
 
 const Button = ({ onClick, children, className, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { children: React.ReactNode }) => (
     <button
@@ -338,6 +339,10 @@ export const DashboardPage: React.FC = () => {
             return <PlaceholderPage title="ثبت تردد" />;
         case 'security_traffic_report':
             return <PlaceholderPage title="گزارش گیری تردد" />;
+        case 'relatives_info':
+            return <PlaceholderPage title="اطلاعات بستگان" />;
+        case 'document_upload':
+            return <PlaceholderPage title="بارگذاری مدارک" />;
         default:
             return null;
     }

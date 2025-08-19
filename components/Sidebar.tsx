@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { UserIcon, SettingsIcon, LockIcon, DashboardIcon, BriefcaseIcon, ChevronDownIcon, ShieldIcon } from './icons';
+import { UserIcon, SettingsIcon, LockIcon, DashboardIcon, BriefcaseIcon, ChevronDownIcon, ShieldIcon, FamilyIcon, DocumentTextIcon } from './icons';
 import { useSettings } from '../context/SettingsContext';
 
 
 type Page = 'dashboard' | 'users' | 'settings' | 'user-management' | 
             'commitment_letter' | 'disciplinary_committee' | 'performance_evaluation' | 'job_group' | 'bonus_management' |
-            'security_members' | 'security_log_traffic' | 'security_traffic_report';
+            'security_members' | 'security_log_traffic' | 'security_traffic_report' |
+            'relatives_info' | 'document_upload';
 
 interface SidebarProps {
   activePage: Page;
@@ -17,20 +18,32 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, isOpen, onClose }) => {
   const { settings } = useSettings();
   
+  const personnelPages = ['users', 'relatives_info', 'document_upload'];
   const hrPages = ['commitment_letter', 'disciplinary_committee', 'performance_evaluation', 'job_group', 'bonus_management'];
   const securityPages = ['security_members', 'security_log_traffic', 'security_traffic_report'];
 
+  const [isPersonnelMenuOpen, setIsPersonnelMenuOpen] = useState(personnelPages.includes(activePage));
   const [isHrMenuOpen, setIsHrMenuOpen] = useState(hrPages.includes(activePage));
   const [isSecurityMenuOpen, setIsSecurityMenuOpen] = useState(securityPages.includes(activePage));
 
   useEffect(() => {
+    setIsPersonnelMenuOpen(personnelPages.includes(activePage));
     setIsHrMenuOpen(hrPages.includes(activePage));
     setIsSecurityMenuOpen(securityPages.includes(activePage));
   }, [activePage]);
 
   const navItems = [
     { id: 'dashboard', label: 'داشبورد', icon: DashboardIcon },
-    { id: 'users', label: 'مدیریت پرسنل', icon: UserIcon },
+    { 
+      id: 'personnel_menu', 
+      label: 'مدیریت پرسنل', 
+      icon: UserIcon,
+      children: [
+        { id: 'users', label: 'لیست پرسنل' },
+        { id: 'relatives_info', label: 'اطلاعات بستگان', icon: FamilyIcon },
+        { id: 'document_upload', label: 'بارگذاری مدارک', icon: DocumentTextIcon },
+      ]
+    },
     { 
       id: 'hr_menu', 
       label: 'کارگزینی', 
@@ -71,11 +84,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, isO
   }
 
   const handleMenuToggle = (menuId: string) => {
+    if (menuId === 'personnel_menu') setIsPersonnelMenuOpen(!isPersonnelMenuOpen);
     if (menuId === 'hr_menu') setIsHrMenuOpen(!isHrMenuOpen);
     if (menuId === 'security_menu') setIsSecurityMenuOpen(!isSecurityMenuOpen);
   };
 
   const isMenuOpen = (menuId: string) => {
+    if (menuId === 'personnel_menu') return isPersonnelMenuOpen;
     if (menuId === 'hr_menu') return isHrMenuOpen;
     if (menuId === 'security_menu') return isSecurityMenuOpen;
     return false;
@@ -118,7 +133,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, isO
                     </button>
                     {isMenuOpen(item.id) && (
                       <ul className="pr-4 mt-2 space-y-2 animate-fade-in-down">
-                        {item.children.map(child => (
+                        {item.children.map((child: any) => (
                            <li key={child.id}>
                             <button
                               onClick={() => handleNavigation(child.id as Page)}
@@ -128,7 +143,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, isO
                                   : 'text-slate-400 hover:bg-slate-700/50 hover:text-white'
                               }`}
                             >
-                              <span className="w-2 h-2 bg-slate-500 rounded-full ml-4"></span>
+                                {child.icon ? (
+                                    <child.icon className={`w-5 h-5 ml-4 ${activePage === child.id ? 'text-white' : 'text-slate-500'}`} />
+                                ) : (
+                                    <span className="w-2 h-2 bg-slate-500 rounded-full ml-4"></span>
+                                )}
                               <span>{child.label}</span>
                             </button>
                           </li>
