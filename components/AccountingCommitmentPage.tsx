@@ -1,7 +1,7 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import type { Personnel, AccountingCommitmentWithDetails } from '../types';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import type { Personnel, AccountingCommitment, AccountingCommitmentWithDetails } from '../types';
 import { toPersianDigits, formatRial, toEnglishDigits } from './format';
-import { CloseIcon, UploadIcon } from './icons';
+import { CloseIcon, UploadIcon, EyeIcon, EditIcon, DeleteIcon, ChevronDownIcon } from './icons';
 import * as XLSX from 'xlsx';
 
 
@@ -109,7 +109,6 @@ const ViewLetterModal = ({
       const printWindow = window.open('', '', 'height=842,width=595'); // A5 dimensions in pixels approx
       if (printWindow) {
         printWindow.document.write('<html><head><title>چاپ نامه تعهد</title>');
-        // We inject Tailwind's CDN and custom print styles for the letterhead
         printWindow.document.write('<script src="https://cdn.tailwindcss.com"><\/script>');
         printWindow.document.write(`
           <style>
@@ -128,7 +127,7 @@ const ViewLetterModal = ({
         printWindow.document.write(content.innerHTML);
         printWindow.document.write('</body></html>');
         printWindow.document.close();
-        setTimeout(() => { // Timeout to allow styles and fonts to load
+        setTimeout(() => {
             printWindow.focus();
             printWindow.print();
             printWindow.close();
@@ -212,8 +211,126 @@ const ViewLetterModal = ({
   );
 };
 
+const CommitmentArchive = ({ 
+    commitments, 
+    onView, 
+    onEdit, 
+    onDelete 
+} : {
+    commitments: AccountingCommitmentWithDetails[],
+    onView: (c: AccountingCommitmentWithDetails) => void,
+    onEdit: (c: AccountingCommitmentWithDetails) => void,
+    onDelete: (id: number) => void,
+}) => {
+    const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set());
+
+    const groupedCommitments = useMemo(() => {
+        const groups = commitments.reduce((acc, c) => {
+            const key = c.personnel_id ? `p_${c.personnel_id}` : `e_${c.borrower_first_name}_${c.borrower_last_name}`;
+            if (!acc[key]) {
+                acc[key] = {
+                    borrowerName: `${c.personnel_first_name} ${c.personnel_last_name}`,
+                    commitments: [],
+                    totalAmount: 0,
+                };
+            }
+            acc[key].commitments.push(c);
+            acc[key].totalAmount += Number(c.amount);
+            return acc;
+        }, {} as Record<string, { borrowerName: string; commitments: AccountingCommitmentWithDetails[]; totalAmount: number }>);
+        return Object.entries(groups).map(([key, value]) => ({ key, ...value }));
+    }, [commitments]);
+
+    const toggleExpand = (key: string) => {
+        setExpandedKeys(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(key)) {
+                newSet.delete(key);
+            } else {
+                newSet.add(key);
+            }
+            return newSet;
+        });
+    };
+
+    if (commitments.length === 0) {
+        return (
+            <div className="text-center py-8 bg-slate-50 rounded-lg">
+                <p className="text-slate-500">هیچ نامه تعهدی در آرشیو ذخیره نشده است.</p>
+            </div>
+        );
+    }
+
+    return (
+        <div className="overflow-x-auto bg-white rounded-xl shadow-md border border-slate-200">
+            <table className="min-w-full divide-y divide-slate-200">
+                <thead className="bg-slate-50">
+                    <tr>
+                        <th className="w-12"></th>
+                        <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase">وام گیرنده</th>
+                        <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase">تعداد نامه</th>
+                        <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase">جمع مبلغ تعهدات (ریال)</th>
+                    </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-slate-200">
+                    {groupedCommitments.map(group => (
+                        <React.Fragment key={group.key}>
+                            <tr className="hover:bg-slate-50/70 cursor-pointer" onClick={() => toggleExpand(group.key)}>
+                                <td className="px-4 py-4 text-slate-400">
+                                    <ChevronDownIcon className={`w-5 h-5 transition-transform ${expandedKeys.has(group.key) ? 'rotate-180' : ''}`} />
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-slate-800">{group.borrowerName}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{toPersianDigits(group.commitments.length)}</td>
+                                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 font-mono">{formatRial(group.totalAmount)}</td>
+                            </tr>
+                            {expandedKeys.has(group.key) && (
+                                <tr>
+                                    <td colSpan={4} className="p-0">
+                                        <div className="p-4 bg-slate-50">
+                                            <table className="min-w-full divide-y divide-slate-200 bg-white rounded-md shadow-inner">
+                                                <thead className="bg-slate-100">
+                                                    <tr>
+                                                        <th className="px-4 py-2 text-right text-xs font-medium text-slate-500">تاریخ</th>
+                                                        <th className="px-4 py-2 text-right text-xs font-medium text-slate-500">مبلغ (ریال)</th>
+                                                        <th className="px-4 py-2 text-right text-xs font-medium text-slate-500">ضامن</th>
+                                                        <th className="px-4 py-2 text-right text-xs font-medium text-slate-500">گیرنده</th>
+                                                        <th className="px-4 py-2 text-center text-xs font-medium text-slate-500">عملیات</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-200">
+                                                {group.commitments.map(c => (
+                                                    <tr key={c.id}>
+                                                        <td className="px-4 py-3 text-sm">{toPersianDigits(c.letter_date)}</td>
+                                                        <td className="px-4 py-3 text-sm font-mono">{formatRial(c.amount)}</td>
+                                                        <td className="px-4 py-3 text-sm">{c.guarantor_first_name} {c.guarantor_last_name}</td>
+                                                        <td className="px-4 py-3 text-sm truncate max-w-xs">{c.addressee}</td>
+                                                        <td className="px-4 py-3">
+                                                            <div className="flex items-center justify-center space-x-3 space-x-reverse">
+                                                                <button onClick={() => onView(c)} className="text-slate-400 hover:text-green-600 transition" title="نمایش و چاپ"><EyeIcon className="w-5 h-5" /></button>
+                                                                <button onClick={() => onEdit(c)} className="text-slate-400 hover:text-indigo-600 transition" title="ویرایش"><EditIcon className="w-5 h-5" /></button>
+                                                                <button onClick={() => onDelete(c.id)} className="text-slate-400 hover:text-red-600 transition" title="حذف"><DeleteIcon className="w-5 h-5" /></button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </td>
+                                </tr>
+                            )}
+                        </React.Fragment>
+                    ))}
+                </tbody>
+            </table>
+        </div>
+    );
+}
+
 
 export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> = ({ personnelList }) => {
+  const [commitmentToEdit, setCommitmentToEdit] = useState<AccountingCommitmentWithDetails | null>(null);
+
   const [addressee, setAddressee] = useState('ریاست محترم بانک رفاه شعبه مرکزی سیرجان');
   const [title, setTitle] = useState('تعهد حسابداری');
   const [letterBody, setLetterBody] = useState('');
@@ -240,7 +357,6 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
 
   const [commitments, setCommitments] = useState<AccountingCommitmentWithDetails[]>([]);
   
-  // States for view modal
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [commitmentToView, setCommitmentToView] = useState<AccountingCommitmentWithDetails | null>(null);
   
@@ -258,28 +374,17 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
 
   useEffect(() => { fetchCommitments(); }, []);
 
-  useEffect(() => {
-    if (selectedPersonnel) {
-        setBorrowerDetails({
-            first_name: selectedPersonnel.first_name,
-            last_name: selectedPersonnel.last_name,
-            father_name: selectedPersonnel.father_name || '',
-            national_id: selectedPersonnel.national_id || '',
-        });
-    }
-  }, [selectedPersonnel]);
+  const generateLetterBody = useCallback(() => {
+    const template = `احتراماً حسابداری این شرکت تعهد می نماید در صورت عدم پرداخت اقساط وام به مبلغ ${amount ? formatRial(amount) : '[مبلغ وام]'} ریال بنام آقای ${borrowerDetails.first_name || borrowerDetails.last_name ? `${borrowerDetails.first_name} ${borrowerDetails.last_name}` : '[نام وام گیرنده]'} فرزند ${borrowerDetails.father_name || '[نام پدر]'} با کد ملی ${borrowerDetails.national_id ? toPersianDigits(borrowerDetails.national_id) : '[کد ملی]'} از حقوق ضامن نامبرده آقای ${guarantor.first_name || guarantor.last_name ? `${guarantor.first_name} ${guarantor.last_name}` : '[نام ضامن]'} در این شرکت شاغل باشد بعد از اعلام بانک و با رعایت سقف قانونی کسر و به حساب آن بانک واریز نماید.\n\nاین گواهی بنا به درخواست نامبرده جهت ارائه به بانک فوق صادر گردیده است و فاقد هرگونه ارزش دیگری می باشد.`;
+    setLetterBody(template);
+  }, [borrowerDetails, guarantor, amount]);
   
-  const generateLetterBody = () => {
-      const template = `احتراماً حسابداری این شرکت تعهد می نماید در صورت عدم پرداخت اقساط وام به مبلغ ${amount ? formatRial(amount) : '[مبلغ وام]'} ریال بنام آقای ${borrowerDetails.first_name || borrowerDetails.last_name ? `${borrowerDetails.first_name} ${borrowerDetails.last_name}` : '[نام وام گیرنده]'} فرزند ${borrowerDetails.father_name || '[نام پدر]'} با کد ملی ${borrowerDetails.national_id ? toPersianDigits(borrowerDetails.national_id) : '[کد ملی]'} از حقوق ضامن نامبرده آقای ${guarantor.first_name || guarantor.last_name ? `${guarantor.first_name} ${guarantor.last_name}` : '[نام ضامن]'} در این شرکت شاغل باشد بعد از اعلام بانک و با رعایت سقف قانونی کسر و به حساب آن بانک واریز نماید.\n\nاین گواهی بنا به درخواست نامبرده جهت ارائه به بانک فوق صادر گردیده است و فاقد هرگونه ارزش دیگری می باشد.`;
-      setLetterBody(template);
-  };
-  
-  useEffect(generateLetterBody, [borrowerDetails, guarantor, amount]);
+  useEffect(generateLetterBody, [generateLetterBody]);
 
   useEffect(() => {
     if (selectedPersonnel && totalFactors !== '' && amount !== '') {
         const previousTotal = commitments
-            .filter(c => c.personnel_id === selectedPersonnel.id)
+            .filter(c => c.personnel_id === selectedPersonnel.id && c.id !== commitmentToEdit?.id)
             .reduce((sum, c) => sum + Number(c.amount), 0);
         
         const ceiling = Number(totalFactors) * 30;
@@ -291,30 +396,22 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
     } else {
         setCalculation(null);
     }
-  }, [selectedPersonnel, totalFactors, amount, commitments]);
+  }, [selectedPersonnel, totalFactors, amount, commitments, commitmentToEdit]);
   
   const handleSelectBorrower = (p: Personnel) => {
     setSelectedPersonnel(p);
     setBorrowerSearch(`${p.first_name} ${p.last_name} (${toPersianDigits(p.personnel_code)})`);
+    setBorrowerDetails({ first_name: p.first_name, last_name: p.last_name, father_name: p.father_name, national_id: p.national_id });
     const factor = personnelFactors[p.personnel_code];
-    if (factor) {
-        setTotalFactors(factor);
-    } else {
-        setTotalFactors('');
-    }
+    if (factor) setTotalFactors(factor); else setTotalFactors('');
   };
   
   const handleBorrowerSearchChange = (val: string) => {
-      setBorrowerSearch(val);
-      if(selectedPersonnel) setSelectedPersonnel(null);
-  };
-
-  const handleBorrowerDetailsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setBorrowerSearch(val);
     if(selectedPersonnel) {
         setSelectedPersonnel(null);
-        setBorrowerSearch('');
+        setBorrowerDetails({ first_name: '', last_name: '', father_name: '', national_id: '' });
     }
-    setBorrowerDetails(prev => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
   const handleGuarantorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -322,13 +419,12 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
   };
 
   const handleSelectGuarantor = (p: Personnel) => {
-    setGuarantor({
-        first_name: p.first_name, last_name: p.last_name,
-    });
-    setGuarantorSearch(`${p.first_name} ${p.last_name}`);
+    setGuarantor({ first_name: p.first_name, last_name: p.last_name });
+    setGuarantorSearch(`${p.first_name} ${p.last_name} (${toPersianDigits(p.personnel_code)})`);
   };
   
-  const resetForm = () => {
+  const resetForm = useCallback(() => {
+    setCommitmentToEdit(null);
     setSelectedPersonnel(null);
     setBorrowerSearch('');
     setBorrowerDetails({ first_name: '', last_name: '', father_name: '', national_id: '' });
@@ -339,19 +435,44 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
     setAddressee('ریاست محترم بانک رفاه شعبه مرکزی سیرجان');
     setTitle('تعهد حسابداری');
     setDate(new Date().toLocaleDateString('fa-IR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-'));
-    setLetterBody('');
-  };
+  }, []);
+
+  useEffect(() => {
+    if (commitmentToEdit) {
+        setAddressee(commitmentToEdit.addressee);
+        setTitle(commitmentToEdit.title);
+        setDate(commitmentToEdit.letter_date);
+        setAmount(commitmentToEdit.amount);
+        
+        const p = personnelList.find(p => p.id === commitmentToEdit.personnel_id);
+        if(p) { handleSelectBorrower(p); } 
+        else {
+            setSelectedPersonnel(null);
+            setBorrowerSearch('');
+            setBorrowerDetails({
+                first_name: commitmentToEdit.borrower_first_name || '',
+                last_name: commitmentToEdit.borrower_last_name || '',
+                father_name: commitmentToEdit.borrower_father_name || '',
+                national_id: commitmentToEdit.borrower_national_id || '',
+            });
+        }
+        
+        setGuarantor({ first_name: commitmentToEdit.guarantor_first_name, last_name: commitmentToEdit.guarantor_last_name });
+        setGuarantorSearch(`${commitmentToEdit.guarantor_first_name} ${commitmentToEdit.guarantor_last_name}`);
+        
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [commitmentToEdit, personnelList]);
+
 
   const handleSave = async () => {
-    if (!addressee || !title || !letterBody || 
-        (!selectedPersonnel && (!borrowerDetails.first_name || !borrowerDetails.last_name)) || 
-        (!guarantor.first_name || !guarantor.last_name) || 
-        !date || amount === '') {
+    if (!addressee || !title || !letterBody || !borrowerDetails.first_name || !borrowerDetails.last_name || !guarantor.first_name || !guarantor.last_name || !date || amount === '') {
         alert('لطفاً تمام فیلدهای ستاره‌دار و اطلاعات وام گیرنده و ضامن را به طور کامل پر کنید.');
         return;
     }
     
-    const commitmentData = {
+    const commitmentData: Partial<AccountingCommitment> & { id?: number } = {
+        id: commitmentToEdit?.id,
         title, body: letterBody, letter_date: date,
         amount: Number(amount),
         addressee,
@@ -372,7 +493,7 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
         });
         if (!response.ok) throw new Error((await response.json()).error || 'Failed to save');
         await fetchCommitments();
-        alert(`نامه تعهد با موفقیت ذخیره شد.`);
+        alert(`نامه تعهد با موفقیت ${commitmentToEdit ? 'ویرایش' : 'ذخیره'} شد.`);
         resetForm();
     } catch(e) {
         alert(`خطا در ذخیره سازی: ${e instanceof Error ? e.message : 'Unknown error'}`);
@@ -386,13 +507,13 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
 
   const handlePreview = () => {
     const previewData: AccountingCommitmentWithDetails = {
-        id: 0,
+        id: commitmentToEdit?.id || 0,
         personnel_id: selectedPersonnel?.id || null,
         addressee, title,
         letter_date: date,
         amount: Number(amount) || 0,
         body: letterBody,
-        created_at: new Date().toISOString(),
+        created_at: commitmentToEdit?.created_at || new Date().toISOString(),
         guarantor_first_name: guarantor.first_name,
         guarantor_last_name: guarantor.last_name,
         personnel_first_name: borrowerDetails.first_name,
@@ -440,11 +561,6 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
             const worksheet = workbook.Sheets[sheetName];
             const json: any[] = XLSX.utils.sheet_to_json(worksheet);
 
-            if (json.length === 0) {
-                alert('فایل اکسل خالی است.');
-                return;
-            }
-
             const factorsMap: Record<string, number> = {};
             let processedCount = 0;
             json.forEach(row => {
@@ -468,6 +584,18 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
     };
     reader.readAsBinaryString(file);
   };
+  
+  const handleDeleteCommitment = async (id: number) => {
+    if (window.confirm('آیا از حذف این نامه تعهد اطمینان دارید؟')) {
+        try {
+            const response = await fetch(`/api/commitments?id=${id}`, { method: 'DELETE' });
+            if (!response.ok) throw new Error('Failed to delete commitment');
+            await fetchCommitments();
+        } catch (error) {
+            alert("خطا در حذف نامه!");
+        }
+    }
+  };
 
   const renderCalculation = () => {
       if (!selectedPersonnel) {
@@ -487,7 +615,7 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
             <div className="flex justify-between"><span>سقف تعهد مجاز (۳۰ برابر حکم):</span> <span className="font-semibold">{formatRial(ceiling)} ریال</span></div>
             <div className="flex justify-between"><span>مجموع تعهدات قبلی:</span> <span className="font-semibold text-orange-600">{formatRial(previousTotal)} ریال</span></div>
             <div className="flex justify-between border-t pt-2 mt-2">
-                <span className="font-bold">سقف تعهد موثر (پس از کسر تعهدات قبلی):</span>
+                <span className="font-bold">سقف تعهد موثر (پس از کسر تعهدات):</span>
                 <span className="font-bold text-lg">{formatRial(effectiveCeiling)} ریال</span>
             </div>
              <div className="flex justify-between"><span>باقیمانده پس از وام فعلی:</span> <span className="font-semibold">{formatRial(remaining)} ریال</span></div>
@@ -500,12 +628,11 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
   }
 
   return (
-    <div className="animate-fade-in-up">
+    <div className="animate-fade-in-up space-y-8">
         {isViewModalOpen && <ViewLetterModal commitment={commitmentToView} onClose={closeViewModal} />}
-        <h1 className="text-3xl font-bold text-slate-700 mb-6">نامه تعهد حسابداری</h1>
         
-        <div className="bg-white rounded-xl shadow-md p-6 border border-slate-200 mb-8">
-            <h2 className="text-xl font-bold text-slate-800 mb-4 border-b pb-3">ایجاد نامه جدید</h2>
+        <div className="bg-white rounded-xl shadow-md p-6 border border-slate-200">
+            <h1 className="text-2xl font-bold text-slate-800 mb-4 border-b pb-3">{commitmentToEdit ? `ویرایش نامه تعهد برای: ${commitmentToEdit.personnel_first_name} ${commitmentToEdit.personnel_last_name}` : 'ایجاد نامه تعهد جدید'}</h1>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-4">
                <div>
@@ -515,14 +642,7 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
                  <div>
                     <label htmlFor="total_factors" className="block text-sm font-medium text-slate-700 mb-1">جمع عوامل حکمی (ریال)<span className="text-red-500 mr-1">*</span></label>
                     <div className="flex items-center gap-2">
-                        <input 
-                            type="text" 
-                            id="total_factors" 
-                            value={totalFactors === '' ? '' : formatRial(totalFactors)} 
-                            onChange={handleTotalFactorsChange} 
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg" 
-                            placeholder="برای محاسبه سقف تعهد"
-                        />
+                        <input type="text" id="total_factors" value={totalFactors === '' ? '' : formatRial(totalFactors)} onChange={handleTotalFactorsChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg" placeholder="برای محاسبه سقف تعهد" />
                         <div className="relative group">
                             <label title="ورود انبوه با اکسل" className="p-2.5 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 cursor-pointer transition">
                                 <UploadIcon className="w-5 h-5" />
@@ -543,12 +663,13 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
 
             <div className="mt-6 pt-4 border-t">
                 <h3 className="text-lg font-semibold text-slate-800 mb-3">اطلاعات وام گیرنده</h3>
-                <PersonnelSearch label="جستجوی وام گیرنده از پرسنل (اختیاری)" placeholder="جستجو برای تکمیل خودکار..." personnelList={personnelList} onSelect={handleSelectBorrower} value={borrowerSearch} onChange={handleBorrowerSearchChange} />
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
-                    <input name="first_name" value={borrowerDetails.first_name} onChange={handleBorrowerDetailsChange} placeholder="نام*" className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
-                    <input name="last_name" value={borrowerDetails.last_name} onChange={handleBorrowerDetailsChange} placeholder="نام خانوادگی*" className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
-                    <input name="father_name" value={borrowerDetails.father_name} onChange={handleBorrowerDetailsChange} placeholder="نام پدر" className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
-                    <input name="national_id" value={borrowerDetails.national_id} onChange={handleBorrowerDetailsChange} placeholder="کد ملی" className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
+                <PersonnelSearch label="جستجوی وام گیرنده از پرسنل" placeholder="جستجو برای تکمیل خودکار..." personnelList={personnelList} onSelect={handleSelectBorrower} value={borrowerSearch} onChange={handleBorrowerSearchChange} />
+                <div className="flex items-center text-slate-500 my-2"><div className="flex-grow h-px bg-slate-200"></div><span className="mx-2 text-xs">یا</span><div className="flex-grow h-px bg-slate-200"></div></div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <input name="first_name" value={borrowerDetails.first_name} disabled={!!selectedPersonnel} onChange={e => setBorrowerDetails(p => ({...p, first_name: e.target.value}))} placeholder="نام*" className="w-full px-3 py-2 border border-slate-300 rounded-lg disabled:bg-slate-100"/>
+                    <input name="last_name" value={borrowerDetails.last_name} disabled={!!selectedPersonnel} onChange={e => setBorrowerDetails(p => ({...p, last_name: e.target.value}))} placeholder="نام خانوادگی*" className="w-full px-3 py-2 border border-slate-300 rounded-lg disabled:bg-slate-100"/>
+                    <input name="father_name" value={borrowerDetails.father_name} disabled={!!selectedPersonnel} onChange={e => setBorrowerDetails(p => ({...p, father_name: e.target.value}))} placeholder="نام پدر" className="w-full px-3 py-2 border border-slate-300 rounded-lg disabled:bg-slate-100"/>
+                    <input name="national_id" value={borrowerDetails.national_id} disabled={!!selectedPersonnel} onChange={e => setBorrowerDetails(p => ({...p, national_id: e.target.value}))} placeholder="کد ملی" className="w-full px-3 py-2 border border-slate-300 rounded-lg disabled:bg-slate-100"/>
                 </div>
             </div>
             
@@ -556,7 +677,7 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
             
             <div className="mt-6 pt-4 border-t">
                 <h3 className="text-lg font-semibold text-slate-800 mb-3">اطلاعات ضامن</h3>
-                 <PersonnelSearch label="جستجوی ضامن از پرسنل (اختیاری)" placeholder="جستجو برای تکمیل خودکار..." personnelList={personnelList} onSelect={handleSelectGuarantor} value={guarantorSearch} onChange={setGuarantorSearch} />
+                 <PersonnelSearch label="جستجوی ضامن از پرسنل" placeholder="جستجو برای تکمیل خودکار..." personnelList={personnelList} onSelect={handleSelectGuarantor} value={guarantorSearch} onChange={setGuarantorSearch} />
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                     <input name="first_name" value={guarantor.first_name} onChange={handleGuarantorChange} placeholder="نام ضامن*" className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
                     <input name="last_name" value={guarantor.last_name} onChange={handleGuarantorChange} placeholder="نام خانوادگی ضامن*" className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
@@ -564,13 +685,18 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
             </div>
             <div className="mt-4">
                 <label className="block text-sm font-medium text-slate-700 mb-1">متن نامه (پیش‌نمایش خودکار)</label>
-                <textarea value={letterBody} readOnly rows={8} className="w-full px-3 py-2 border border-slate-200 bg-slate-50 rounded-lg shadow-sm leading-relaxed"/>
+                <textarea value={letterBody} readOnly rows={6} className="w-full px-3 py-2 border border-slate-200 bg-slate-50 rounded-lg shadow-sm leading-relaxed"/>
             </div>
             <div className="flex justify-end pt-6 mt-4 border-t border-slate-200 space-x-2 space-x-reverse">
-                <button onClick={resetForm} className="px-5 py-2 bg-slate-100 text-slate-800 rounded-lg hover:bg-slate-200 transition font-medium">پاک کردن فرم</button>
+                <button onClick={resetForm} className="px-5 py-2 bg-slate-100 text-slate-800 rounded-lg hover:bg-slate-200 transition font-medium">{commitmentToEdit ? 'لغو ویرایش' : 'پاک کردن فرم'}</button>
                 <button onClick={handlePreview} className="px-5 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition font-medium shadow-sm">نمایش و چاپ پیش‌نمایش</button>
-                <button onClick={handleSave} className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium shadow-sm">ذخیره در آرشیو</button>
+                <button onClick={handleSave} className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium shadow-sm">{commitmentToEdit ? 'ذخیره تغییرات' : 'ذخیره در آرشیو'}</button>
             </div>
+        </div>
+
+        <div>
+            <h2 className="text-2xl font-bold text-slate-700 mb-4">آرشیو نامه‌های تعهد</h2>
+            <CommitmentArchive commitments={commitments} onView={handlePreview} onEdit={setCommitmentToEdit} onDelete={handleDeleteCommitment} />
         </div>
     </div>
   );
