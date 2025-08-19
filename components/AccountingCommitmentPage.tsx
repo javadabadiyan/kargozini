@@ -144,13 +144,6 @@ const ViewLetterModal = ({
         <div className="absolute top-0 right-[4mm] h-full w-[4mm] bg-[#366FB3]"></div>
         <div className="absolute top-[25mm] right-0 w-[24mm] h-[12mm] bg-[#F3D04E]" style={{ clipPath: 'polygon(0 0, 100% 0, 100% 100%, 0 100%, 20% 50%)'}}></div>
 
-        {/* Faded Background Logo */}
-        <div className="absolute inset-0 flex items-center justify-center opacity-5 -z-10">
-          <div className="w-64 h-64 border-[16px] border-gray-300 rounded-full flex items-center justify-center text-gray-300">
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-32 h-32" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5l10-5l-10-5zM2 17l10 5l10-5l-10-5l-10 5z" /></svg>
-          </div>
-        </div>
-
         {/* Header */}
         <header className="flex-shrink-0">
           <h1 className="text-center text-2xl font-bold mb-8">بسمه تعالی</h1>
