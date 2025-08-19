@@ -65,7 +65,7 @@ export default async function handler(
         if (Array.isArray(users)) {
             await client.query('TRUNCATE app_users RESTART IDENTITY CASCADE;');
             // Since passwords are not included in backups, we set a default password.
-            const defaultPassword = 'password123';
+            const defaultPassword = '5221157';
             const hashedPassword = await hashPassword(defaultPassword);
             for (const u of users) {
                  await client.query('INSERT INTO app_users (id, "firstName", "lastName", username, password_hash) VALUES ($1, $2, $3, $4, $5);', [u.id, u.firstName, u.lastName, u.username, hashedPassword]);
@@ -80,7 +80,7 @@ export default async function handler(
         }
 
         await client.query('COMMIT');
-        return res.status(200).json({ message: 'Restore successful. Users have been assigned a default password "password123".' });
+        return res.status(200).json({ message: 'پشتیبان با موفقیت بازگردانی شد. رمز عبور تمام کاربران به "5221157" تغییر یافت.' });
 
     } catch (error) {
         await client.query('ROLLBACK');

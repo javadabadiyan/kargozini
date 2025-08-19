@@ -35,7 +35,7 @@ async function setupTables() {
         
         const { rows: countRows } = await client.query('SELECT COUNT(*) FROM app_users;');
         if (Number(countRows[0].count) === 0) {
-            const defaultPassword = 'password123'; // Users should change this immediately
+            const defaultPassword = '5221157'; // Users should change this immediately
             const hashedPassword = await hashPassword(defaultPassword);
             const { rows: userRows } = await client.query(
                 `INSERT INTO app_users ("firstName", "lastName", username, password_hash)
