@@ -52,67 +52,61 @@ export default async function handler(
   if (req.method === 'POST') {
     const client = await sql.connect();
     try {
-      await client.query('BEGIN');
+      await client.sql`BEGIN`;
       
       // Bulk Import from Excel
       if (req.query.action === 'import') {
         const relativesList = req.body as any[];
         if (!Array.isArray(relativesList) || relativesList.length === 0) {
-            await client.query('ROLLBACK');
+            await client.sql`ROLLBACK`;
             return res.status(400).json({ error: 'Invalid import data' });
         }
         
         for (const r of relativesList) {
           if (!r.personnel_code) continue;
           
-          const { rows } = await client.query('SELECT id FROM personnel WHERE personnel_code = $1', [r.personnel_code]);
+          const { rows } = await client.sql`SELECT id FROM personnel WHERE personnel_code = ${r.personnel_code}`;
           if (rows.length === 0) {
               console.warn(`Skipping relative import: personnel with code ${r.personnel_code} not found.`);
               continue;
           }
           const personnelId = rows[0].id;
 
-          await client.query(
-              `INSERT INTO relatives (personnel_id, first_name, last_name, relation, national_id, birth_date)
-               VALUES ($1, $2, $3, $4, $5, $6)
+          await client.sql`
+               INSERT INTO relatives (personnel_id, first_name, last_name, relation, national_id, birth_date)
+               VALUES (${personnelId}, ${r.first_name}, ${r.last_name}, ${r.relation}, ${r.national_id}, ${r.birth_date})
                ON CONFLICT (national_id) WHERE national_id IS NOT NULL AND national_id <> '' DO UPDATE SET
                   personnel_id = EXCLUDED.personnel_id,
                   first_name = EXCLUDED.first_name,
                   last_name = EXCLUDED.last_name,
                   relation = EXCLUDED.relation,
                   birth_date = EXCLUDED.birth_date;
-              `,
-              [personnelId, r.first_name, r.last_name, r.relation, r.national_id, r.birth_date]
-          );
+              `;
         }
       }
       // Single Create/Update
       else {
         const { id, personnel_id, first_name, last_name, relation, national_id, birth_date } = req.body as Relative;
         if (!personnel_id || !first_name || !last_name) {
-            await client.query('ROLLBACK');
+            await client.sql`ROLLBACK`;
             return res.status(400).json({ error: 'Missing required fields' });
         }
 
         if (id) { // Update
-          await client.query(
-            `UPDATE relatives SET personnel_id=$1, first_name=$2, last_name=$3, relation=$4, national_id=$5, birth_date=$6
-             WHERE id=$7`,
-            [personnel_id, first_name, last_name, relation, national_id, birth_date, id]
-          );
+          await client.sql`
+            UPDATE relatives SET personnel_id=${personnel_id}, first_name=${first_name}, last_name=${last_name}, relation=${relation}, national_id=${national_id}, birth_date=${birth_date}
+             WHERE id=${id}`;
         } else { // Create
-          await client.query(
-            `INSERT INTO relatives (personnel_id, first_name, last_name, relation, national_id, birth_date)
-             VALUES ($1, $2, $3, $4, $5, $6)`,
-            [personnel_id, first_name, last_name, relation, national_id, birth_date]
-          );
+          await client.sql`
+            INSERT INTO relatives (personnel_id, first_name, last_name, relation, national_id, birth_date)
+             VALUES (${personnel_id}, ${first_name}, ${last_name}, ${relation}, ${national_id}, ${birth_date})`;
         }
       }
 
-      await client.query('COMMIT');
+      await client.sql`COMMIT`;
       return res.status(200).json({ success: true });
     } catch (error) {
-      await client.query('ROLLBACK');
+      await client.sql`ROLLBACK`;
       console.error(error);
       const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
       if (errorMessage.includes('unique_relative_national_id')) {

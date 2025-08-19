@@ -11,14 +11,27 @@ export default async function handler(
         CREATE TABLE IF NOT EXISTS accounting_commitments (
             id SERIAL PRIMARY KEY,
             personnel_id INT NOT NULL REFERENCES personnel(id) ON DELETE CASCADE,
-            guarantor_personnel_id INT NOT NULL REFERENCES personnel(id) ON DELETE CASCADE,
             title VARCHAR(255) NOT NULL,
             letter_date VARCHAR(50) NOT NULL,
             amount BIGINT NOT NULL,
             body TEXT NOT NULL,
-            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            guarantor_first_name VARCHAR(100),
+            guarantor_last_name VARCHAR(100),
+            guarantor_father_name VARCHAR(100),
+            guarantor_personnel_code VARCHAR(50)
         );
     `;
+    // Drop old column if it exists from previous versions
+    try {
+        await sql`ALTER TABLE accounting_commitments DROP COLUMN IF EXISTS guarantor_personnel_id;`;
+    } catch (e) {
+        // Ignore error if column doesn't exist, which is expected
+        if (!(e instanceof Error && e.message.includes('column "guarantor_personnel_id" of relation "accounting_commitments" does not exist'))) {
+            console.error("Error dropping old column, might be fine:", e);
+        }
+    }
+
   } catch (error) {
     console.error("Database setup error in /api/commitments:", error);
     if (!res.headersSent) {
@@ -27,7 +40,7 @@ export default async function handler(
     return;
   }
 
-  // GET: Fetch all commitments with personnel and guarantor info
+  // GET: Fetch all commitments with personnel info
   if (req.method === 'GET') {
     try {
       const { rows } = await sql<AccountingCommitmentWithDetails>`
@@ -35,13 +48,9 @@ export default async function handler(
             c.*, 
             p1.first_name as personnel_first_name, 
             p1.last_name as personnel_last_name,
-            p1.personnel_code as personnel_code,
-            p2.first_name as guarantor_first_name, 
-            p2.last_name as guarantor_last_name,
-            p2.personnel_code as guarantor_code
+            p1.personnel_code as personnel_code
         FROM accounting_commitments c 
         JOIN personnel p1 ON c.personnel_id = p1.id
-        JOIN personnel p2 ON c.guarantor_personnel_id = p2.id
         ORDER BY c.created_at DESC;
       `;
       return res.status(200).json(rows);
@@ -55,15 +64,19 @@ export default async function handler(
   // POST: Create a new commitment
   if (req.method === 'POST') {
     try {
-        const { personnel_id, guarantor_personnel_id, title, letter_date, amount, body } = req.body;
+        const { personnel_id, title, letter_date, amount, body, guarantor_first_name, guarantor_last_name, guarantor_father_name, guarantor_personnel_code } = req.body;
 
-        if (!personnel_id || !guarantor_personnel_id || !title || !letter_date || !amount || !body) {
+        if (!personnel_id || !title || !letter_date || !amount || !body || !guarantor_first_name || !guarantor_last_name) {
             return res.status(400).json({ error: 'Missing required fields' });
         }
 
         const result = await sql`
-            INSERT INTO accounting_commitments (personnel_id, guarantor_personnel_id, title, letter_date, amount, body)
-            VALUES (${personnel_id}, ${guarantor_personnel_id}, ${title}, ${letter_date}, ${amount}, ${body})
+            INSERT INTO accounting_commitments (
+                personnel_id, title, letter_date, amount, body,
+                guarantor_first_name, guarantor_last_name, guarantor_father_name, guarantor_personnel_code
+            )
+            VALUES (${personnel_id}, ${title}, ${letter_date}, ${amount}, ${body},
+                    ${guarantor_first_name}, ${guarantor_last_name}, ${guarantor_father_name}, ${guarantor_personnel_code})
             RETURNING *;
         `;
         return res.status(201).json(result.rows[0]);

@@ -23,9 +23,9 @@ async function hashPassword(password: string) {
 async function setupTables() {
     const client = await sql.connect();
     try {
-        await client.query('BEGIN');
+        await client.sql`BEGIN`;
         // Ensure tables exist
-        await client.query(`
+        await client.sql`
             CREATE TABLE IF NOT EXISTS app_users (
                 id SERIAL PRIMARY KEY,
                 "firstName" VARCHAR(100) NOT NULL,
@@ -33,46 +33,44 @@ async function setupTables() {
                 username VARCHAR(100) UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL
             );
-        `);
-        await client.query(`
+        `;
+        await client.sql`
             CREATE TABLE IF NOT EXISTS user_permissions (
                 user_id INT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
                 permission_name VARCHAR(100) NOT NULL,
                 PRIMARY KEY (user_id, permission_name)
             );
-        `);
+        `;
 
         // Upsert the admin user and reset their password to the default.
         // This ensures the admin account is always available with the password defined in the code.
         const defaultPassword = '5221157';
         const hashedPassword = await hashPassword(defaultPassword);
 
-        const { rows: userRows } = await client.query(
-            `INSERT INTO app_users ("firstName", "lastName", username, password_hash)
-             VALUES ('مدیر', 'سیستم', 'ادمین', $1)
+        const { rows: userRows } = await client.sql`
+             INSERT INTO app_users ("firstName", "lastName", username, password_hash)
+             VALUES ('مدیر', 'سیستم', 'ادمین', ${hashedPassword})
              ON CONFLICT (username) DO UPDATE SET
                 password_hash = EXCLUDED.password_hash,
                 "firstName" = EXCLUDED."firstName",
                 "lastName" = EXCLUDED."lastName"
-             RETURNING id;`,
-            [hashedPassword]
-        );
+             RETURNING id;
+        `;
         const adminId = userRows[0].id;
 
         // Ensure admin has all permissions by clearing and re-adding them.
         const allPermissions = ['manage_personnel', 'manage_users', 'manage_settings', 'perform_backup'];
         
-        await client.query('DELETE FROM user_permissions WHERE user_id = $1;', [adminId]);
+        await client.sql`DELETE FROM user_permissions WHERE user_id = ${adminId};`;
         for (const p of allPermissions) {
-            await client.query(
-                'INSERT INTO user_permissions (user_id, permission_name) VALUES ($1, $2) ON CONFLICT DO NOTHING;', 
-                [adminId, p]
-            );
+            await client.sql`
+                INSERT INTO user_permissions (user_id, permission_name) VALUES (${adminId}, ${p}) ON CONFLICT DO NOTHING;
+            `;
         }
 
-        await client.query('COMMIT');
+        await client.sql`COMMIT`;
     } catch (e) {
-        await client.query('ROLLBACK');
+        await client.sql`ROLLBACK`;
         throw e; // Re-throw error to be caught by handler
     } finally {
         client.release();
@@ -109,7 +107,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (req.method === 'POST') {
         const client = await sql.connect();
         try {
-            await client.query('BEGIN');
+            await client.sql`BEGIN`;
 
             // Bulk Import
             if (req.query.action === 'import') {
@@ -118,27 +116,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     if (!user.username || !user.password || !user.firstName || !user.lastName) continue;
                     const hashedPassword = await hashPassword(user.password);
                     
-                    const { rows } = await client.query(
-                        `INSERT INTO app_users ("firstName", "lastName", username, password_hash)
-                         VALUES ($1, $2, $3, $4)
+                    const { rows } = await client.sql`
+                        INSERT INTO app_users ("firstName", "lastName", username, password_hash)
+                         VALUES (${user.firstName}, ${user.lastName}, ${user.username}, ${hashedPassword})
                          ON CONFLICT (username) DO UPDATE SET
                            "firstName" = EXCLUDED."firstName",
                            "lastName" = EXCLUDED."lastName",
                            password_hash = EXCLUDED.password_hash
-                         RETURNING id;`,
-                        [user.firstName, user.lastName, user.username, hashedPassword]
-                    );
+                         RETURNING id;
+                    `;
                     const userId = rows[0].id;
 
                     if (userId && Array.isArray(user.permissions)) {
-                        await client.query('DELETE FROM user_permissions WHERE user_id = $1;', [userId]);
+                        await client.sql`DELETE FROM user_permissions WHERE user_id = ${userId};`;
                         for (const permissionName of user.permissions) {
                             const isValidPermission = ALL_PERMISSIONS.some(p => p.name === permissionName);
                             if (isValidPermission) {
-                                await client.query(
-                                    'INSERT INTO user_permissions (user_id, permission_name) VALUES ($1, $2) ON CONFLICT DO NOTHING;', 
-                                    [userId, permissionName]
-                                );
+                                await client.sql`
+                                    INSERT INTO user_permissions (user_id, permission_name) VALUES (${userId}, ${permissionName}) ON CONFLICT DO NOTHING;
+                                `;
                             }
                         }
                     }
@@ -151,36 +147,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                     throw new Error('Invalid data for password change');
                 }
                 const hashedPassword = await hashPassword(password);
-                await client.query('UPDATE app_users SET password_hash = $1 WHERE id = $2;', [hashedPassword, id]);
+                await client.sql`UPDATE app_users SET password_hash = ${hashedPassword} WHERE id = ${id};`;
             }
             // Create/Update User
             else {
                 const { id, firstName, lastName, username, password, permissions } = req.body;
                 if (id) { // Update
-                    await client.query('UPDATE app_users SET "firstName"=$1, "lastName"=$2, username=$3 WHERE id=$4;', [firstName, lastName, username, id]);
+                    await client.sql`UPDATE app_users SET "firstName"=${firstName}, "lastName"=${lastName}, username=${username} WHERE id=${id};`;
                     if (password) { // Optionally update password
                         const hashedPassword = await hashPassword(password);
-                        await client.query('UPDATE app_users SET password_hash=$1 WHERE id=$2;', [hashedPassword, id]);
+                        await client.sql`UPDATE app_users SET password_hash=${hashedPassword} WHERE id=${id};`;
                     }
-                    await client.query('DELETE FROM user_permissions WHERE user_id=$1;', [id]);
+                    await client.sql`DELETE FROM user_permissions WHERE user_id=${id};`;
                     for (const p of permissions) {
-                        await client.query('INSERT INTO user_permissions (user_id, permission_name) VALUES ($1, $2);', [id, p]);
+                        await client.sql`INSERT INTO user_permissions (user_id, permission_name) VALUES (${id}, ${p});`;
                     }
                 } else { // Create
                     if (!password) throw new Error("Password is required for new users");
                     const hashedPassword = await hashPassword(password);
-                    const { rows } = await client.query('INSERT INTO app_users ("firstName", "lastName", username, password_hash) VALUES ($1, $2, $3, $4) RETURNING id;', [firstName, lastName, username, hashedPassword]);
+                    const { rows } = await client.sql`INSERT INTO app_users ("firstName", "lastName", username, password_hash) VALUES (${firstName}, ${lastName}, ${username}, ${hashedPassword}) RETURNING id;`;
                     const newId = rows[0].id;
                     for (const p of permissions) {
-                        await client.query('INSERT INTO user_permissions (user_id, permission_name) VALUES ($1, $2);', [newId, p]);
+                        await client.sql`INSERT INTO user_permissions (user_id, permission_name) VALUES (${newId}, ${p});`;
                     }
                 }
             }
 
-            await client.query('COMMIT');
+            await client.sql`COMMIT`;
             return res.status(200).json({ success: true });
         } catch (error) {
-            await client.query('ROLLBACK');
+            await client.sql`ROLLBACK`;
             console.error(error);
             const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
              if (errorMessage.includes('duplicate key value violates unique constraint')) {

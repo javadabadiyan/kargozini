@@ -16,9 +16,9 @@ async function hashPassword(password: string) {
 async function setupTables() {
     const client = await sql.connect();
     try {
-        await client.query('BEGIN');
+        await client.sql`BEGIN`;
         // Ensure tables exist
-        await client.query(`
+        await client.sql`
             CREATE TABLE IF NOT EXISTS app_users (
                 id SERIAL PRIMARY KEY,
                 "firstName" VARCHAR(100) NOT NULL,
@@ -26,14 +26,14 @@ async function setupTables() {
                 username VARCHAR(100) UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL
             );
-        `);
-        await client.query(`
+        `;
+        await client.sql`
             CREATE TABLE IF NOT EXISTS user_permissions (
                 user_id INT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
                 permission_name VARCHAR(100) NOT NULL,
                 PRIMARY KEY (user_id, permission_name)
             );
-        `);
+        `;
         
         // Upsert the admin user and reset their password to the default.
         // This ensures the admin account is always available with the password defined in the code,
@@ -42,32 +42,30 @@ async function setupTables() {
         const defaultPassword = '5221157';
         const hashedPassword = await hashPassword(defaultPassword);
 
-        const { rows: userRows } = await client.query(
-            `INSERT INTO app_users ("firstName", "lastName", username, password_hash)
-             VALUES ('مدیر', 'سیستم', 'ادمین', $1)
+        const { rows: userRows } = await client.sql`
+             INSERT INTO app_users ("firstName", "lastName", username, password_hash)
+             VALUES ('مدیر', 'سیستم', 'ادمین', ${hashedPassword})
              ON CONFLICT (username) DO UPDATE SET
                 password_hash = EXCLUDED.password_hash,
                 "firstName" = EXCLUDED."firstName",
                 "lastName" = EXCLUDED."lastName"
-             RETURNING id;`,
-            [hashedPassword]
-        );
+             RETURNING id;
+        `;
         const adminId = userRows[0].id;
 
         // Ensure admin has all permissions by clearing and re-adding them.
         const allPermissions = ['manage_personnel', 'manage_users', 'manage_settings', 'perform_backup'];
         
-        await client.query('DELETE FROM user_permissions WHERE user_id = $1;', [adminId]);
+        await client.sql`DELETE FROM user_permissions WHERE user_id = ${adminId};`;
         for (const p of allPermissions) {
-            await client.query(
-                'INSERT INTO user_permissions (user_id, permission_name) VALUES ($1, $2) ON CONFLICT DO NOTHING;', 
-                [adminId, p]
-            );
+            await client.sql`
+                INSERT INTO user_permissions (user_id, permission_name) VALUES (${adminId}, ${p}) ON CONFLICT DO NOTHING;
+            `;
         }
 
-        await client.query('COMMIT');
+        await client.sql`COMMIT`;
     } catch (e) {
-        await client.query('ROLLBACK');
+        await client.sql`ROLLBACK`;
         throw e; // Re-throw error to be caught by handler
     } finally {
         client.release();

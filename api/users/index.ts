@@ -53,47 +53,41 @@ export default async function handler(
             return res.status(400).json({ error: 'Invalid import data' });
         }
         
+        const client = await sql.connect();
         try {
-            const client = await sql.connect();
-            await client.query('BEGIN');
-            try {
-                for (const p of personnelList) {
-                    await client.query(
-                        `INSERT INTO personnel (
-                            personnel_code, first_name, last_name, father_name, national_id, id_number,
-                            birth_date, birth_place, issue_date, issue_place, marital_status,
-                            military_status, job, "position", employment_type, unit, service_place,
-                            employment_date, education_degree, field_of_study, status
-                        ) 
-                        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
-                        ON CONFLICT (personnel_code) DO UPDATE SET
-                            first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name, father_name = EXCLUDED.father_name,
-                            national_id = EXCLUDED.national_id, id_number = EXCLUDED.id_number, birth_date = EXCLUDED.birth_date,
-                            birth_place = EXCLUDED.birth_place, issue_date = EXCLUDED.issue_date, issue_place = EXCLUDED.issue_place,
-                            marital_status = EXCLUDED.marital_status, military_status = EXCLUDED.military_status, job = EXCLUDED.job,
-                            "position" = EXCLUDED."position", employment_type = EXCLUDED.employment_type, unit = EXCLUDED.unit,
-                            service_place = EXCLUDED.service_place, employment_date = EXCLUDED.employment_date,
-                            education_degree = EXCLUDED.education_degree, field_of_study = EXCLUDED.field_of_study, status = EXCLUDED.status;`,
-                        [
-                            p.personnel_code, p.first_name, p.last_name, p.father_name, p.national_id, p.id_number,
-                            p.birth_date, p.birth_place, p.issue_date, p.issue_place, p.marital_status,
-                            p.military_status, p.job, p.position, p.employment_type, p.unit, p.service_place,
-                            p.employment_date, p.education_degree, p.field_of_study, p.status
-                        ]
-                    );
-                }
-                await client.query('COMMIT');
-                client.release();
-                return res.status(200).json({ message: 'Import successful' });
-            } catch (e) {
-                await client.query('ROLLBACK');
-                client.release();
-                throw e; // re-throw the error to be caught by the outer catch
+            await client.sql`BEGIN`;
+            for (const p of personnelList) {
+                await client.sql`
+                    INSERT INTO personnel (
+                        personnel_code, first_name, last_name, father_name, national_id, id_number,
+                        birth_date, birth_place, issue_date, issue_place, marital_status,
+                        military_status, job, "position", employment_type, unit, service_place,
+                        employment_date, education_degree, field_of_study, status
+                    ) 
+                    VALUES (${p.personnel_code}, ${p.first_name}, ${p.last_name}, ${p.father_name}, ${p.national_id}, ${p.id_number},
+                        ${p.birth_date}, ${p.birth_place}, ${p.issue_date}, ${p.issue_place}, ${p.marital_status},
+                        ${p.military_status}, ${p.job}, ${p.position}, ${p.employment_type}, ${p.unit}, ${p.service_place},
+                        ${p.employment_date}, ${p.education_degree}, ${p.field_of_study}, ${p.status}
+                    )
+                    ON CONFLICT (personnel_code) DO UPDATE SET
+                        first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name, father_name = EXCLUDED.father_name,
+                        national_id = EXCLUDED.national_id, id_number = EXCLUDED.id_number, birth_date = EXCLUDED.birth_date,
+                        birth_place = EXCLUDED.birth_place, issue_date = EXCLUDED.issue_date, issue_place = EXCLUDED.issue_place,
+                        marital_status = EXCLUDED.marital_status, military_status = EXCLUDED.military_status, job = EXCLUDED.job,
+                        "position" = EXCLUDED."position", employment_type = EXCLUDED.employment_type, unit = EXCLUDED.unit,
+                        service_place = EXCLUDED.service_place, employment_date = EXCLUDED.employment_date,
+                        education_degree = EXCLUDED.education_degree, field_of_study = EXCLUDED.field_of_study, status = EXCLUDED.status;
+                `;
             }
+            await client.sql`COMMIT`;
+            return res.status(200).json({ message: 'Import successful' });
         } catch (error) {
+            await client.sql`ROLLBACK`;
             console.error(error);
             const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
             return res.status(500).json({ error: 'Failed to import personnel', details: errorMessage });
+        } finally {
+            client.release();
         }
     }
 

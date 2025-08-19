@@ -7,7 +7,6 @@ interface AccountingCommitmentPageProps {
   personnelList: Personnel[];
 }
 
-// Reusable Personnel Search Component
 const PersonnelSearch = ({
   personnelList,
   selectedPersonnel,
@@ -94,10 +93,24 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
   const [letterBody, setLetterBody] = useState('');
   const [date, setDate] = useState(new Date().toLocaleDateString('fa-IR', { year: 'numeric', month: '2-digit', day: '2-digit' }));
   const [amount, setAmount] = useState<number | ''>('');
+  const [totalFactors, setTotalFactors] = useState<number | ''>('');
   
   const [selectedPersonnel, setSelectedPersonnel] = useState<Personnel | null>(null);
-  const [selectedGuarantor, setSelectedGuarantor] = useState<Personnel | null>(null);
-  const [previousCommitmentsCount, setPreviousCommitmentsCount] = useState(0);
+  const [guarantor, setGuarantor] = useState({
+      first_name: '',
+      last_name: '',
+      father_name: '',
+      personnel_code: ''
+  });
+
+  const [calculation, setCalculation] = useState<{
+      ceiling: number;
+      previousTotal: number;
+      effectiveCeiling: number;
+      remaining: number;
+      isPermitted: boolean;
+  } | null>(null);
+
 
   const [commitments, setCommitments] = useState<AccountingCommitmentWithDetails[]>([]);
   const [filteredCommitments, setFilteredCommitments] = useState<AccountingCommitmentWithDetails[]>([]);
@@ -135,26 +148,39 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
     setFilteredCommitments(filtered);
   }, [searchQuery, commitments]);
   
-  useEffect(() => {
-    if (selectedPersonnel) {
-        const count = commitments.filter(c => c.personnel_id === selectedPersonnel.id).length;
-        setPreviousCommitmentsCount(count);
-    } else {
-        setPreviousCommitmentsCount(0);
-    }
-  }, [selectedPersonnel, commitments]);
-
-  const generateLetterBody = (personnel: Personnel | null, guarantor: Personnel | null, loanAmount: number | '') => {
-      const template = `احتراماً حسابداری این شرکت تعهد می نماید در صورت عدم پرداخت اقساط وام به مبلغ ${loanAmount ? formatRial(loanAmount) : '[مبلغ وام]'} ریال بنام آقای ${personnel ? `${personnel.first_name} ${personnel.last_name}` : '[نام وام گیرنده]'} فرزند ${personnel ? personnel.father_name : '[نام پدر]'} با کد ملی ${personnel ? toPersianDigits(personnel.national_id) : '[کد ملی]'} از حقوق ضامن نامبرده آقای ${guarantor ? `${guarantor.first_name} ${guarantor.last_name}` : '[نام ضامن]'} فرزند ${guarantor ? guarantor.father_name : '[نام پدر ضامن]'} با کد ${guarantor ? toPersianDigits(guarantor.personnel_code) : '[کد پرسنلی ضامن]'} در این شرکت شاغل باشد بعد از اعلام بانک و با رعایت سقف قانونی کسر و به حساب آن بانک واریز نماید.\n\nاین گواهی بنا به درخواست نامبرده جهت ارائه به بانک فوق صادر گردیده است و فاقد هرگونه ارزش دیگری می باشد.`;
+  const generateLetterBody = (personnel: Personnel | null, currentGuarantor: typeof guarantor, loanAmount: number | '') => {
+      const template = `احتراماً حسابداری این شرکت تعهد می نماید در صورت عدم پرداخت اقساط وام به مبلغ ${loanAmount ? formatRial(loanAmount) : '[مبلغ وام]'} ریال بنام آقای ${personnel ? `${personnel.first_name} ${personnel.last_name}` : '[نام وام گیرنده]'} فرزند ${personnel ? personnel.father_name : '[نام پدر]'} با کد ملی ${personnel ? toPersianDigits(personnel.national_id) : '[کد ملی]'} از حقوق ضامن نامبرده آقای ${currentGuarantor.first_name || currentGuarantor.last_name ? `${currentGuarantor.first_name} ${currentGuarantor.last_name}` : '[نام ضامن]'} فرزند ${currentGuarantor.father_name || '[نام پدر ضامن]'} با کد ${currentGuarantor.personnel_code ? toPersianDigits(currentGuarantor.personnel_code) : '[کد پرسنلی ضامن]'} در این شرکت شاغل باشد بعد از اعلام بانک و با رعایت سقف قانونی کسر و به حساب آن بانک واریز نماید.\n\nاین گواهی بنا به درخواست نامبرده جهت ارائه به بانک فوق صادر گردیده است و فاقد هرگونه ارزش دیگری می باشد.`;
       setLetterBody(template);
   };
   
   useEffect(() => {
-    generateLetterBody(selectedPersonnel, selectedGuarantor, amount);
-  }, [selectedPersonnel, selectedGuarantor, amount]);
+    generateLetterBody(selectedPersonnel, guarantor, amount);
+  }, [selectedPersonnel, guarantor, amount]);
+
+  useEffect(() => {
+    if (selectedPersonnel && totalFactors !== '' && amount !== '') {
+        const previousTotal = commitments
+            .filter(c => c.personnel_id === selectedPersonnel.id)
+            .reduce((sum, c) => sum + Number(c.amount), 0);
+        
+        const ceiling = Number(totalFactors) * 30;
+        const effectiveCeiling = ceiling - previousTotal;
+        const remaining = effectiveCeiling - Number(amount);
+        const isPermitted = Number(amount) <= effectiveCeiling;
+
+        setCalculation({ ceiling, previousTotal, effectiveCeiling, remaining, isPermitted });
+    } else {
+        setCalculation(null);
+    }
+  }, [selectedPersonnel, totalFactors, amount, commitments]);
+
+  const handleGuarantorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setGuarantor(prev => ({ ...prev, [name]: value }));
+  };
 
   const handleSave = async () => {
-    if (!title || !letterBody || !selectedPersonnel || !selectedGuarantor || !date || !amount) {
+    if (!title || !letterBody || !selectedPersonnel || !guarantor.first_name || !guarantor.last_name || !date || !amount) {
         alert('لطفاً تمام فیلدهای ستاره‌دار را پر کنید.');
         return;
     }
@@ -163,9 +189,12 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
         title,
         body: letterBody,
         personnel_id: selectedPersonnel.id,
-        guarantor_personnel_id: selectedGuarantor.id,
         letter_date: date,
-        amount: Number(amount)
+        amount: Number(amount),
+        guarantor_first_name: guarantor.first_name,
+        guarantor_last_name: guarantor.last_name,
+        guarantor_father_name: guarantor.father_name,
+        guarantor_personnel_code: guarantor.personnel_code,
     };
 
     try {
@@ -182,8 +211,9 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
         alert('نامه تعهد با موفقیت ذخیره شد.');
         // Reset form
         setSelectedPersonnel(null);
-        setSelectedGuarantor(null);
+        setGuarantor({ first_name: '', last_name: '', father_name: '', personnel_code: '' });
         setAmount('');
+        setTotalFactors('');
     } catch(e) {
         alert(`خطا در ذخیره سازی: ${e instanceof Error ? e.message : 'Unknown error'}`);
     }
@@ -205,10 +235,32 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
     setPrintableData(commitment);
     setTimeout(() => window.print(), 100);
   };
+  
+  const renderCalculation = () => {
+      if (!calculation) return null;
+      
+      const { ceiling, previousTotal, effectiveCeiling, remaining, isPermitted } = calculation;
+
+      return (
+        <div className="mt-4 p-4 border border-blue-200 bg-blue-50 rounded-lg space-y-2 text-sm">
+            <h3 className="font-bold text-base text-blue-800">نتایج محاسبه سقف تعهد</h3>
+            <div className="flex justify-between"><span>سقف تعهد مجاز (۳۰ برابر حکم):</span> <span className="font-semibold">{formatRial(ceiling)} ریال</span></div>
+            <div className="flex justify-between"><span>مجموع تعهدات قبلی:</span> <span className="font-semibold text-orange-600">{formatRial(previousTotal)} ریال</span></div>
+            <div className="flex justify-between border-t pt-2 mt-2">
+                <span className="font-bold">سقف تعهد موثر (پس از کسر تعهدات قبلی):</span>
+                <span className="font-bold text-lg">{formatRial(effectiveCeiling)} ریال</span>
+            </div>
+             <div className="flex justify-between"><span>باقیمانده پس از وام فعلی:</span> <span className="font-semibold">{formatRial(remaining)} ریال</span></div>
+            <div className={`flex justify-between items-center p-2 rounded-md mt-2 ${isPermitted ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                <span className="font-bold text-base">وضعیت:</span>
+                <span className="font-bold text-base">{isPermitted ? 'مجاز به دریافت تعهد' : 'غیر مجاز (مبلغ وام بیش از سقف است)'}</span>
+            </div>
+        </div>
+      );
+  }
 
   return (
     <div className="animate-fade-in-up">
-      {/* Printable Area (Hidden) */}
       <div className="hidden print:block printable-area">
           <div className="flex justify-between items-start mb-12">
             <div className="text-sm">تاریخ: {toPersianDigits(printableData.date)}</div>
@@ -226,10 +278,9 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
       <div className="no-print">
         <h1 className="text-3xl font-bold text-slate-700 mb-6">نامه تعهد حسابداری</h1>
         
-        {/* New Commitment Form */}
         <div className="bg-white rounded-xl shadow-md p-6 border border-slate-200 mb-8">
             <h2 className="text-xl font-bold text-slate-800 mb-4 border-b pb-3">ایجاد نامه جدید</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-4">
                 <PersonnelSearch 
                     label="وام گیرنده"
                     placeholder="جستجوی وام گیرنده..."
@@ -237,13 +288,17 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
                     selectedPersonnel={selectedPersonnel}
                     onSelect={setSelectedPersonnel}
                 />
-                <PersonnelSearch 
-                    label="ضامن"
-                    placeholder="جستجوی ضامن..."
-                    personnelList={personnelList}
-                    selectedPersonnel={selectedGuarantor}
-                    onSelect={setSelectedGuarantor}
-                />
+                 <div>
+                  <label htmlFor="total_factors" className="block text-sm font-medium text-slate-700 mb-1">جمع عوامل حکمی (ریال)<span className="text-red-500 mr-1">*</span></label>
+                  <input
+                      type="number"
+                      id="total_factors"
+                      value={totalFactors}
+                      onChange={(e) => setTotalFactors(Number(e.target.value))}
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="مبلغ جمع عوامل حکم"
+                  />
+                </div>
                 <div>
                   <label htmlFor="amount" className="block text-sm font-medium text-slate-700 mb-1">مبلغ وام (ریال)<span className="text-red-500 mr-1">*</span></label>
                   <input
@@ -252,18 +307,39 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
                       value={amount}
                       onChange={(e) => setAmount(Number(e.target.value))}
                       className="w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="مثال: 300000000"
+                      placeholder="مبلغ وام درخواستی"
                   />
                 </div>
             </div>
-            {selectedPersonnel && <p className="text-sm text-blue-600 mb-4">تعداد تعهدات قبلی این شخص: {toPersianDigits(previousCommitmentsCount)}</p>}
-            <div>
+            {renderCalculation()}
+            <div className="mt-6 pt-4 border-t">
+                <h3 className="text-lg font-semibold text-slate-800 mb-3">اطلاعات ضامن (دستی)</h3>
+                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                     <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">نام<span className="text-red-500 mr-1">*</span></label>
+                        <input name="first_name" value={guarantor.first_name} onChange={handleGuarantorChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
+                     </div>
+                     <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">نام خانوادگی<span className="text-red-500 mr-1">*</span></label>
+                        <input name="last_name" value={guarantor.last_name} onChange={handleGuarantorChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
+                     </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">نام پدر</label>
+                        <input name="father_name" value={guarantor.father_name} onChange={handleGuarantorChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
+                     </div>
+                     <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">کد پرسنلی</label>
+                        <input name="personnel_code" value={guarantor.personnel_code} onChange={handleGuarantorChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
+                     </div>
+                 </div>
+            </div>
+            <div className="mt-4">
                 <label className="block text-sm font-medium text-slate-700 mb-1">متن نامه (پیش‌نمایش خودکار)</label>
                 <textarea
                     value={letterBody}
                     readOnly
                     rows={8}
-                    className="w-full px-3 py-2 border border-slate-200 bg-slate-50 rounded-lg shadow-sm"
+                    className="w-full px-3 py-2 border border-slate-200 bg-slate-50 rounded-lg shadow-sm leading-relaxed"
                 />
             </div>
             <div className="flex justify-end pt-6 mt-4 border-t border-slate-200 space-x-2 space-x-reverse">
@@ -272,7 +348,6 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
             </div>
         </div>
 
-        {/* Saved Commitments Archive */}
         <div className="bg-white rounded-xl shadow-md p-6 border border-slate-200">
             <h2 className="text-xl font-bold text-slate-800 mb-4 border-b pb-3">آرشیو نامه‌های ذخیره شده</h2>
             <input
