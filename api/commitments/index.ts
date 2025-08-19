@@ -26,13 +26,16 @@ export default async function handler(
             borrower_national_id VARCHAR(20)
         );
     `;
-    // Drop old column if it exists from previous versions
+    // Add new column and drop old one for compatibility
     try {
+        await sql`ALTER TABLE accounting_commitments ADD COLUMN IF NOT EXISTS addressee VARCHAR(255) NOT NULL DEFAULT 'ریاست محترم';`;
         await sql`ALTER TABLE accounting_commitments DROP COLUMN IF EXISTS guarantor_personnel_id;`;
     } catch (e) {
-        // Ignore error if column doesn't exist, which is expected
-        if (!(e instanceof Error && e.message.includes('column "guarantor_personnel_id" of relation "accounting_commitments" does not exist'))) {
-            console.error("Error dropping old column, might be fine:", e);
+        if (!(e instanceof Error && (
+            e.message.includes('column "guarantor_personnel_id" of relation "accounting_commitments" does not exist') ||
+            e.message.includes('column "addressee" of relation "accounting_commitments" already exists')
+        ))) {
+            console.error("Error modifying table columns, might be fine:", e);
         }
     }
 
@@ -65,34 +68,56 @@ export default async function handler(
     }
   }
 
-  // POST: Create a new commitment
+  // POST: Create or Update a commitment
   if (req.method === 'POST') {
     try {
         const { 
-            personnel_id, title, letter_date, amount, body, 
+            id, personnel_id, addressee, title, letter_date, amount, body, 
             guarantor_first_name, guarantor_last_name, guarantor_father_name, guarantor_personnel_code,
             borrower_first_name, borrower_last_name, borrower_father_name, borrower_national_id
         } = req.body;
 
-        if (!title || !letter_date || !amount || !body || !guarantor_first_name || !guarantor_last_name || (!personnel_id && !borrower_first_name)) {
+        if (!addressee || !title || !letter_date || !amount || !body || !guarantor_first_name || !guarantor_last_name || (!personnel_id && !borrower_first_name)) {
             return res.status(400).json({ error: 'Missing required fields' });
         }
-
-        const result = await sql`
-            INSERT INTO accounting_commitments (
-                personnel_id, title, letter_date, amount, body,
-                guarantor_first_name, guarantor_last_name, guarantor_father_name, guarantor_personnel_code,
-                borrower_first_name, borrower_last_name, borrower_father_name, borrower_national_id
-            )
-            VALUES (
-                ${personnel_id || null}, ${title}, ${letter_date}, ${amount}, ${body},
-                ${guarantor_first_name}, ${guarantor_last_name}, ${guarantor_father_name}, ${guarantor_personnel_code},
-                ${borrower_first_name || null}, ${borrower_last_name || null}, ${borrower_father_name || null}, ${borrower_national_id || null}
-            )
-            RETURNING *;
-        `;
-        return res.status(201).json(result.rows[0]);
-
+        
+        if (id) { // Update
+            const result = await sql`
+                UPDATE accounting_commitments SET
+                    personnel_id = ${personnel_id || null},
+                    addressee = ${addressee},
+                    title = ${title},
+                    letter_date = ${letter_date},
+                    amount = ${amount},
+                    body = ${body},
+                    guarantor_first_name = ${guarantor_first_name},
+                    guarantor_last_name = ${guarantor_last_name},
+                    guarantor_father_name = ${guarantor_father_name},
+                    guarantor_personnel_code = ${guarantor_personnel_code},
+                    borrower_first_name = ${borrower_first_name || null},
+                    borrower_last_name = ${borrower_last_name || null},
+                    borrower_father_name = ${borrower_father_name || null},
+                    borrower_national_id = ${borrower_national_id || null}
+                WHERE id = ${id}
+                RETURNING *;
+            `;
+            return res.status(200).json(result.rows[0]);
+        } else { // Create
+            const result = await sql`
+                INSERT INTO accounting_commitments (
+                    personnel_id, addressee, title, letter_date, amount, body,
+                    guarantor_first_name, guarantor_last_name, guarantor_father_name, guarantor_personnel_code,
+                    borrower_first_name, borrower_last_name, borrower_father_name, borrower_national_id
+                )
+                VALUES (
+                    ${personnel_id || null}, ${addressee}, ${title}, ${letter_date}, ${amount}, ${body},
+                    ${guarantor_first_name}, ${guarantor_last_name}, ${guarantor_father_name}, ${guarantor_personnel_code},
+                    ${borrower_first_name || null}, ${borrower_last_name || null}, ${borrower_father_name || null}, ${borrower_national_id || null}
+                )
+                RETURNING *;
+            `;
+            return res.status(201).json(result.rows[0]);
+        }
     } catch (error) {
         console.error(error);
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';

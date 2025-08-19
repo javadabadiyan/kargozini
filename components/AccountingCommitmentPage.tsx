@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import type { Personnel, AccountingCommitmentWithDetails } from '../types';
 import { toPersianDigits, formatRial } from './format';
-import { DeleteIcon } from './icons';
+import { DeleteIcon, EditIcon, EyeIcon, CloseIcon } from './icons';
 
 interface AccountingCommitmentPageProps {
   personnelList: Personnel[];
@@ -66,7 +66,7 @@ const PersonnelSearch = ({
         className="w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         autoComplete="off"
       />
-      {isOpen && filteredPersonnel.length > 0 && (
+      {isOpen && value && filteredPersonnel.length > 0 && (
         <ul className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
           {filteredPersonnel.map(p => (
             <li
@@ -83,6 +83,66 @@ const PersonnelSearch = ({
   );
 };
 
+const ViewLetterModal = ({
+  commitment,
+  onClose,
+}: {
+  commitment: AccountingCommitmentWithDetails | null;
+  onClose: () => void;
+}) => {
+  if (!commitment) return null;
+
+  const printableRef = useRef<HTMLDivElement>(null);
+  
+  const handlePrint = () => {
+    const content = printableRef.current;
+    if (content) {
+      const printWindow = window.open('', '', 'height=800,width=800');
+      if (printWindow) {
+        printWindow.document.write('<html><head><title>چاپ نامه</title>');
+        printWindow.document.write('<style>@import url("https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;700&display=swap"); body { font-family: "Vazirmatn", sans-serif; direction: rtl; padding: 20px; } .content { white-space: pre-line; line-height: 2; text-align: justify; } .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 3rem; } .title { text-align: center; margin-bottom: 3rem; } .signature { margin-top: 6rem; text-align: center; } </style>');
+        printWindow.document.write('</head><body>');
+        printWindow.document.write(content.innerHTML);
+        printWindow.document.write('</body></html>');
+        printWindow.document.close();
+        printWindow.focus();
+        printWindow.print();
+        printWindow.close();
+      }
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl p-6 relative animate-fade-in-down max-h-[90vh] flex flex-col">
+        <div className="flex justify-between items-center border-b pb-3 mb-4">
+            <h2 className="text-xl font-bold text-slate-800">نمایش نامه تعهد</h2>
+            <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100">
+                <CloseIcon />
+            </button>
+        </div>
+        <div className="overflow-y-auto flex-1" ref={printableRef}>
+           <div className="header">
+             <div className="text-sm">تاریخ: {toPersianDigits(commitment.letter_date)}</div>
+             <div className="text-sm">شماره: .................</div>
+           </div>
+           <h1 className="title text-2xl font-bold">{commitment.addressee}</h1>
+           <h2 className="title text-xl">موضوع: {commitment.title}</h2>
+           <p className="content">{commitment.body}</p>
+           <div className="signature">
+             <p>با تشکر</p>
+             <p className="font-bold">مدیریت سرمایه انسانی</p>
+           </div>
+        </div>
+        <div className="flex justify-end pt-4 mt-4 border-t">
+          <button onClick={onClose} className="px-4 py-2 bg-slate-200 text-slate-800 rounded-md hover:bg-slate-300 transition ml-2">بستن</button>
+          <button onClick={handlePrint} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition">چاپ</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 
 export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> = ({ personnelList }) => {
   const [addressee, setAddressee] = useState('ریاست محترم بانک رفاه شعبه مرکزی سیرجان');
@@ -93,6 +153,7 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
   const [totalFactors, setTotalFactors] = useState<number | ''>('');
   
   const [selectedPersonnel, setSelectedPersonnel] = useState<Personnel | null>(null);
+  const [borrowerSearch, setBorrowerSearch] = useState('');
   const [borrowerDetails, setBorrowerDetails] = useState({
       first_name: '', last_name: '', father_name: '', national_id: ''
   });
@@ -107,13 +168,16 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
       remaining: number; isPermitted: boolean;
   } | null>(null);
 
-
   const [commitments, setCommitments] = useState<AccountingCommitmentWithDetails[]>([]);
   const [filteredCommitments, setFilteredCommitments] = useState<AccountingCommitmentWithDetails[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
-  const [printableData, setPrintableData] = useState({ title: '', body: '', date: '', addressee: '' });
+  // States for edit and view modal
+  const [editingCommitmentId, setEditingCommitmentId] = useState<number | null>(null);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [commitmentToView, setCommitmentToView] = useState<AccountingCommitmentWithDetails | null>(null);
+  const formRef = useRef<HTMLDivElement>(null);
   
   const fetchCommitments = async () => {
     setIsLoading(true);
@@ -133,10 +197,12 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
   useEffect(() => { fetchCommitments(); }, []);
 
   useEffect(() => {
+    const query = searchQuery.toLowerCase();
     const filtered = commitments.filter(c =>
-        `${c.personnel_first_name} ${c.personnel_last_name}`.includes(searchQuery) ||
-        `${c.guarantor_first_name} ${c.guarantor_last_name}`.includes(searchQuery) ||
-        toPersianDigits(c.letter_date).includes(searchQuery)
+        `${c.personnel_first_name} ${c.personnel_last_name}`.toLowerCase().includes(query) ||
+        `${c.borrower_first_name} ${c.borrower_last_name}`.toLowerCase().includes(query) ||
+        `${c.guarantor_first_name} ${c.guarantor_last_name}`.toLowerCase().includes(query) ||
+        toPersianDigits(c.letter_date).toLowerCase().includes(query)
     );
     setFilteredCommitments(filtered);
   }, [searchQuery, commitments]);
@@ -162,7 +228,7 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
   useEffect(() => {
     if (selectedPersonnel && totalFactors !== '' && amount !== '') {
         const previousTotal = commitments
-            .filter(c => c.personnel_id === selectedPersonnel.id)
+            .filter(c => c.personnel_id === selectedPersonnel.id && c.id !== editingCommitmentId)
             .reduce((sum, c) => sum + Number(c.amount), 0);
         
         const ceiling = Number(totalFactors) * 30;
@@ -174,10 +240,23 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
     } else {
         setCalculation(null);
     }
-  }, [selectedPersonnel, totalFactors, amount, commitments]);
+  }, [selectedPersonnel, totalFactors, amount, commitments, editingCommitmentId]);
+  
+  const handleSelectBorrower = (p: Personnel) => {
+    setSelectedPersonnel(p);
+    setBorrowerSearch(`${p.first_name} ${p.last_name} (${toPersianDigits(p.personnel_code)})`);
+  };
+  
+  const handleBorrowerSearchChange = (val: string) => {
+      setBorrowerSearch(val);
+      if(selectedPersonnel) setSelectedPersonnel(null);
+  };
 
   const handleBorrowerDetailsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if(selectedPersonnel) setSelectedPersonnel(null);
+    if(selectedPersonnel) {
+        setSelectedPersonnel(null);
+        setBorrowerSearch('');
+    }
     setBorrowerDetails(prev => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
@@ -190,18 +269,34 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
         first_name: p.first_name, last_name: p.last_name,
         father_name: p.father_name || '', personnel_code: p.personnel_code || ''
     });
-    setGuarantorSearch(`${p.first_name} ${p.last_name}`);
+    setGuarantorSearch(`${p.first_name} ${p.last_name} (${toPersianDigits(p.personnel_code)})`);
+  };
+  
+  const resetForm = () => {
+    setEditingCommitmentId(null);
+    setSelectedPersonnel(null);
+    setBorrowerSearch('');
+    setBorrowerDetails({ first_name: '', last_name: '', father_name: '', national_id: '' });
+    setGuarantor({ first_name: '', last_name: '', father_name: '', personnel_code: '' });
+    setGuarantorSearch('');
+    setAmount('');
+    setTotalFactors('');
+    setAddressee('ریاست محترم بانک رفاه شعبه مرکزی سیرجان');
+    setTitle('تعهد حسابداری');
+    setDate(new Date().toLocaleDateString('fa-IR', { year: 'numeric', month: '2-digit', day: '2-digit' }));
   };
 
   const handleSave = async () => {
-    if (!title || !letterBody || !borrowerDetails.first_name || !guarantor.first_name || !date || !amount) {
+    if (!addressee || !title || !letterBody || !borrowerDetails.first_name || !guarantor.first_name || !date || !amount) {
         alert('لطفاً تمام فیلدهای ستاره‌دار را پر کنید.');
         return;
     }
     
     const commitmentData = {
+        id: editingCommitmentId,
         title, body: letterBody, letter_date: date,
         amount: Number(amount),
+        addressee,
         personnel_id: selectedPersonnel ? selectedPersonnel.id : null,
         guarantor_first_name: guarantor.first_name,
         guarantor_last_name: guarantor.last_name,
@@ -221,16 +316,8 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
         });
         if (!response.ok) throw new Error((await response.json()).error || 'Failed to save');
         await fetchCommitments();
-        alert('نامه تعهد با موفقیت ذخیره شد.');
-        
-        setSelectedPersonnel(null);
-        setBorrowerDetails({ first_name: '', last_name: '', father_name: '', national_id: '' });
-        setGuarantor({ first_name: '', last_name: '', father_name: '', personnel_code: '' });
-        setGuarantorSearch('');
-        setAmount('');
-        setTotalFactors('');
-        setAddressee('ریاست محترم بانک رفاه شعبه مرکزی سیرجان');
-
+        alert(`نامه تعهد با موفقیت ${editingCommitmentId ? 'ویرایش' : 'ذخیره'} شد.`);
+        resetForm();
     } catch(e) {
         alert(`خطا در ذخیره سازی: ${e instanceof Error ? e.message : 'Unknown error'}`);
     }
@@ -248,9 +335,69 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
     }
   };
 
-  const handlePrint = (commitment: any) => {
-    setPrintableData({ ...commitment, addressee: commitment.addressee || addressee });
-    setTimeout(() => window.print(), 100);
+  const handleView = (commitment: AccountingCommitmentWithDetails) => {
+    setCommitmentToView(commitment);
+    setIsViewModalOpen(true);
+  };
+
+  const handleEdit = (commitment: AccountingCommitmentWithDetails) => {
+    setEditingCommitmentId(commitment.id);
+    setAddressee(commitment.addressee);
+    setTitle(commitment.title);
+    setDate(commitment.letter_date);
+    setAmount(commitment.amount);
+    
+    if (commitment.personnel_id) {
+        const p = personnelList.find(p => p.id === commitment.personnel_id);
+        if (p) {
+            setSelectedPersonnel(p);
+            setBorrowerSearch(`${p.first_name} ${p.last_name} (${toPersianDigits(p.personnel_code)})`);
+        }
+    } else {
+        setSelectedPersonnel(null);
+        setBorrowerSearch('');
+        setBorrowerDetails({
+            first_name: commitment.borrower_first_name || '',
+            last_name: commitment.borrower_last_name || '',
+            father_name: commitment.borrower_father_name || '',
+            national_id: commitment.borrower_national_id || '',
+        });
+    }
+
+    setGuarantor({
+        first_name: commitment.guarantor_first_name,
+        last_name: commitment.guarantor_last_name,
+        father_name: commitment.guarantor_father_name,
+        personnel_code: commitment.guarantor_personnel_code,
+    });
+    setGuarantorSearch(`${commitment.guarantor_first_name} ${commitment.guarantor_last_name} (${toPersianDigits(commitment.guarantor_personnel_code)})`);
+        
+    formRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+  
+  const handlePreview = () => {
+    const previewData: AccountingCommitmentWithDetails = {
+        id: editingCommitmentId || 0,
+        personnel_id: selectedPersonnel?.id || null,
+        addressee, title,
+        letter_date: date,
+        amount: Number(amount) || 0,
+        body: letterBody,
+        created_at: new Date().toISOString(),
+        guarantor_first_name: guarantor.first_name,
+        guarantor_last_name: guarantor.last_name,
+        guarantor_father_name: guarantor.father_name,
+        guarantor_personnel_code: guarantor.personnel_code,
+        personnel_first_name: borrowerDetails.first_name,
+        personnel_last_name: borrowerDetails.last_name,
+        personnel_code: selectedPersonnel?.personnel_code || null,
+        borrower_first_name: borrowerDetails.first_name,
+        borrower_last_name: borrowerDetails.last_name,
+        borrower_father_name: borrowerDetails.father_name,
+        borrower_national_id: borrowerDetails.national_id,
+    };
+    setCommitmentToView(previewData);
+    setIsViewModalOpen(true);
   };
   
   const renderCalculation = () => {
@@ -285,25 +432,11 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
 
   return (
     <div className="animate-fade-in-up">
-      <div className="hidden print:block printable-area">
-          <div className="flex justify-between items-start mb-12">
-            <div className="text-sm">تاریخ: {toPersianDigits(printableData.date)}</div>
-            <div className="text-sm">شماره: .................</div>
-          </div>
-          <h1 className="text-2xl font-bold text-center mb-4">{printableData.addressee}</h1>
-          <h2 className="text-xl text-center mb-12">موضوع: {printableData.title}</h2>
-          <p className="leading-loose text-lg text-justify whitespace-pre-line">{printableData.body}</p>
-          <div className="mt-24 text-center">
-            <p>با تشکر</p>
-            <p className="font-bold">مدیریت سرمایه انسانی</p>
-          </div>
-      </div>
-
-      <div className="no-print">
+        <ViewLetterModal commitment={commitmentToView} onClose={() => setIsViewModalOpen(false)} />
         <h1 className="text-3xl font-bold text-slate-700 mb-6">نامه تعهد حسابداری</h1>
         
-        <div className="bg-white rounded-xl shadow-md p-6 border border-slate-200 mb-8">
-            <h2 className="text-xl font-bold text-slate-800 mb-4 border-b pb-3">ایجاد نامه جدید</h2>
+        <div className="bg-white rounded-xl shadow-md p-6 border border-slate-200 mb-8" ref={formRef}>
+            <h2 className="text-xl font-bold text-slate-800 mb-4 border-b pb-3">{editingCommitmentId ? 'ویرایش نامه' : 'ایجاد نامه جدید'}</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-4">
                <div>
@@ -322,7 +455,7 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
 
             <div className="mt-6 pt-4 border-t">
                 <h3 className="text-lg font-semibold text-slate-800 mb-3">اطلاعات وام گیرنده</h3>
-                <PersonnelSearch label="جستجوی وام گیرنده از پرسنل (اختیاری)" placeholder="جستجو برای تکمیل خودکار..." personnelList={personnelList} onSelect={setSelectedPersonnel} value={selectedPersonnel ? `${selectedPersonnel.first_name} ${selectedPersonnel.last_name}` : ''} onChange={() => setSelectedPersonnel(null)} />
+                <PersonnelSearch label="جستجوی وام گیرنده از پرسنل (اختیاری)" placeholder="جستجو برای تکمیل خودکار..." personnelList={personnelList} onSelect={handleSelectBorrower} value={borrowerSearch} onChange={handleBorrowerSearchChange} />
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
                     <input name="first_name" value={borrowerDetails.first_name} onChange={handleBorrowerDetailsChange} placeholder="نام*" className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
                     <input name="last_name" value={borrowerDetails.last_name} onChange={handleBorrowerDetailsChange} placeholder="نام خانوادگی*" className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
@@ -348,8 +481,11 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
                 <textarea value={letterBody} readOnly rows={8} className="w-full px-3 py-2 border border-slate-200 bg-slate-50 rounded-lg shadow-sm leading-relaxed"/>
             </div>
             <div className="flex justify-end pt-6 mt-4 border-t border-slate-200 space-x-2 space-x-reverse">
-                <button onClick={() => handlePrint({ title, body: letterBody, date, addressee })} className="px-5 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition font-medium shadow-sm">چاپ پیش‌نمایش</button>
-                <button onClick={handleSave} className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium shadow-sm">ذخیره در آرشیو</button>
+                {editingCommitmentId && (
+                  <button onClick={resetForm} className="px-5 py-2 bg-slate-100 text-slate-800 rounded-lg hover:bg-slate-200 transition font-medium">لغو ویرایش</button>
+                )}
+                <button onClick={handlePreview} className="px-5 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition font-medium shadow-sm">نمایش و چاپ پیش‌نمایش</button>
+                <button onClick={handleSave} className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium shadow-sm">{editingCommitmentId ? 'ذخیره تغییرات' : 'ذخیره در آرشیو'}</button>
             </div>
         </div>
 
@@ -375,13 +511,14 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
                         ) : (
                             filteredCommitments.map(c => (
                                 <tr key={c.id} className="hover:bg-slate-50">
-                                    <td className="px-4 py-4 whitespace-nowrap text-sm text-slate-700">{c.personnel_first_name} {c.personnel_last_name}</td>
+                                    <td className="px-4 py-4 whitespace-nowrap text-sm text-slate-700">{c.personnel_first_name || c.borrower_first_name} {c.personnel_last_name || c.borrower_last_name}</td>
                                     <td className="px-4 py-4 whitespace-nowrap text-sm text-slate-700">{c.guarantor_first_name} {c.guarantor_last_name}</td>
                                     <td className="px-4 py-4 whitespace-nowrap text-sm text-slate-700">{formatRial(c.amount)}</td>
                                     <td className="px-4 py-4 whitespace-nowrap text-sm text-slate-700">{toPersianDigits(c.letter_date)}</td>
                                     <td className="px-4 py-4 whitespace-nowrap text-left text-sm font-medium">
                                         <div className="flex items-center justify-end space-x-4 space-x-reverse">
-                                            <button onClick={() => handlePrint(c)} className="text-slate-500 hover:text-blue-600 transition" title="چاپ">چاپ</button>
+                                            <button onClick={() => handleView(c)} className="text-slate-500 hover:text-blue-600 transition" title="نمایش نامه"><EyeIcon className="w-5 h-5"/></button>
+                                            <button onClick={() => handleEdit(c)} className="text-slate-500 hover:text-indigo-600 transition" title="ویرایش"><EditIcon className="w-5 h-5"/></button>
                                             <button onClick={() => handleDelete(c.id)} className="text-slate-500 hover:text-red-600 transition" title="حذف"><DeleteIcon className="w-5 h-5"/></button>
                                         </div>
                                     </td>
@@ -392,7 +529,6 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
                 </table>
              </div>
         </div>
-      </div>
     </div>
   );
 };

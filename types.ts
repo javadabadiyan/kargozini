@@ -55,6 +55,7 @@ export interface RelativeWithPersonnel extends Relative {
 export interface AccountingCommitment {
   id: number;
   personnel_id: number | null;
+  addressee: string;
   title: string;
   letter_date: string;
   amount: number;
