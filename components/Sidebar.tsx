@@ -1,9 +1,9 @@
 import React from 'react';
-import { UserIcon, SettingsIcon, LockIcon } from './icons';
+import { UserIcon, SettingsIcon, LockIcon, DashboardIcon } from './icons';
 import { useSettings } from '../context/SettingsContext';
 
 
-type Page = 'users' | 'settings' | 'user-management';
+type Page = 'dashboard' | 'users' | 'settings' | 'user-management';
 
 interface SidebarProps {
   activePage: Page;
@@ -15,6 +15,7 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, isOpen, onClose }) => {
   const { settings } = useSettings();
   const navItems = [
+    { id: 'dashboard', label: 'داشبورد', icon: DashboardIcon },
     { id: 'users', label: 'مدیریت پرسنل', icon: UserIcon },
     { id: 'user-management', label: 'مدیریت کاربران', icon: LockIcon },
     { id: 'settings', label: 'تنظیمات', icon: SettingsIcon },

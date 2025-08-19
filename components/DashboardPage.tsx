@@ -7,13 +7,14 @@ import { ViewPersonnelModal } from './ViewPersonnelModal';
 import { PlusIcon, UploadIcon, DownloadIcon, DeleteIcon } from './icons';
 import { SettingsPage } from './SettingsPage';
 import { UserManagementPage } from './UserManagementPage';
+import { DashboardView } from './DashboardView';
 import type { Personnel, User } from '../types';
 import * as XLSX from 'xlsx';
 
-type Page = 'users' | 'settings' | 'user-management';
+type Page = 'dashboard' | 'users' | 'settings' | 'user-management';
 
 export const DashboardPage: React.FC = () => {
-  const [activePage, setActivePage] = useState<Page>('users');
+  const [activePage, setActivePage] = useState<Page>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [personnel, setPersonnel] = useState<Personnel[]>([]);
   const [appUsers, setAppUsers] = useState<User[]>([]);
@@ -240,6 +241,8 @@ export const DashboardPage: React.FC = () => {
   
   const renderContent = () => {
     switch(activePage) {
+        case 'dashboard':
+            return <DashboardView personnelCount={personnel.length} userCount={appUsers.length} />;
         case 'users':
             return (
                 <div>
