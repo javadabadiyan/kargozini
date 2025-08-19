@@ -35,3 +35,19 @@ export interface AppSettings {
   app_name: string;
   app_logo: string | null; // base64 string
 }
+
+export interface Relative {
+  id: number;
+  personnel_id: number;
+  first_name: string;
+  last_name: string;
+  relation: string;
+  national_id: string;
+  birth_date: string;
+}
+
+export interface RelativeWithPersonnel extends Relative {
+  personnel_first_name: string;
+  personnel_last_name: string;
+  personnel_code: string;
+}

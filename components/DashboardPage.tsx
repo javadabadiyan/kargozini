@@ -8,6 +8,7 @@ import { PlusIcon, UploadIcon, DownloadIcon, DeleteIcon } from './icons';
 import { SettingsPage } from './SettingsPage';
 import { UserManagementPage } from './UserManagementPage';
 import { DashboardView } from './DashboardView';
+import { RelativesPage } from './RelativesPage';
 import type { Personnel, User } from '../types';
 import * as XLSX from 'xlsx';
 
@@ -340,7 +341,7 @@ export const DashboardPage: React.FC = () => {
         case 'security_traffic_report':
             return <PlaceholderPage title="گزارش گیری تردد" />;
         case 'relatives_info':
-            return <PlaceholderPage title="اطلاعات بستگان" />;
+            return <RelativesPage personnelList={personnel} />;
         case 'document_upload':
             return <PlaceholderPage title="بارگذاری مدارک" />;
         default:
