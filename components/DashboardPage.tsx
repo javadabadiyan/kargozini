@@ -14,6 +14,16 @@ import * as XLSX from 'xlsx';
 type Page = 'dashboard' | 'users' | 'settings' | 'user-management' |
             'commitment_letter' | 'disciplinary_committee' | 'performance_evaluation' | 'job_group' | 'bonus_management';
 
+const Button = ({ onClick, children, className, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { children: React.ReactNode }) => (
+    <button
+        onClick={onClick}
+        className={`flex items-center justify-center px-4 py-2 text-sm font-medium rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-150 ${className}`}
+        {...props}
+    >
+        {children}
+    </button>
+);
+
 export const DashboardPage: React.FC = () => {
   const [activePage, setActivePage] = useState<Page>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -242,10 +252,10 @@ export const DashboardPage: React.FC = () => {
   
   const renderContent = () => {
     const PlaceholderPage = ({ title }: { title: string }) => (
-        <div>
-            <h1 className="text-2xl font-semibold text-gray-700 mb-6">{title}</h1>
-            <div className="bg-white rounded-lg shadow p-6 text-center">
-                <p className="text-gray-600">این صفحه در حال ساخت است.</p>
+        <div className="animate-fade-in-up">
+            <h1 className="text-3xl font-bold text-slate-700 mb-6">{title}</h1>
+            <div className="bg-white rounded-xl shadow-md p-8 text-center">
+                <p className="text-slate-600 text-lg">این صفحه در حال ساخت است.</p>
             </div>
         </div>
     );
@@ -254,23 +264,23 @@ export const DashboardPage: React.FC = () => {
             return <DashboardView personnelCount={personnel.length} userCount={appUsers.length} />;
         case 'users':
             return (
-                <div>
+                <div className="animate-fade-in-up">
                   <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-4">
-                    <h1 className="text-2xl font-semibold text-gray-700">لیست پرسنل</h1>
+                    <h1 className="text-3xl font-bold text-slate-700">لیست پرسنل</h1>
                     <div className="flex items-center gap-2 flex-wrap justify-start md:justify-end">
-                        <button onClick={handleDownloadSample} className="flex items-center bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition">
+                        <Button onClick={handleDownloadSample} className="bg-green-100 text-green-800 hover:bg-green-200 focus:ring-green-500">
                           <DownloadIcon className="w-5 h-5 ml-2" /> دانلود نمونه
-                        </button>
-                        <label className="flex items-center bg-yellow-500 text-white px-4 py-2 rounded-md hover:bg-yellow-600 transition cursor-pointer">
+                        </Button>
+                        <label className="flex items-center justify-center px-4 py-2 text-sm font-medium rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-150 bg-amber-100 text-amber-800 hover:bg-amber-200 focus:ring-amber-500 cursor-pointer">
                             <UploadIcon className="w-5 h-5 ml-2" /> ورود با اکسل
                             <input type="file" className="hidden" accept=".xlsx, .xls" onChange={handleExcelImport} />
                         </label>
-                        <button onClick={() => handleOpenModal()} className="flex items-center bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition">
+                        <Button onClick={() => handleOpenModal()} className="bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500">
                           <PlusIcon className="w-5 h-5 ml-2" /> افزودن پرسنل
-                        </button>
-                        <button onClick={handleDeleteAllPersonnel} className="flex items-center bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition">
+                        </Button>
+                        <Button onClick={handleDeleteAllPersonnel} className="bg-red-100 text-red-800 hover:bg-red-200 focus:ring-red-500">
                           <DeleteIcon className="w-5 h-5 ml-2" /> حذف کل
-                        </button>
+                        </Button>
                     </div>
                   </div>
                    <div className="mb-4">
@@ -282,11 +292,11 @@ export const DashboardPage: React.FC = () => {
                                 setSearchQuery(e.target.value);
                                 setCurrentPage(1); // Reset to first page on new search
                             }}
-                            className="w-full md:w-1/2 lg:w-1/3 px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full md:w-1/2 lg:w-1/3 px-4 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                     </div>
                   {isLoading ? (
-                    <div className="w-full bg-white rounded-lg shadow p-12 text-center text-gray-500">
+                    <div className="w-full bg-white rounded-xl shadow-md p-12 text-center text-slate-500">
                       در حال بارگذاری پرسنل...
                     </div>
                   ) : (
@@ -294,13 +304,13 @@ export const DashboardPage: React.FC = () => {
                       <UserTable personnel={paginatedPersonnel} onView={handleOpenViewModal} onEdit={handleOpenModal} onDelete={handleDeletePersonnel} />
                       {totalPages > 1 && (
                         <div className="mt-4 flex justify-between items-center flex-wrap gap-2">
-                            <button onClick={handlePrevPage} disabled={currentPage === 1} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition">
+                            <Button onClick={handlePrevPage} disabled={currentPage === 1} className="bg-white text-slate-700 border border-slate-300 hover:bg-slate-100 disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed">
                                 قبلی
-                            </button>
-                            <span className="text-sm text-gray-700">صفحه {currentPage} از {totalPages} (مجموع: {filteredPersonnel.length} رکورد)</span>
-                            <button onClick={handleNextPage} disabled={currentPage === totalPages} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed transition">
+                            </Button>
+                            <span className="text-sm text-slate-700">صفحه {currentPage} از {totalPages} (مجموع: {filteredPersonnel.length} رکورد)</span>
+                            <Button onClick={handleNextPage} disabled={currentPage === totalPages} className="bg-white text-slate-700 border border-slate-300 hover:bg-slate-100 disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed">
                                 بعدی
-                            </button>
+                            </Button>
                         </div>
                       )}
                     </>
@@ -327,7 +337,7 @@ export const DashboardPage: React.FC = () => {
   }
 
   return (
-    <div className="relative flex h-screen bg-gray-100 overflow-hidden">
+    <div className="relative flex h-screen bg-slate-50 overflow-hidden">
       <Sidebar 
         activePage={activePage} 
         setActivePage={setActivePage}
@@ -335,12 +345,12 @@ export const DashboardPage: React.FC = () => {
         onClose={() => setIsSidebarOpen(false)}
       />
       <div className="flex-1 flex flex-col overflow-hidden md:mr-64">
-        <Header onMenuToggle={() => setIsSidebarOpen(true)} />
-        <main className="flex-1 flex flex-col overflow-y-auto bg-gray-100 p-4 sm:p-8">
+        <Header onMenuToggle={() => setIsSidebarOpen(!isSidebarOpen)} />
+        <main className="flex-1 flex flex-col overflow-y-auto p-4 sm:p-8">
           <div className="container mx-auto">
             {renderContent()}
           </div>
-           <footer className="text-center text-gray-500 text-sm mt-auto pt-4">
+           <footer className="text-center text-slate-500 text-sm mt-auto pt-4">
               طراحی و کدنویسی جواد آبادیان
             </footer>
         </main>

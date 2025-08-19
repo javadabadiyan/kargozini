@@ -72,28 +72,28 @@ export const AddUserModal: React.FC<AddPersonnelModalProps> = ({ isOpen, onClose
 
   const renderInput = (name: keyof Omit<Personnel, 'id'>, label: string, required = false) => (
     <div>
-        <label htmlFor={name} className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+        <label htmlFor={name} className="block text-sm font-medium text-slate-700 mb-1">{label}{required && <span className="text-red-500 mr-1">*</span>}</label>
         <input 
             type="text" 
             id={name} 
             name={name}
             value={formData[name]} 
             onChange={handleChange} 
-            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" 
+            className="w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
             required={required} 
         />
     </div>
   );
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl p-6 relative animate-fade-in-down max-h-[90vh] overflow-y-auto">
-        <button onClick={onClose} className="absolute top-4 left-4 text-gray-500 hover:text-gray-800">
+    <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-start p-4 pt-10 sm:pt-20">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl p-6 relative animate-fade-in-down max-h-[90vh] overflow-y-auto">
+        <button onClick={onClose} className="absolute top-4 left-4 text-slate-400 hover:text-slate-800 p-2 rounded-full hover:bg-slate-100 transition">
             <CloseIcon/>
         </button>
-        <h2 className="text-2xl font-bold mb-6 text-gray-800">{personnelToEdit ? 'ویرایش پرسنل' : 'افزودن پرسنل جدید'}</h2>
+        <h2 className="text-2xl font-bold mb-6 text-slate-800">{personnelToEdit ? 'ویرایش پرسنل' : 'افزودن پرسنل جدید'}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {renderInput('personnel_code', 'کد پرسنلی', true)}
             {renderInput('first_name', 'نام', true)}
             {renderInput('last_name', 'نام خانوادگی', true)}
@@ -116,9 +116,9 @@ export const AddUserModal: React.FC<AddPersonnelModalProps> = ({ isOpen, onClose
             {renderInput('field_of_study', 'رشته تحصیلی')}
             {renderInput('status', 'وضعیت')}
           </div>
-          <div className="flex justify-end pt-4 space-x-2 space-x-reverse">
-            <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition">انصراف</button>
-            <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition">ذخیره</button>
+          <div className="flex justify-end pt-6 border-t border-slate-200 space-x-2 space-x-reverse">
+            <button type="button" onClick={onClose} className="px-5 py-2 bg-slate-100 text-slate-800 rounded-lg hover:bg-slate-200 transition font-medium">انصراف</button>
+            <button type="submit" className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium shadow-sm">ذخیره</button>
           </div>
         </form>
       </div>

@@ -35,12 +35,12 @@ export const tableHeaders = [
 
 export const UserTable: React.FC<PersonnelTableProps> = ({ personnel, onView, onEdit, onDelete }) => {
   return (
-    <div className="overflow-x-auto bg-white rounded-lg shadow">
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
+    <div className="overflow-x-auto bg-white rounded-xl shadow-md border border-slate-200">
+      <table className="min-w-full divide-y divide-slate-200">
+        <thead className="bg-slate-50">
           <tr>
             {tableHeaders.map(header => (
-                <th key={header.key} scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                <th key={header.key} scope="col" className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider whitespace-nowrap">
                     {header.label}
                 </th>
             ))}
@@ -49,30 +49,30 @@ export const UserTable: React.FC<PersonnelTableProps> = ({ personnel, onView, on
             </th>
           </tr>
         </thead>
-        <tbody className="bg-white divide-y divide-gray-200">
+        <tbody className="bg-white divide-y divide-slate-200">
           {personnel.length === 0 ? (
             <tr>
-              <td colSpan={tableHeaders.length + 1} className="px-6 py-12 text-center text-gray-500">
+              <td colSpan={tableHeaders.length + 1} className="px-6 py-12 text-center text-slate-500">
                 هیچ پرسنلی یافت نشد.
               </td>
             </tr>
           ) : (
             personnel.map((p) => (
-              <tr key={p.id} className="hover:bg-gray-50">
+              <tr key={p.id} className="hover:bg-slate-50/70 transition-colors">
                 {tableHeaders.map(header => (
-                    <td key={header.key} className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    <td key={header.key} className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
                         {p[header.key as keyof Personnel]}
                     </td>
                 ))}
                 <td className="px-6 py-4 whitespace-nowrap text-left text-sm font-medium">
                   <div className="flex items-center justify-end space-x-4 space-x-reverse">
-                    <button onClick={() => onView(p)} className="text-green-600 hover:text-green-900 transition" title="نمایش">
+                    <button onClick={() => onView(p)} className="text-slate-400 hover:text-green-600 transition" title="نمایش">
                         <EyeIcon />
                     </button>
-                    <button onClick={() => onEdit(p)} className="text-indigo-600 hover:text-indigo-900 transition" title="ویرایش">
+                    <button onClick={() => onEdit(p)} className="text-slate-400 hover:text-indigo-600 transition" title="ویرایش">
                       <EditIcon />
                     </button>
-                    <button onClick={() => onDelete(p.id)} className="text-red-600 hover:text-red-900 transition" title="حذف">
+                    <button onClick={() => onDelete(p.id)} className="text-slate-400 hover:text-red-600 transition" title="حذف">
                       <DeleteIcon />
                     </button>
                   </div>
