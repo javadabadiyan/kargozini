@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import type { Role, AppSettings } from '../types';
+import type { AppSettings } from '../types';
 import { useSettings } from '../context/SettingsContext';
 import { UploadIcon, DownloadIcon, DatabaseIcon } from './icons';
 import saveAs from 'file-saver';
@@ -34,7 +34,7 @@ export const SettingsPage: React.FC = () => {
     }
   };
   
-  const handleBackup = async (scope: 'personnel' | 'roles' | 'all') => {
+  const handleBackup = async (scope: 'personnel' | 'users' | 'all') => {
       try {
         const response = await fetch(`/api/backup?scope=${scope}`);
         if (!response.ok) throw new Error('Failed to create backup');
@@ -111,7 +111,7 @@ export const SettingsPage: React.FC = () => {
             <p className="text-sm text-gray-600">از داده‌های خود در قالب فایل JSON خروجی بگیرید.</p>
             <div className="flex flex-col space-y-2">
                 <button onClick={() => handleBackup('personnel')} className="w-full text-right px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-md transition">پشتیبان‌گیری از پرسنل</button>
-                <button onClick={() => handleBackup('roles')} className="w-full text-right px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-md transition">پشتیبان‌گیری از نقش‌ها و دسترسی‌ها</button>
+                <button onClick={() => handleBackup('users')} className="w-full text-right px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-md transition">پشتیبان‌گیری از کاربران و دسترسی‌ها</button>
                 <button onClick={() => handleBackup('all')} className="w-full text-right px-4 py-2 bg-blue-100 text-blue-800 font-semibold hover:bg-blue-200 rounded-md transition">پشتیبان‌گیری کامل</button>
             </div>
         </div>

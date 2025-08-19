@@ -1,5 +1,15 @@
 import { sql } from '@vercel/postgres';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { scrypt, randomBytes } from 'node:crypto';
+import { promisify } from 'node:util';
+
+const scryptAsync = promisify(scrypt);
+
+async function hashPassword(password: string) {
+  const salt = randomBytes(16).toString('hex');
+  const hash = (await scryptAsync(password, salt, 64)) as Buffer;
+  return `${salt}:${hash.toString('hex')}`;
+}
 
 export default async function handler(
   req: VercelRequest,
@@ -8,7 +18,7 @@ export default async function handler(
 
   // GET: EXPORT DATA
   if (req.method === 'GET') {
-    const scope = req.query.scope as 'personnel' | 'roles' | 'all';
+    const scope = req.query.scope as 'personnel' | 'users' | 'all';
     try {
       const backupData: any = {};
       
@@ -17,11 +27,12 @@ export default async function handler(
         backupData.personnel = rows;
       }
 
-      if (scope === 'roles' || scope === 'all') {
-        const { rows: roles } = await sql`SELECT * FROM roles;`;
-        const { rows: permissions } = await sql`SELECT * FROM role_permissions;`;
-        backupData.roles = roles;
-        backupData.role_permissions = permissions;
+      if (scope === 'users' || scope === 'all') {
+        // IMPORTANT: We do NOT export password hashes for security reasons.
+        const { rows: users } = await sql`SELECT id, "firstName", "lastName", username FROM app_users;`;
+        const { rows: permissions } = await sql`SELECT * FROM user_permissions;`;
+        backupData.users = users;
+        backupData.user_permissions = permissions;
       }
       
       res.setHeader('Content-Type', 'application/json');
@@ -35,7 +46,7 @@ export default async function handler(
 
   // POST: RESTORE DATA
   if (req.method === 'POST') {
-    const { personnel, roles, role_permissions } = req.body;
+    const { personnel, users, user_permissions } = req.body;
 
     const client = await sql.connect();
     try {
@@ -51,22 +62,25 @@ export default async function handler(
             }
         }
         
-        if (Array.isArray(roles)) {
-            await client.query('TRUNCATE roles RESTART IDENTITY CASCADE;');
-            for (const r of roles) {
-                 await client.query('INSERT INTO roles (id, name) VALUES ($1, $2);', [r.id, r.name]);
+        if (Array.isArray(users)) {
+            await client.query('TRUNCATE app_users RESTART IDENTITY CASCADE;');
+            // Since passwords are not included in backups, we set a default password.
+            const defaultPassword = 'password123';
+            const hashedPassword = await hashPassword(defaultPassword);
+            for (const u of users) {
+                 await client.query('INSERT INTO app_users (id, "firstName", "lastName", username, password_hash) VALUES ($1, $2, $3, $4, $5);', [u.id, u.firstName, u.lastName, u.username, hashedPassword]);
             }
         }
 
-        if (Array.isArray(role_permissions)) {
-            await client.query('TRUNCATE role_permissions RESTART IDENTITY CASCADE;');
-            for (const rp of role_permissions) {
-                 await client.query('INSERT INTO role_permissions (role_id, permission_name) VALUES ($1, $2);', [rp.role_id, rp.permission_name]);
+        if (Array.isArray(user_permissions)) {
+            await client.query('TRUNCATE user_permissions RESTART IDENTITY CASCADE;');
+            for (const up of user_permissions) {
+                 await client.query('INSERT INTO user_permissions (user_id, permission_name) VALUES ($1, $2);', [up.user_id, up.permission_name]);
             }
         }
 
         await client.query('COMMIT');
-        return res.status(200).json({ message: 'Restore successful' });
+        return res.status(200).json({ message: 'Restore successful. Users have been assigned a default password "password123".' });
 
     } catch (error) {
         await client.query('ROLLBACK');

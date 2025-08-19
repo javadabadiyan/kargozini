@@ -8,26 +8,36 @@ export const LoginPage: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const { login } = useAuth();
   const { settings } = useSettings();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setIsLoading(true);
 
-    // NOTE: This is a mock login. In a real application, you would make an API call
-    // to your Vercel backend to verify credentials.
-    if (username === 'ادمین' && password === '5221157') {
-      const adminUser: User = {
-        id: 1,
-        firstName: 'مدیر',
-        lastName: 'سیستم',
-        username: 'ادمین',
-        role: 'Administrator',
-      };
-      login(adminUser);
-    } else {
-      setError('نام کاربری یا رمز عبور اشتباه است.');
+    try {
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Login failed');
+      }
+      
+      login(data as User);
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'نام کاربری یا رمز عبور اشتباه است.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -78,9 +88,10 @@ export const LoginPage: React.FC = () => {
           <div>
             <button
               type="submit"
-              className="w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150 ease-in-out"
+              disabled={isLoading}
+              className="w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-150 ease-in-out disabled:bg-blue-400"
             >
-              ورود
+              {isLoading ? 'در حال ورود...' : 'ورود'}
             </button>
           </div>
         </form>

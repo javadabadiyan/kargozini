@@ -3,7 +3,7 @@ import { UserIcon, SettingsIcon, LockIcon } from './icons';
 import { useSettings } from '../context/SettingsContext';
 
 
-type Page = 'users' | 'settings' | 'access-control';
+type Page = 'users' | 'settings' | 'user-management';
 
 interface SidebarProps {
   activePage: Page;
@@ -14,7 +14,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage }) =
   const { settings } = useSettings();
   const navItems = [
     { id: 'users', label: 'مدیریت پرسنل', icon: UserIcon },
-    { id: 'access-control', label: 'مدیریت دسترسی', icon: LockIcon },
+    { id: 'user-management', label: 'مدیریت کاربران', icon: LockIcon },
     { id: 'settings', label: 'تنظیمات', icon: SettingsIcon },
   ];
 

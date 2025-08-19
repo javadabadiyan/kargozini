@@ -6,16 +6,16 @@ import { UserTable, tableHeaders } from './UserTable';
 import { AddUserModal } from './AddUserModal';
 import { PlusIcon, UploadIcon, DownloadIcon, DeleteIcon } from './icons';
 import { SettingsPage } from './SettingsPage';
-import { AccessControlPage } from './AccessControlPage';
-import type { Personnel, Role } from '../types';
+import { UserManagementPage } from './UserManagementPage';
+import type { Personnel, User } from '../types';
 import * as XLSX from 'xlsx';
 
-type Page = 'users' | 'settings' | 'access-control';
+type Page = 'users' | 'settings' | 'user-management';
 
 export const DashboardPage: React.FC = () => {
   const [activePage, setActivePage] = useState<Page>('users');
   const [personnel, setPersonnel] = useState<Personnel[]>([]);
-  const [roles, setRoles] = useState<Role[]>([]);
+  const [appUsers, setAppUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [personnelToEdit, setPersonnelToEdit] = useState<Personnel | null>(null);
@@ -35,21 +35,21 @@ export const DashboardPage: React.FC = () => {
     }
   };
 
-  const fetchRoles = async () => {
+  const fetchAppUsers = async () => {
      try {
-      const response = await fetch('/api/roles');
-      if (!response.ok) throw new Error('Failed to fetch roles');
+      const response = await fetch('/api/app-users');
+      if (!response.ok) throw new Error('Failed to fetch users');
       const data = await response.json();
-      setRoles(data);
+      setAppUsers(data);
     } catch (error) {
       console.error(error);
-      alert("خطا در بارگذاری لیست نقش‌ها!");
+      alert("خطا در بارگذاری لیست کاربران!");
     }
   }
 
   useEffect(() => {
     fetchPersonnel();
-    fetchRoles();
+    fetchAppUsers();
   }, []);
   
   const handleDownloadSample = () => {
@@ -241,8 +241,8 @@ export const DashboardPage: React.FC = () => {
                   )}
                 </div>
             );
-        case 'access-control':
-            return <AccessControlPage roles={roles} onRolesChange={fetchRoles} />;
+        case 'user-management':
+            return <UserManagementPage users={appUsers} onUsersChange={fetchAppUsers} />;
         case 'settings':
             return <SettingsPage />;
         default:
