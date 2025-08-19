@@ -74,3 +74,19 @@ export interface AccountingCommitmentWithDetails extends AccountingCommitment {
   personnel_last_name: string;
   personnel_code: string | null;
 }
+
+export interface SecurityTrafficLog {
+  id: number;
+  personnel_id: number;
+  log_date: string; // YYYY-MM-DD
+  shift: 'A' | 'B' | 'C';
+  entry_time: string; // ISO string
+  exit_time: string | null; // ISO string
+}
+
+export interface SecurityTrafficLogWithDetails extends SecurityTrafficLog {
+  first_name: string;
+  last_name: string;
+  unit: string;
+  position: string;
+}

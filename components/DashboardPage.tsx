@@ -10,6 +10,8 @@ import { UserManagementPage } from './UserManagementPage';
 import { DashboardView } from './DashboardView';
 import { RelativesPage } from './RelativesPage';
 import { AccountingCommitmentPage } from './AccountingCommitmentPage';
+import { SecurityTrafficLogPage } from './SecurityTrafficLogPage';
+import { SecurityTrafficReportPage } from './SecurityTrafficReportPage';
 import type { Personnel, User } from '../types';
 import * as XLSX from 'xlsx';
 import { toPersianDigits } from './format';
@@ -339,9 +341,9 @@ export const DashboardPage: React.FC = () => {
         case 'security_members':
             return <PlaceholderPage title="کارمندان عضو تردد" />;
         case 'security_log_traffic':
-            return <PlaceholderPage title="ثبت تردد" />;
+            return <SecurityTrafficLogPage personnelList={personnel} />;
         case 'security_traffic_report':
-            return <PlaceholderPage title="گزارش گیری تردد" />;
+            return <SecurityTrafficReportPage />;
         case 'relatives_info':
             return <RelativesPage personnelList={personnel} />;
         case 'document_upload':
