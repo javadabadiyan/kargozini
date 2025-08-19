@@ -63,8 +63,6 @@ export interface AccountingCommitment {
   created_at: string;
   guarantor_first_name: string;
   guarantor_last_name: string;
-  guarantor_father_name: string;
-  guarantor_personnel_code: string;
   borrower_first_name?: string;
   borrower_last_name?: string;
   borrower_father_name?: string;

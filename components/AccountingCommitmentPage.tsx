@@ -172,7 +172,7 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
 
   const [guarantorSearch, setGuarantorSearch] = useState('');
   const [guarantor, setGuarantor] = useState({
-      first_name: '', last_name: '', father_name: '', personnel_code: ''
+      first_name: '', last_name: ''
   });
 
   const [calculation, setCalculation] = useState<{
@@ -262,7 +262,7 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
   }, [selectedPersonnel]);
   
   const generateLetterBody = () => {
-      const template = `احتراماً حسابداری این شرکت تعهد می نماید در صورت عدم پرداخت اقساط وام به مبلغ ${amount ? formatRial(amount) : '[مبلغ وام]'} ریال بنام آقای ${borrowerDetails.first_name || borrowerDetails.last_name ? `${borrowerDetails.first_name} ${borrowerDetails.last_name}` : '[نام وام گیرنده]'} فرزند ${borrowerDetails.father_name || '[نام پدر]'} با کد ملی ${borrowerDetails.national_id ? toPersianDigits(borrowerDetails.national_id) : '[کد ملی]'} از حقوق ضامن نامبرده آقای ${guarantor.first_name || guarantor.last_name ? `${guarantor.first_name} ${guarantor.last_name}` : '[نام ضامن]'} فرزند ${guarantor.father_name || '[نام پدر ضامن]'} با کد ${guarantor.personnel_code ? toPersianDigits(guarantor.personnel_code) : '[کد پرسنلی ضامن]'} در این شرکت شاغل باشد بعد از اعلام بانک و با رعایت سقف قانونی کسر و به حساب آن بانک واریز نماید.\n\nاین گواهی بنا به درخواست نامبرده جهت ارائه به بانک فوق صادر گردیده است و فاقد هرگونه ارزش دیگری می باشد.`;
+      const template = `احتراماً حسابداری این شرکت تعهد می نماید در صورت عدم پرداخت اقساط وام به مبلغ ${amount ? formatRial(amount) : '[مبلغ وام]'} ریال بنام آقای ${borrowerDetails.first_name || borrowerDetails.last_name ? `${borrowerDetails.first_name} ${borrowerDetails.last_name}` : '[نام وام گیرنده]'} فرزند ${borrowerDetails.father_name || '[نام پدر]'} با کد ملی ${borrowerDetails.national_id ? toPersianDigits(borrowerDetails.national_id) : '[کد ملی]'} از حقوق ضامن نامبرده آقای ${guarantor.first_name || guarantor.last_name ? `${guarantor.first_name} ${guarantor.last_name}` : '[نام ضامن]'} در این شرکت شاغل باشد بعد از اعلام بانک و با رعایت سقف قانونی کسر و به حساب آن بانک واریز نماید.\n\nاین گواهی بنا به درخواست نامبرده جهت ارائه به بانک فوق صادر گردیده است و فاقد هرگونه ارزش دیگری می باشد.`;
       setLetterBody(template);
   };
   
@@ -316,9 +316,8 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
   const handleSelectGuarantor = (p: Personnel) => {
     setGuarantor({
         first_name: p.first_name, last_name: p.last_name,
-        father_name: p.father_name || '', personnel_code: p.personnel_code || ''
     });
-    setGuarantorSearch(`${p.first_name} ${p.last_name} (${toPersianDigits(p.personnel_code)})`);
+    setGuarantorSearch(`${p.first_name} ${p.last_name}`);
   };
   
   const resetForm = () => {
@@ -326,7 +325,7 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
     setSelectedPersonnel(null);
     setBorrowerSearch('');
     setBorrowerDetails({ first_name: '', last_name: '', father_name: '', national_id: '' });
-    setGuarantor({ first_name: '', last_name: '', father_name: '', personnel_code: '' });
+    setGuarantor({ first_name: '', last_name: '' });
     setGuarantorSearch('');
     setAmount('');
     setTotalFactors('');
@@ -349,8 +348,6 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
         personnel_id: selectedPersonnel ? selectedPersonnel.id : null,
         guarantor_first_name: guarantor.first_name,
         guarantor_last_name: guarantor.last_name,
-        guarantor_father_name: guarantor.father_name,
-        guarantor_personnel_code: guarantor.personnel_code,
         borrower_first_name: !selectedPersonnel ? borrowerDetails.first_name : undefined,
         borrower_last_name: !selectedPersonnel ? borrowerDetails.last_name : undefined,
         borrower_father_name: !selectedPersonnel ? borrowerDetails.father_name : undefined,
@@ -416,10 +413,8 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
     setGuarantor({
         first_name: commitment.guarantor_first_name,
         last_name: commitment.guarantor_last_name,
-        father_name: commitment.guarantor_father_name,
-        personnel_code: commitment.guarantor_personnel_code,
     });
-    setGuarantorSearch(`${commitment.guarantor_first_name} ${commitment.guarantor_last_name} (${toPersianDigits(commitment.guarantor_personnel_code)})`);
+    setGuarantorSearch(`${commitment.guarantor_first_name} ${commitment.guarantor_last_name}`);
         
     formRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -435,8 +430,6 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
         created_at: new Date().toISOString(),
         guarantor_first_name: guarantor.first_name,
         guarantor_last_name: guarantor.last_name,
-        guarantor_father_name: guarantor.father_name,
-        guarantor_personnel_code: guarantor.personnel_code,
         personnel_first_name: borrowerDetails.first_name,
         personnel_last_name: borrowerDetails.last_name,
         personnel_code: selectedPersonnel?.personnel_code || null,
@@ -599,11 +592,9 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
             <div className="mt-6 pt-4 border-t">
                 <h3 className="text-lg font-semibold text-slate-800 mb-3">اطلاعات ضامن</h3>
                  <PersonnelSearch label="جستجوی ضامن از پرسنل (اختیاری)" placeholder="جستجو برای تکمیل خودکار..." personnelList={personnelList} onSelect={handleSelectGuarantor} value={guarantorSearch} onChange={setGuarantorSearch} />
-                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                     <input name="first_name" value={guarantor.first_name} onChange={handleGuarantorChange} placeholder="نام ضامن*" className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
                     <input name="last_name" value={guarantor.last_name} onChange={handleGuarantorChange} placeholder="نام خانوادگی ضامن*" className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
-                    <input name="father_name" value={guarantor.father_name} onChange={handleGuarantorChange} placeholder="نام پدر ضامن" className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
-                    <input name="personnel_code" value={guarantor.personnel_code} onChange={handleGuarantorChange} placeholder="کد پرسنلی ضامن" className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
                  </div>
             </div>
             <div className="mt-4">

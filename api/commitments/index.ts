@@ -46,8 +46,6 @@ export default async function handler(
             created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
             guarantor_first_name VARCHAR(100),
             guarantor_last_name VARCHAR(100),
-            guarantor_father_name VARCHAR(100),
-            guarantor_personnel_code VARCHAR(50),
             borrower_first_name VARCHAR(100),
             borrower_last_name VARCHAR(100),
             borrower_father_name VARCHAR(100),
@@ -58,10 +56,14 @@ export default async function handler(
     try {
         await sql`ALTER TABLE accounting_commitments ADD COLUMN IF NOT EXISTS addressee VARCHAR(255) NOT NULL DEFAULT 'ریاست محترم';`;
         await sql`ALTER TABLE accounting_commitments DROP COLUMN IF EXISTS guarantor_personnel_id;`;
+        await sql`ALTER TABLE accounting_commitments DROP COLUMN IF EXISTS guarantor_father_name;`;
+        await sql`ALTER TABLE accounting_commitments DROP COLUMN IF EXISTS guarantor_personnel_code;`;
     } catch (e) {
         if (!(e instanceof Error && (
             e.message.includes('column "guarantor_personnel_id" of relation "accounting_commitments" does not exist') ||
-            e.message.includes('column "addressee" of relation "accounting_commitments" already exists')
+            e.message.includes('column "addressee" of relation "accounting_commitments" already exists') ||
+            e.message.includes('column "guarantor_father_name" of relation "accounting_commitments" does not exist') ||
+            e.message.includes('column "guarantor_personnel_code" of relation "accounting_commitments" does not exist')
         ))) {
             console.error("Error modifying table columns, might be fine:", e);
         }
@@ -101,7 +103,7 @@ export default async function handler(
     try {
         const { 
             id, personnel_id, addressee, title, letter_date, amount, body, 
-            guarantor_first_name, guarantor_last_name, guarantor_father_name, guarantor_personnel_code,
+            guarantor_first_name, guarantor_last_name,
             borrower_first_name, borrower_last_name, borrower_father_name, borrower_national_id
         } = req.body;
 
@@ -120,8 +122,6 @@ export default async function handler(
                     body = ${body},
                     guarantor_first_name = ${guarantor_first_name},
                     guarantor_last_name = ${guarantor_last_name},
-                    guarantor_father_name = ${guarantor_father_name},
-                    guarantor_personnel_code = ${guarantor_personnel_code},
                     borrower_first_name = ${borrower_first_name || null},
                     borrower_last_name = ${borrower_last_name || null},
                     borrower_father_name = ${borrower_father_name || null},
@@ -134,12 +134,12 @@ export default async function handler(
             const result = await sql`
                 INSERT INTO accounting_commitments (
                     personnel_id, addressee, title, letter_date, amount, body,
-                    guarantor_first_name, guarantor_last_name, guarantor_father_name, guarantor_personnel_code,
+                    guarantor_first_name, guarantor_last_name,
                     borrower_first_name, borrower_last_name, borrower_father_name, borrower_national_id
                 )
                 VALUES (
                     ${personnel_id || null}, ${addressee}, ${title}, ${letter_date}, ${amount}, ${body},
-                    ${guarantor_first_name}, ${guarantor_last_name}, ${guarantor_father_name}, ${guarantor_personnel_code},
+                    ${guarantor_first_name}, ${guarantor_last_name},
                     ${borrower_first_name || null}, ${borrower_last_name || null}, ${borrower_father_name || null}, ${borrower_national_id || null}
                 )
                 RETURNING *;
