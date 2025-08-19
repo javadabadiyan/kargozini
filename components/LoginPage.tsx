@@ -5,7 +5,7 @@ import { UserIcon, LockIcon } from './icons';
 import type { User } from '../types';
 
 export const LoginPage: React.FC = () => {
-  const [username, setUsername] = useState('ادمین');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);

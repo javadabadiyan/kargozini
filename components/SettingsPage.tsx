@@ -107,17 +107,17 @@ export const SettingsPage: React.FC = () => {
     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {/* Export Section */}
         <div className="space-y-4 p-4 border border-gray-200 rounded-lg">
-            <h3 className="text-lg font-semibold text-gray-800 flex items-center"><DownloadIcon className="w-5 h-5 ml-2" />خروجی گرفتن (پشتیبان‌گیری)</h3>
+            <h3 className="text-lg font-semibold text-gray-800 flex items-center"><DownloadIcon className="w-5 h-5 ml-2" />خروج پشتیبان (Export)</h3>
             <p className="text-sm text-gray-600">از داده‌های خود در قالب فایل JSON خروجی بگیرید.</p>
             <div className="flex flex-col space-y-2">
-                <button onClick={() => handleBackup('personnel')} className="w-full text-right px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-md transition">پشتیبان‌گیری از پرسنل</button>
-                <button onClick={() => handleBackup('users')} className="w-full text-right px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-md transition">پشتیبان‌گیری از کاربران و دسترسی‌ها</button>
-                <button onClick={() => handleBackup('all')} className="w-full text-right px-4 py-2 bg-blue-100 text-blue-800 font-semibold hover:bg-blue-200 rounded-md transition">پشتیبان‌گیری کامل</button>
+                <button onClick={() => handleBackup('personnel')} className="w-full text-right px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-md transition">خروج اطلاعات پرسنل</button>
+                <button onClick={() => handleBackup('users')} className="w-full text-right px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-md transition">خروج اطلاعات کاربران</button>
+                <button onClick={() => handleBackup('all')} className="w-full text-right px-4 py-2 bg-blue-600 text-white font-semibold hover:bg-blue-700 rounded-md transition">خروج کامل (همه اطلاعات)</button>
             </div>
         </div>
         {/* Import Section */}
         <div className="space-y-4 p-4 border border-red-200 rounded-lg bg-red-50">
-            <h3 className="text-lg font-semibold text-red-800 flex items-center"><UploadIcon className="w-5 h-5 ml-2" />ورودی دادن (بازگردانی)</h3>
+            <h3 className="text-lg font-semibold text-red-800 flex items-center"><UploadIcon className="w-5 h-5 ml-2" />ورود پشتیبان (Import)</h3>
             <p className="text-sm text-red-700">
                 <span className="font-bold">هشدار:</span> بازگردانی فایل پشتیبان، تمام داده‌های فعلی را حذف و با اطلاعات فایل جایگزین می‌کند.
             </p>
