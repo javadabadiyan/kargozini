@@ -1,21 +1,12 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type { Personnel, AccountingCommitmentWithDetails } from '../types';
 import { toPersianDigits, formatRial, toEnglishDigits } from './format';
-import { DeleteIcon, EditIcon, EyeIcon, CloseIcon, UploadIcon, ChevronDownIcon } from './icons';
+import { CloseIcon, UploadIcon } from './icons';
 import * as XLSX from 'xlsx';
 
 
 interface AccountingCommitmentPageProps {
   personnelList: Personnel[];
-}
-
-interface GroupedCommitment {
-  key: string;
-  borrowerName: string;
-  borrowerIdentifier: string;
-  totalAmount: number;
-  count: number;
-  letters: AccountingCommitmentWithDetails[];
 }
 
 const PersonnelSearch = ({
@@ -255,20 +246,12 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
   } | null>(null);
 
   const [commitments, setCommitments] = useState<AccountingCommitmentWithDetails[]>([]);
-  const [groupedCommitments, setGroupedCommitments] = useState<GroupedCommitment[]>([]);
-  const [expandedKey, setExpandedKey] = useState<string | null>(null);
-
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
-
-  // States for edit and view modal
-  const [editingCommitmentId, setEditingCommitmentId] = useState<number | null>(null);
+  
+  // States for view modal
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [commitmentToView, setCommitmentToView] = useState<AccountingCommitmentWithDetails | null>(null);
-  const formRef = useRef<HTMLDivElement>(null);
   
   const fetchCommitments = async () => {
-    setIsLoading(true);
     try {
         const response = await fetch('/api/commitments');
         if (!response.ok) throw new Error('Failed to fetch commitments');
@@ -276,53 +259,11 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
         setCommitments(data);
     } catch (error) {
         console.error(error);
-        alert('خطا در بارگذاری آرشیو نامه‌ها');
-    } finally {
-        setIsLoading(false);
+        alert('خطا در بارگذاری اطلاعات پیشین تعهدات');
     }
   };
 
   useEffect(() => { fetchCommitments(); }, []);
-
-  useEffect(() => {
-    const groupData = (commitmentsToGroup: AccountingCommitmentWithDetails[]): GroupedCommitment[] => {
-        const groups: { [key: string]: GroupedCommitment } = {};
-
-        for (const c of commitmentsToGroup) {
-            const key = c.personnel_id 
-                ? `p-${c.personnel_id}` 
-                : `m-${c.borrower_national_id || `${c.borrower_first_name}-${c.borrower_last_name}`}`;
-
-            if (!groups[key]) {
-                groups[key] = {
-                    key,
-                    borrowerName: `${c.personnel_first_name} ${c.personnel_last_name}`,
-                    borrowerIdentifier: c.personnel_code || c.borrower_national_id || '',
-                    totalAmount: 0,
-                    count: 0,
-                    letters: [],
-                };
-            }
-            groups[key].totalAmount += c.amount;
-            groups[key].count++;
-            groups[key].letters.push(c);
-        }
-        return Object.values(groups).sort((a, b) => 
-            new Date(b.letters[0].created_at).getTime() - new Date(a.letters[0].created_at).getTime()
-        );
-    };
-    
-    const query = searchQuery.toLowerCase();
-    const filtered = commitments.filter(c =>
-         `${c.personnel_first_name} ${c.personnel_last_name}`.toLowerCase().includes(query) ||
-         (c.personnel_code && c.personnel_code.toLowerCase().includes(query)) ||
-         (c.borrower_national_id && c.borrower_national_id.includes(query)) ||
-         `${c.guarantor_first_name} ${c.guarantor_last_name}`.toLowerCase().includes(query) ||
-         toPersianDigits(c.letter_date).toLowerCase().includes(query)
-    );
-    
-    setGroupedCommitments(groupData(filtered));
-  }, [searchQuery, commitments]);
 
   useEffect(() => {
     if (selectedPersonnel) {
@@ -345,7 +286,7 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
   useEffect(() => {
     if (selectedPersonnel && totalFactors !== '' && amount !== '') {
         const previousTotal = commitments
-            .filter(c => c.personnel_id === selectedPersonnel.id && c.id !== editingCommitmentId)
+            .filter(c => c.personnel_id === selectedPersonnel.id)
             .reduce((sum, c) => sum + Number(c.amount), 0);
         
         const ceiling = Number(totalFactors) * 30;
@@ -357,7 +298,7 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
     } else {
         setCalculation(null);
     }
-  }, [selectedPersonnel, totalFactors, amount, commitments, editingCommitmentId]);
+  }, [selectedPersonnel, totalFactors, amount, commitments]);
   
   const handleSelectBorrower = (p: Personnel) => {
     setSelectedPersonnel(p);
@@ -395,7 +336,6 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
   };
   
   const resetForm = () => {
-    setEditingCommitmentId(null);
     setSelectedPersonnel(null);
     setBorrowerSearch('');
     setBorrowerDetails({ first_name: '', last_name: '', father_name: '', national_id: '' });
@@ -406,6 +346,7 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
     setAddressee('ریاست محترم بانک رفاه شعبه مرکزی سیرجان');
     setTitle('تعهد حسابداری');
     setDate(new Date().toLocaleDateString('fa-IR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-'));
+    setLetterBody('');
   };
 
   const handleSave = async () => {
@@ -418,7 +359,6 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
     }
     
     const commitmentData = {
-        id: editingCommitmentId,
         title, body: letterBody, letter_date: date,
         amount: Number(amount),
         addressee,
@@ -439,22 +379,10 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
         });
         if (!response.ok) throw new Error((await response.json()).error || 'Failed to save');
         await fetchCommitments();
-        alert(`نامه تعهد با موفقیت ${editingCommitmentId ? 'ویرایش' : 'ذخیره'} شد.`);
+        alert(`نامه تعهد با موفقیت ذخیره شد.`);
         resetForm();
     } catch(e) {
         alert(`خطا در ذخیره سازی: ${e instanceof Error ? e.message : 'Unknown error'}`);
-    }
-  };
-
-  const handleDelete = async (id: number) => {
-    if (window.confirm('آیا از حذف این نامه اطمینان دارید؟')) {
-        try {
-            const response = await fetch(`/api/commitments?id=${id}`, { method: 'DELETE' });
-            if (!response.ok) throw new Error('Failed to delete');
-            await fetchCommitments();
-        } catch(e) {
-            alert('خطا در حذف نامه');
-        }
     }
   };
 
@@ -463,47 +391,9 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
     setCommitmentToView(null);
   }, []);
 
-  const handleView = (commitment: AccountingCommitmentWithDetails) => {
-    setCommitmentToView(commitment);
-    setIsViewModalOpen(true);
-  };
-
-  const handleEdit = (commitment: AccountingCommitmentWithDetails) => {
-    setEditingCommitmentId(commitment.id);
-    setAddressee(commitment.addressee);
-    setTitle(commitment.title);
-    setDate(commitment.letter_date);
-    setAmount(commitment.amount);
-    
-    if (commitment.personnel_id) {
-        const p = personnelList.find(p => p.id === commitment.personnel_id);
-        if (p) {
-            setSelectedPersonnel(p);
-            setBorrowerSearch(`${p.first_name} ${p.last_name} (${toPersianDigits(p.personnel_code)})`);
-        }
-    } else {
-        setSelectedPersonnel(null);
-        setBorrowerSearch('');
-        setBorrowerDetails({
-            first_name: commitment.borrower_first_name || '',
-            last_name: commitment.borrower_last_name || '',
-            father_name: commitment.borrower_father_name || '',
-            national_id: commitment.borrower_national_id || '',
-        });
-    }
-
-    setGuarantor({
-        first_name: commitment.guarantor_first_name,
-        last_name: commitment.guarantor_last_name,
-    });
-    setGuarantorSearch(`${commitment.guarantor_first_name} ${commitment.guarantor_last_name}`);
-        
-    formRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-  
   const handlePreview = () => {
     const previewData: AccountingCommitmentWithDetails = {
-        id: editingCommitmentId || 0,
+        id: 0,
         personnel_id: selectedPersonnel?.id || null,
         addressee, title,
         letter_date: date,
@@ -621,8 +511,8 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
         {isViewModalOpen && <ViewLetterModal commitment={commitmentToView} onClose={closeViewModal} />}
         <h1 className="text-3xl font-bold text-slate-700 mb-6">نامه تعهد حسابداری</h1>
         
-        <div className="bg-white rounded-xl shadow-md p-6 border border-slate-200 mb-8" ref={formRef}>
-            <h2 className="text-xl font-bold text-slate-800 mb-4 border-b pb-3">{editingCommitmentId ? 'ویرایش نامه' : 'ایجاد نامه جدید'}</h2>
+        <div className="bg-white rounded-xl shadow-md p-6 border border-slate-200 mb-8">
+            <h2 className="text-xl font-bold text-slate-800 mb-4 border-b pb-3">ایجاد نامه جدید</h2>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-4">
                <div>
@@ -684,83 +574,10 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
                 <textarea value={letterBody} readOnly rows={8} className="w-full px-3 py-2 border border-slate-200 bg-slate-50 rounded-lg shadow-sm leading-relaxed"/>
             </div>
             <div className="flex justify-end pt-6 mt-4 border-t border-slate-200 space-x-2 space-x-reverse">
-                {editingCommitmentId && (
-                  <button onClick={resetForm} className="px-5 py-2 bg-slate-100 text-slate-800 rounded-lg hover:bg-slate-200 transition font-medium">لغو ویرایش</button>
-                )}
+                <button onClick={resetForm} className="px-5 py-2 bg-slate-100 text-slate-800 rounded-lg hover:bg-slate-200 transition font-medium">پاک کردن فرم</button>
                 <button onClick={handlePreview} className="px-5 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition font-medium shadow-sm">نمایش و چاپ پیش‌نمایش</button>
-                <button onClick={handleSave} className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium shadow-sm">{editingCommitmentId ? 'ذخیره تغییرات' : 'ذخیره در آرشیو'}</button>
+                <button onClick={handleSave} className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium shadow-sm">ذخیره در آرشیو</button>
             </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-md p-6 border border-slate-200">
-            <h2 className="text-xl font-bold text-slate-800 mb-4 border-b pb-3">آرشیو نامه‌های ذخیره شده</h2>
-            <input type="text" placeholder="جستجو در آرشیو..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full md:w-1/3 mb-4 px-4 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
-             <div className="overflow-x-auto">
-                <table className="min-w-full">
-                    <thead className="bg-slate-50">
-                        <tr>
-                            <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase w-10"></th>
-                            <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">وام گیرنده</th>
-                            <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">شناسه</th>
-                            <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">تعداد نامه‌ها</th>
-                            <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">جمع کل تعهدات</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200">
-                        {isLoading ? (
-                           <tr><td colSpan={5} className="text-center py-8 text-slate-500">در حال بارگذاری...</td></tr>
-                        ) : groupedCommitments.length === 0 ? (
-                            <tr><td colSpan={5} className="text-center py-8 text-slate-500">هیچ نامه‌ای یافت نشد.</td></tr>
-                        ) : (
-                            groupedCommitments.map(group => (
-                                <React.Fragment key={group.key}>
-                                    <tr className="cursor-pointer hover:bg-slate-50" onClick={() => setExpandedKey(expandedKey === group.key ? null : group.key)}>
-                                        <td className="px-4 py-3"><ChevronDownIcon className={`w-5 h-5 text-slate-400 transition-transform ${expandedKey === group.key ? 'rotate-180' : ''}`} /></td>
-                                        <td className="px-4 py-3 font-semibold text-slate-800">{group.borrowerName}</td>
-                                        <td className="px-4 py-3 text-slate-600">{toPersianDigits(group.borrowerIdentifier)}</td>
-                                        <td className="px-4 py-3 text-slate-600">{toPersianDigits(group.count)}</td>
-                                        <td className="px-4 py-3 font-bold text-blue-600">{formatRial(group.totalAmount)}</td>
-                                    </tr>
-                                    {expandedKey === group.key && (
-                                        <tr className="bg-slate-50/70">
-                                            <td colSpan={5} className="p-0">
-                                                <div className="p-4">
-                                                    <table className="min-w-full bg-white rounded-md shadow-inner">
-                                                        <thead className="bg-slate-100">
-                                                          <tr>
-                                                              <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">ضامن</th>
-                                                              <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">مبلغ</th>
-                                                              <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">تاریخ</th>
-                                                              <th className="relative px-4 py-2"><span className="sr-only">عملیات</span></th>
-                                                          </tr>
-                                                        </thead>
-                                                        <tbody className="divide-y divide-slate-100">
-                                                            {group.letters.map(c => (
-                                                                <tr key={c.id}>
-                                                                    <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-600">{c.guarantor_first_name} {c.guarantor_last_name}</td>
-                                                                    <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-600">{formatRial(c.amount)}</td>
-                                                                    <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-600">{toPersianDigits(c.letter_date)}</td>
-                                                                    <td className="px-4 py-3 whitespace-nowrap text-left text-sm font-medium">
-                                                                        <div className="flex items-center justify-end space-x-4 space-x-reverse">
-                                                                            <button onClick={() => handleView(c)} className="text-slate-500 hover:text-blue-600 transition" title="نمایش نامه"><EyeIcon className="w-5 h-5"/></button>
-                                                                            <button onClick={() => handleEdit(c)} className="text-slate-500 hover:text-indigo-600 transition" title="ویرایش"><EditIcon className="w-5 h-5"/></button>
-                                                                            <button onClick={() => handleDelete(c.id)} className="text-slate-500 hover:text-red-600 transition" title="حذف"><DeleteIcon className="w-5 h-5"/></button>
-                                                                        </div>
-                                                                    </td>
-                                                                </tr>
-                                                            ))}
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    )}
-                                </React.Fragment>
-                            ))
-                        )}
-                    </tbody>
-                </table>
-             </div>
         </div>
     </div>
   );
