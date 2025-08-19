@@ -1,7 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import type { Personnel, AccountingCommitmentWithDetails } from '../types';
-import { toPersianDigits, formatRial } from './format';
-import { DeleteIcon, EditIcon, EyeIcon, CloseIcon } from './icons';
+import { toPersianDigits, formatRial, toEnglishDigits } from './format';
+import { DeleteIcon, EditIcon, EyeIcon, CloseIcon, UploadIcon } from './icons';
+import * as XLSX from 'xlsx';
+
 
 interface AccountingCommitmentPageProps {
   personnelList: Personnel[];
@@ -151,6 +153,7 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
   const [date, setDate] = useState(new Date().toLocaleDateString('fa-IR', { year: 'numeric', month: '2-digit', day: '2-digit' }));
   const [amount, setAmount] = useState<number | ''>('');
   const [totalFactors, setTotalFactors] = useState<number | ''>('');
+  const [personnelFactors, setPersonnelFactors] = useState<Record<string, number>>({});
   
   const [selectedPersonnel, setSelectedPersonnel] = useState<Personnel | null>(null);
   const [borrowerSearch, setBorrowerSearch] = useState('');
@@ -245,6 +248,12 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
   const handleSelectBorrower = (p: Personnel) => {
     setSelectedPersonnel(p);
     setBorrowerSearch(`${p.first_name} ${p.last_name} (${toPersianDigits(p.personnel_code)})`);
+    const factor = personnelFactors[p.personnel_code];
+    if (factor) {
+        setTotalFactors(factor);
+    } else {
+        setTotalFactors('');
+    }
   };
   
   const handleBorrowerSearchChange = (val: string) => {
@@ -400,6 +409,68 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
     setIsViewModalOpen(true);
   };
   
+  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const englishValue = toEnglishDigits(e.target.value);
+    const numericValue = parseInt(englishValue.replace(/,/g, ''), 10);
+    setAmount(isNaN(numericValue) ? '' : numericValue);
+  };
+
+  const handleTotalFactorsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const englishValue = toEnglishDigits(e.target.value);
+    const numericValue = parseInt(englishValue.replace(/,/g, ''), 10);
+    setTotalFactors(isNaN(numericValue) ? '' : numericValue);
+  };
+
+  const handleDownloadFactorsSample = () => {
+    const headers = ['کد پرسنلی', 'جمع عوامل حکمی'];
+    const ws = XLSX.utils.aoa_to_sheet([headers]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Factors');
+    XLSX.writeFile(wb, 'نمونه_عوامل_حکمی.xlsx');
+  };
+
+  const handleFactorsImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const data = e.target?.result;
+            const workbook = XLSX.read(data, { type: 'binary' });
+            const sheetName = workbook.SheetNames[0];
+            const worksheet = workbook.Sheets[sheetName];
+            const json: any[] = XLSX.utils.sheet_to_json(worksheet);
+
+            if (json.length === 0) {
+                alert('فایل اکسل خالی است.');
+                return;
+            }
+
+            const factorsMap: Record<string, number> = {};
+            let processedCount = 0;
+            json.forEach(row => {
+                const personnelCode = row['کد پرسنلی'] ? String(row['کد پرسنلی']) : null;
+                const factorAmount = row['جمع عوامل حکمی'] ? Number(toEnglishDigits(String(row['جمع عوامل حکمی'])).replace(/,/g, '')) : null;
+
+                if (personnelCode && factorAmount !== null && !isNaN(factorAmount)) {
+                    factorsMap[personnelCode] = factorAmount;
+                    processedCount++;
+                }
+            });
+
+            setPersonnelFactors(factorsMap);
+            alert(`${toPersianDigits(processedCount)} رکورد با موفقیت بارگذاری شد.`);
+
+        } catch (error) {
+            alert(`خطا در بارگذاری فایل: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        } finally {
+            event.target.value = '';
+        }
+    };
+    reader.readAsBinaryString(file);
+  };
+
   const renderCalculation = () => {
       if (!selectedPersonnel) {
           return (
@@ -444,12 +515,31 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
                   <input id="addressee" value={addressee} onChange={(e) => setAddressee(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
                 </div>
                  <div>
-                  <label htmlFor="total_factors" className="block text-sm font-medium text-slate-700 mb-1">جمع عوامل حکمی (ریال)<span className="text-red-500 mr-1">*</span></label>
-                  <input type="number" id="total_factors" value={totalFactors} onChange={(e) => setTotalFactors(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-300 rounded-lg" placeholder="برای محاسبه سقف تعهد"/>
+                    <label htmlFor="total_factors" className="block text-sm font-medium text-slate-700 mb-1">جمع عوامل حکمی (ریال)<span className="text-red-500 mr-1">*</span></label>
+                    <div className="flex items-center gap-2">
+                        <input 
+                            type="text" 
+                            id="total_factors" 
+                            value={totalFactors === '' ? '' : formatRial(totalFactors)} 
+                            onChange={handleTotalFactorsChange} 
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg" 
+                            placeholder="برای محاسبه سقف تعهد"
+                        />
+                        <div className="relative group">
+                            <label title="ورود انبوه با اکسل" className="p-2.5 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 cursor-pointer transition">
+                                <UploadIcon className="w-5 h-5" />
+                                <input type="file" className="hidden" accept=".xlsx, .xls" onChange={handleFactorsImport} />
+                            </label>
+                            <div className="absolute top-full right-0 mt-2 w-56 bg-white border rounded-lg shadow-xl p-2 opacity-0 group-hover:opacity-100 invisible group-hover:visible transition-opacity text-xs z-10">
+                                <p className="text-slate-600 mb-2">برای ورود انبوه عوامل حکمی پرسنل از فایل اکسل استفاده کنید. (فرمت: کد پرسنلی، جمع عوامل حکمی)</p>
+                                <button onClick={handleDownloadFactorsSample} className="text-blue-600 hover:underline w-full text-right font-semibold">دانلود نمونه اکسل</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div>
                   <label htmlFor="amount" className="block text-sm font-medium text-slate-700 mb-1">مبلغ وام (ریال)<span className="text-red-500 mr-1">*</span></label>
-                  <input type="number" id="amount" value={amount} onChange={(e) => setAmount(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
+                  <input type="text" id="amount" value={amount === '' ? '' : formatRial(amount)} onChange={handleAmountChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
                 </div>
             </div>
 
