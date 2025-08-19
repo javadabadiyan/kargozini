@@ -16,6 +16,7 @@ async function setupTables() {
     const client = await sql.connect();
     try {
         await client.query('BEGIN');
+        // Ensure tables exist
         await client.query(`
             CREATE TABLE IF NOT EXISTS app_users (
                 id SERIAL PRIMARY KEY,
@@ -33,23 +34,36 @@ async function setupTables() {
             );
         `);
         
-        const { rows: countRows } = await client.query('SELECT COUNT(*) FROM app_users;');
-        if (Number(countRows[0].count) === 0) {
-            const defaultPassword = '5221157'; // Users should change this immediately
-            const hashedPassword = await hashPassword(defaultPassword);
-            const { rows: userRows } = await client.query(
-                `INSERT INTO app_users ("firstName", "lastName", username, password_hash)
-                 VALUES ('مدیر', 'سیستم', 'admin', $1)
-                 RETURNING id;`,
-                [hashedPassword]
+        // Upsert the admin user and reset their password to the default.
+        // This ensures the admin account is always available with the password defined in the code,
+        // fixing login issues after redeployment.
+        // NOTE: This will reset any password changes made to the 'admin' account via the UI on each deployment.
+        const defaultPassword = '5221157';
+        const hashedPassword = await hashPassword(defaultPassword);
+
+        const { rows: userRows } = await client.query(
+            `INSERT INTO app_users ("firstName", "lastName", username, password_hash)
+             VALUES ('مدیر', 'سیستم', 'admin', $1)
+             ON CONFLICT (username) DO UPDATE SET
+                password_hash = EXCLUDED.password_hash,
+                "firstName" = EXCLUDED."firstName",
+                "lastName" = EXCLUDED."lastName"
+             RETURNING id;`,
+            [hashedPassword]
+        );
+        const adminId = userRows[0].id;
+
+        // Ensure admin has all permissions by clearing and re-adding them.
+        const allPermissions = ['manage_personnel', 'manage_users', 'manage_settings', 'perform_backup'];
+        
+        await client.query('DELETE FROM user_permissions WHERE user_id = $1;', [adminId]);
+        for (const p of allPermissions) {
+            await client.query(
+                'INSERT INTO user_permissions (user_id, permission_name) VALUES ($1, $2) ON CONFLICT DO NOTHING;', 
+                [adminId, p]
             );
-            const adminId = userRows[0].id;
-            // Grant all permissions to the default admin
-            const allPermissions = ['manage_personnel', 'manage_users', 'manage_settings', 'perform_backup'];
-            for (const p of allPermissions) {
-                await client.query('INSERT INTO user_permissions (user_id, permission_name) VALUES ($1, $2);', [adminId, p]);
-            }
         }
+
         await client.query('COMMIT');
     } catch (e) {
         await client.query('ROLLBACK');
@@ -83,7 +97,7 @@ export default async function handler(
   }
 
   try {
-    // Ensure database tables are created before processing login
+    // Ensure database tables and admin user are correctly configured
     await setupTables();
 
     const { username, password } = req.body;
