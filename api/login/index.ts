@@ -37,13 +37,13 @@ async function setupTables() {
         // Upsert the admin user and reset their password to the default.
         // This ensures the admin account is always available with the password defined in the code,
         // fixing login issues after redeployment.
-        // NOTE: This will reset any password changes made to the 'admin' account via the UI on each deployment.
+        // NOTE: This will reset any password changes made to the 'ادمین' account via the UI on each deployment.
         const defaultPassword = '5221157';
         const hashedPassword = await hashPassword(defaultPassword);
 
         const { rows: userRows } = await client.query(
             `INSERT INTO app_users ("firstName", "lastName", username, password_hash)
-             VALUES ('مدیر', 'سیستم', 'admin', $1)
+             VALUES ('مدیر', 'سیستم', 'ادمین', $1)
              ON CONFLICT (username) DO UPDATE SET
                 password_hash = EXCLUDED.password_hash,
                 "firstName" = EXCLUDED."firstName",
