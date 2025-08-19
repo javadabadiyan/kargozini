@@ -1,31 +1,34 @@
-
 import React, { useState, useEffect } from 'react';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { UserTable } from './UserTable';
 import { AddUserModal } from './AddUserModal';
-import { PlusIcon } from './icons';
+import { PlusIcon, UploadIcon, DownloadIcon } from './icons';
 import { SettingsPage } from './SettingsPage';
-import type { User, Role } from '../types';
+import { AccessControlPage } from './AccessControlPage';
+import type { Personnel, Role } from '../types';
+import * as XLSX from 'xlsx';
+
+type Page = 'users' | 'settings' | 'access-control';
 
 export const DashboardPage: React.FC = () => {
-  const [activePage, setActivePage] = useState<'users' | 'settings'>('users');
-  const [users, setUsers] = useState<User[]>([]);
+  const [activePage, setActivePage] = useState<Page>('users');
+  const [personnel, setPersonnel] = useState<Personnel[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [userToEdit, setUserToEdit] = useState<User | null>(null);
+  const [personnelToEdit, setPersonnelToEdit] = useState<Personnel | null>(null);
 
-  const fetchUsers = async () => {
+  const fetchPersonnel = async () => {
     setIsLoading(true);
     try {
       const response = await fetch('/api/users');
-      if (!response.ok) throw new Error('Failed to fetch users');
+      if (!response.ok) throw new Error('Failed to fetch personnel');
       const data = await response.json();
-      setUsers(data);
+      setPersonnel(data);
     } catch (error) {
       console.error(error);
-      alert("خطا در بارگذاری لیست کاربران!");
+      alert("خطا در بارگذاری لیست پرسنل!");
     } finally {
       setIsLoading(false);
     }
@@ -44,23 +47,79 @@ export const DashboardPage: React.FC = () => {
   }
 
   useEffect(() => {
-    fetchUsers();
+    fetchPersonnel();
     fetchRoles();
   }, []);
+  
+  const handleDownloadSample = () => {
+    const headers = [
+      'personnel_code', 'first_name', 'last_name', 'father_name', 'national_id',
+      'id_number', 'birth_date', 'birth_place', 'issue_date', 'issue_place',
+      'marital_status', 'military_status', 'job', 'position', 'employment_type',
+      'unit', 'service_place', 'employment_date', 'education_degree', 'field_of_study', 'status'
+    ];
+    const ws = XLSX.utils.aoa_to_sheet([headers]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Personnel');
+    XLSX.writeFile(wb, 'Sample_Personnel.xlsx');
+  };
 
-  const handleOpenModal = (user: User | null = null) => {
-    setUserToEdit(user);
+  const handleExcelImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const data = e.target?.result;
+        const workbook = XLSX.read(data, { type: 'binary' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const json: Omit<Personnel, 'id'>[] = XLSX.utils.sheet_to_json(worksheet);
+
+        if (json.length === 0) {
+          alert('فایل اکسل خالی است یا فرمت آن صحیح نیست.');
+          return;
+        }
+
+        const response = await fetch('/api/users?action=import', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(json),
+        });
+
+        if (!response.ok) {
+          const err = await response.json();
+          throw new Error(err.error || 'Failed to import personnel');
+        }
+
+        alert(`${json.length} پرسنل با موفقیت وارد شدند.`);
+        fetchPersonnel(); // Refresh the list
+      } catch (error) {
+        console.error("Excel import error:", error);
+        alert(`خطا در ورود اطلاعات از اکسل: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      } finally {
+         // Reset file input
+        event.target.value = '';
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+
+  const handleOpenModal = (p: Personnel | null = null) => {
+    setPersonnelToEdit(p);
     setIsModalOpen(true);
   };
   
   const handleCloseModal = () => {
     setIsModalOpen(false);
-    setUserToEdit(null);
+    setPersonnelToEdit(null);
   };
 
-  const handleSaveUser = async (userData: Omit<User, 'id'>) => {
-    const isEditing = !!userToEdit;
-    const body = isEditing ? { ...userData, id: userToEdit!.id } : userData;
+  const handleSavePersonnel = async (personnelData: Omit<Personnel, 'id'>) => {
+    const isEditing = !!personnelToEdit;
+    const body = isEditing ? { ...personnelData, id: personnelToEdit!.id } : personnelData;
 
     try {
         const response = await fetch('/api/users', {
@@ -71,39 +130,86 @@ export const DashboardPage: React.FC = () => {
 
         if (!response.ok) {
             const err = await response.json();
-            throw new Error(err.error || 'Failed to save user');
+            throw new Error(err.error || 'Failed to save personnel');
         }
         
-        const savedUser: User = await response.json();
+        const savedPersonnel: Personnel = await response.json();
 
         if (isEditing) {
-            setUsers(users.map(u => (u.id === savedUser.id ? savedUser : u)));
+            setPersonnel(personnel.map(p => (p.id === savedPersonnel.id ? savedPersonnel : p)));
         } else {
-            setUsers([savedUser, ...users]);
+            setPersonnel([savedPersonnel, ...personnel]);
         }
         handleCloseModal();
     } catch (error) {
-        console.error("Save user error:", error);
-        alert(`خطا در ذخیره سازی کاربر: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        console.error("Save personnel error:", error);
+        alert(`خطا در ذخیره سازی پرسنل: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
-  const handleDeleteUser = async (userId: number) => {
-    if (window.confirm('آیا از حذف این کاربر اطمینان دارید؟')) {
+  const handleDeletePersonnel = async (personnelId: number) => {
+    if (window.confirm('آیا از حذف این پرسنل اطمینان دارید؟')) {
       try {
-        const response = await fetch(`/api/users?id=${userId}`, {
+        const response = await fetch(`/api/users?id=${personnelId}`, {
           method: 'DELETE',
         });
         
-        if (!response.ok) throw new Error('Failed to delete user');
+        if (!response.ok) throw new Error('Failed to delete personnel');
 
-        setUsers(users.filter(user => user.id !== userId));
+        setPersonnel(personnel.filter(p => p.id !== personnelId));
       } catch (error) {
-        console.error("Delete user error:", error);
-        alert("خطا در حذف کاربر!");
+        console.error("Delete personnel error:", error);
+        alert("خطا در حذف پرسنل!");
       }
     }
   };
+  
+  const renderContent = () => {
+    switch(activePage) {
+        case 'users':
+            return (
+                <div>
+                  <div className="flex justify-between items-center mb-6 gap-2 flex-wrap">
+                    <h1 className="text-2xl font-semibold text-gray-700">لیست پرسنل</h1>
+                    <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                          onClick={handleDownloadSample}
+                          className="flex items-center bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition"
+                        >
+                          <DownloadIcon className="w-5 h-5 ml-2" />
+                          دانلود نمونه
+                        </button>
+                        <label className="flex items-center bg-yellow-500 text-white px-4 py-2 rounded-md hover:bg-yellow-600 transition cursor-pointer">
+                            <UploadIcon className="w-5 h-5 ml-2" />
+                            ورود با اکسل
+                            <input type="file" className="hidden" accept=".xlsx, .xls" onChange={handleExcelImport} />
+                        </label>
+                        <button
+                          onClick={() => handleOpenModal()}
+                          className="flex items-center bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition"
+                        >
+                          <PlusIcon className="w-5 h-5 ml-2" />
+                          افزودن پرسنل جدید
+                        </button>
+                    </div>
+                  </div>
+                  {isLoading ? (
+                    <div className="w-full bg-white rounded-lg shadow p-12 text-center text-gray-500">
+                      در حال بارگذاری پرسنل...
+                    </div>
+                  ) : (
+                    <UserTable personnel={personnel} onEdit={handleOpenModal} onDelete={handleDeletePersonnel} />
+                  )}
+                </div>
+            );
+        case 'access-control':
+            return <AccessControlPage roles={roles} />;
+        case 'settings':
+            return <SettingsPage roles={roles} onRolesChange={fetchRoles} />;
+        default:
+            return null;
+    }
+  }
 
   return (
     <div className="flex h-screen bg-gray-100">
@@ -112,30 +218,7 @@ export const DashboardPage: React.FC = () => {
         <Header />
         <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-8">
           <div className="container mx-auto">
-            {activePage === 'users' && (
-              <div>
-                <div className="flex justify-between items-center mb-6">
-                  <h1 className="text-2xl font-semibold text-gray-700">لیست کاربران</h1>
-                  <button
-                    onClick={() => handleOpenModal()}
-                    className="flex items-center bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition"
-                  >
-                    <PlusIcon className="w-5 h-5 ml-2" />
-                    افزودن کاربر جدید
-                  </button>
-                </div>
-                {isLoading ? (
-                  <div className="w-full bg-white rounded-lg shadow p-12 text-center text-gray-500">
-                    در حال بارگذاری کاربران...
-                  </div>
-                ) : (
-                  <UserTable users={users} onEdit={handleOpenModal} onDelete={handleDeleteUser} />
-                )}
-              </div>
-            )}
-             {activePage === 'settings' && (
-              <SettingsPage roles={roles} onRolesChange={fetchRoles} />
-            )}
+            {renderContent()}
           </div>
         </main>
       </div>
@@ -143,9 +226,8 @@ export const DashboardPage: React.FC = () => {
         <AddUserModal 
           isOpen={isModalOpen} 
           onClose={handleCloseModal} 
-          onSave={handleSaveUser}
-          userToEdit={userToEdit}
-          roles={roles}
+          onSave={handleSavePersonnel}
+          personnelToEdit={personnelToEdit}
         />
       )}
     </div>

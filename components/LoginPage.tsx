@@ -1,6 +1,6 @@
-
 import React, { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { useSettings } from '../context/SettingsContext';
 import { UserIcon, LockIcon } from './icons';
 import type { User } from '../types';
 
@@ -9,6 +9,7 @@ export const LoginPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const { login } = useAuth();
+  const { settings } = useSettings();
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,7 +35,10 @@ export const LoginPage: React.FC = () => {
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
       <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-2xl shadow-lg">
         <div className="text-center">
-          <h1 className="text-3xl font-bold text-gray-800">سیستم جامع کارگزینی</h1>
+            {settings?.app_logo && (
+                <img src={settings.app_logo} alt="App Logo" className="w-24 h-24 mx-auto mb-4 rounded-full object-cover"/>
+            )}
+          <h1 className="text-3xl font-bold text-gray-800">{settings?.app_name || 'سیستم جامع کارگزینی'}</h1>
           <p className="mt-2 text-gray-600">برای ورود به حساب کاربری خود وارد شوید</p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleLogin}>
