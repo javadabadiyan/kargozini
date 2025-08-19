@@ -1,12 +1,21 @@
 import React, { useState, useRef, useEffect } from 'react';
 import type { Personnel, AccountingCommitmentWithDetails } from '../types';
 import { toPersianDigits, formatRial, toEnglishDigits } from './format';
-import { DeleteIcon, EditIcon, EyeIcon, CloseIcon, UploadIcon } from './icons';
+import { DeleteIcon, EditIcon, EyeIcon, CloseIcon, UploadIcon, ChevronDownIcon } from './icons';
 import * as XLSX from 'xlsx';
 
 
 interface AccountingCommitmentPageProps {
   personnelList: Personnel[];
+}
+
+interface GroupedCommitment {
+  key: string;
+  borrowerName: string;
+  borrowerIdentifier: string;
+  totalAmount: number;
+  count: number;
+  letters: AccountingCommitmentWithDetails[];
 }
 
 const PersonnelSearch = ({
@@ -172,7 +181,9 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
   } | null>(null);
 
   const [commitments, setCommitments] = useState<AccountingCommitmentWithDetails[]>([]);
-  const [filteredCommitments, setFilteredCommitments] = useState<AccountingCommitmentWithDetails[]>([]);
+  const [groupedCommitments, setGroupedCommitments] = useState<GroupedCommitment[]>([]);
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
@@ -200,14 +211,43 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
   useEffect(() => { fetchCommitments(); }, []);
 
   useEffect(() => {
+    const groupData = (commitmentsToGroup: AccountingCommitmentWithDetails[]): GroupedCommitment[] => {
+        const groups: { [key: string]: GroupedCommitment } = {};
+
+        for (const c of commitmentsToGroup) {
+            const key = c.personnel_id 
+                ? `p-${c.personnel_id}` 
+                : `m-${c.borrower_national_id || `${c.borrower_first_name}-${c.borrower_last_name}`}`;
+
+            if (!groups[key]) {
+                groups[key] = {
+                    key,
+                    borrowerName: `${c.personnel_first_name} ${c.personnel_last_name}`,
+                    borrowerIdentifier: c.personnel_code || c.borrower_national_id || '',
+                    totalAmount: 0,
+                    count: 0,
+                    letters: [],
+                };
+            }
+            groups[key].totalAmount += c.amount;
+            groups[key].count++;
+            groups[key].letters.push(c);
+        }
+        return Object.values(groups).sort((a, b) => 
+            new Date(b.letters[0].created_at).getTime() - new Date(a.letters[0].created_at).getTime()
+        );
+    };
+    
     const query = searchQuery.toLowerCase();
     const filtered = commitments.filter(c =>
-        `${c.personnel_first_name} ${c.personnel_last_name}`.toLowerCase().includes(query) ||
-        `${c.borrower_first_name} ${c.borrower_last_name}`.toLowerCase().includes(query) ||
-        `${c.guarantor_first_name} ${c.guarantor_last_name}`.toLowerCase().includes(query) ||
-        toPersianDigits(c.letter_date).toLowerCase().includes(query)
+         `${c.personnel_first_name} ${c.personnel_last_name}`.toLowerCase().includes(query) ||
+         (c.personnel_code && c.personnel_code.toLowerCase().includes(query)) ||
+         (c.borrower_national_id && c.borrower_national_id.includes(query)) ||
+         `${c.guarantor_first_name} ${c.guarantor_last_name}`.toLowerCase().includes(query) ||
+         toPersianDigits(c.letter_date).toLowerCase().includes(query)
     );
-    setFilteredCommitments(filtered);
+    
+    setGroupedCommitments(groupData(filtered));
   }, [searchQuery, commitments]);
 
   useEffect(() => {
@@ -582,41 +622,64 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
         <div className="bg-white rounded-xl shadow-md p-6 border border-slate-200">
             <h2 className="text-xl font-bold text-slate-800 mb-4 border-b pb-3">آرشیو نامه‌های ذخیره شده</h2>
             <input type="text" placeholder="جستجو در آرشیو..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full md:w-1/3 mb-4 px-4 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
-             <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-slate-200">
-                    <thead className="bg-slate-50">
-                        <tr>
-                            <th className="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase">وام گیرنده</th>
-                            <th className="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase">ضامن</th>
-                            <th className="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase">مبلغ</th>
-                            <th className="px-4 py-3 text-right text-xs font-medium text-slate-500 uppercase">تاریخ</th>
-                            <th className="relative px-4 py-3"><span className="sr-only">عملیات</span></th>
-                        </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-slate-200">
-                        {isLoading ? (
-                            <tr><td colSpan={5} className="text-center py-8 text-slate-500">در حال بارگذاری...</td></tr>
-                        ) : filteredCommitments.length === 0 ? (
-                            <tr><td colSpan={5} className="text-center py-8 text-slate-500">هیچ نامه‌ای یافت نشد.</td></tr>
-                        ) : (
-                            filteredCommitments.map(c => (
-                                <tr key={c.id} className="hover:bg-slate-50">
-                                    <td className="px-4 py-4 whitespace-nowrap text-sm text-slate-700">{c.personnel_first_name || c.borrower_first_name} {c.personnel_last_name || c.borrower_last_name}</td>
-                                    <td className="px-4 py-4 whitespace-nowrap text-sm text-slate-700">{c.guarantor_first_name} {c.guarantor_last_name}</td>
-                                    <td className="px-4 py-4 whitespace-nowrap text-sm text-slate-700">{formatRial(c.amount)}</td>
-                                    <td className="px-4 py-4 whitespace-nowrap text-sm text-slate-700">{toPersianDigits(c.letter_date)}</td>
-                                    <td className="px-4 py-4 whitespace-nowrap text-left text-sm font-medium">
-                                        <div className="flex items-center justify-end space-x-4 space-x-reverse">
-                                            <button onClick={() => handleView(c)} className="text-slate-500 hover:text-blue-600 transition" title="نمایش نامه"><EyeIcon className="w-5 h-5"/></button>
-                                            <button onClick={() => handleEdit(c)} className="text-slate-500 hover:text-indigo-600 transition" title="ویرایش"><EditIcon className="w-5 h-5"/></button>
-                                            <button onClick={() => handleDelete(c.id)} className="text-slate-500 hover:text-red-600 transition" title="حذف"><DeleteIcon className="w-5 h-5"/></button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))
-                        )}
-                    </tbody>
-                </table>
+             <div className="space-y-3">
+                {isLoading ? (
+                    <div className="text-center py-8 text-slate-500">در حال بارگذاری...</div>
+                ) : groupedCommitments.length === 0 ? (
+                    <div className="text-center py-8 text-slate-500">هیچ نامه‌ای یافت نشد.</div>
+                ) : (
+                    groupedCommitments.map(group => (
+                        <div key={group.key} className="border border-slate-200 rounded-lg overflow-hidden transition-all duration-300">
+                            <button 
+                                className="w-full flex flex-col sm:flex-row justify-between items-start sm:items-center p-4 bg-slate-50 hover:bg-slate-100 transition text-right"
+                                onClick={() => setExpandedKey(expandedKey === group.key ? null : group.key)}
+                                aria-expanded={expandedKey === group.key}
+                            >
+                                <div className="mb-2 sm:mb-0">
+                                    <p className="font-bold text-slate-800">{group.borrowerName}</p>
+                                    <p className="text-sm text-slate-500">{group.borrowerIdentifier ? `کد: ${toPersianDigits(group.borrowerIdentifier)}` : ''}</p>
+                                </div>
+                                <div className="flex items-center space-x-2 space-x-reverse text-sm w-full sm:w-auto justify-end">
+                                    <span className="bg-slate-200 text-slate-700 px-2 py-1 rounded-md font-medium">تعداد: {toPersianDigits(group.count)}</span>
+                                    <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-md font-semibold">مجموع: {formatRial(group.totalAmount)} ریال</span>
+                                    <ChevronDownIcon className={`w-5 h-5 text-slate-500 transition-transform ${expandedKey === group.key ? 'rotate-180' : ''}`} />
+                                </div>
+                            </button>
+                            {expandedKey === group.key && (
+                                <div className="p-2 bg-white animate-fade-in-down">
+                                    <div className="overflow-x-auto">
+                                        <table className="min-w-full divide-y divide-slate-100">
+                                            <thead className="bg-white">
+                                                <tr>
+                                                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">ضامن</th>
+                                                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">مبلغ</th>
+                                                    <th className="px-4 py-2 text-right text-xs font-medium text-slate-500 uppercase">تاریخ</th>
+                                                    <th className="relative px-4 py-2"><span className="sr-only">عملیات</span></th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="bg-white divide-y divide-slate-100">
+                                                {group.letters.map(c => (
+                                                    <tr key={c.id}>
+                                                        <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-600">{c.guarantor_first_name} {c.guarantor_last_name}</td>
+                                                        <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-600">{formatRial(c.amount)}</td>
+                                                        <td className="px-4 py-3 whitespace-nowrap text-sm text-slate-600">{toPersianDigits(c.letter_date)}</td>
+                                                        <td className="px-4 py-3 whitespace-nowrap text-left text-sm font-medium">
+                                                            <div className="flex items-center justify-end space-x-4 space-x-reverse">
+                                                                <button onClick={() => handleView(c)} className="text-slate-500 hover:text-blue-600 transition" title="نمایش نامه"><EyeIcon className="w-5 h-5"/></button>
+                                                                <button onClick={() => handleEdit(c)} className="text-slate-500 hover:text-indigo-600 transition" title="ویرایش"><EditIcon className="w-5 h-5"/></button>
+                                                                <button onClick={() => handleDelete(c.id)} className="text-slate-500 hover:text-red-600 transition" title="حذف"><DeleteIcon className="w-5 h-5"/></button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    ))
+                )}
              </div>
         </div>
     </div>

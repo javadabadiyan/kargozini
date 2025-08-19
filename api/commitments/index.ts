@@ -7,6 +7,34 @@ export default async function handler(
   res: VercelResponse,
 ) {
   try {
+     // Ensure personnel table exists before creating the commitments table with a foreign key.
+     // This prevents errors on fresh deployments.
+    await sql`
+        CREATE TABLE IF NOT EXISTS personnel (
+            id SERIAL PRIMARY KEY,
+            personnel_code VARCHAR(50) UNIQUE NOT NULL,
+            first_name VARCHAR(100) NOT NULL,
+            last_name VARCHAR(100) NOT NULL,
+            father_name VARCHAR(100),
+            national_id VARCHAR(20) UNIQUE,
+            id_number VARCHAR(20),
+            birth_date VARCHAR(50),
+            birth_place VARCHAR(100),
+            issue_date VARCHAR(50),
+            issue_place VARCHAR(100),
+            marital_status VARCHAR(50),
+            military_status VARCHAR(50),
+            job VARCHAR(100),
+            "position" VARCHAR(100),
+            employment_type VARCHAR(100),
+            unit VARCHAR(100),
+            service_place VARCHAR(100),
+            employment_date VARCHAR(50),
+            education_degree VARCHAR(100),
+            field_of_study VARCHAR(100),
+            status VARCHAR(50)
+        );
+    `;
     await sql`
         CREATE TABLE IF NOT EXISTS accounting_commitments (
             id SERIAL PRIMARY KEY,
