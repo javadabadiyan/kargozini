@@ -1,9 +1,10 @@
+
 import React, { useState, useEffect } from 'react';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { UserTable } from './UserTable';
 import { AddUserModal } from './AddUserModal';
-import { PlusIcon, UploadIcon, DownloadIcon } from './icons';
+import { PlusIcon, UploadIcon, DownloadIcon, DeleteIcon } from './icons';
 import { SettingsPage } from './SettingsPage';
 import { AccessControlPage } from './AccessControlPage';
 import type { Personnel, Role } from '../types';
@@ -163,6 +164,24 @@ export const DashboardPage: React.FC = () => {
       }
     }
   };
+
+  const handleDeleteAllPersonnel = async () => {
+    if (window.confirm('آیا کاملا اطمینان دارید؟ تمام اطلاعات پرسنل برای همیشه حذف خواهد شد. این عمل غیرقابل بازگشت است.')) {
+      try {
+        const response = await fetch(`/api/users?action=delete_all`, {
+          method: 'DELETE',
+        });
+        
+        if (!response.ok) throw new Error('Failed to delete all personnel');
+
+        alert('تمام اطلاعات پرسنل با موفقیت حذف شد.');
+        fetchPersonnel(); // Refresh the list to show it's empty
+      } catch (error) {
+        console.error("Delete all personnel error:", error);
+        alert("خطا در حذف تمام پرسنل!");
+      }
+    }
+  };
   
   const renderContent = () => {
     switch(activePage) {
@@ -191,6 +210,13 @@ export const DashboardPage: React.FC = () => {
                           <PlusIcon className="w-5 h-5 ml-2" />
                           افزودن پرسنل جدید
                         </button>
+                        <button
+                          onClick={handleDeleteAllPersonnel}
+                          className="flex items-center bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition"
+                        >
+                          <DeleteIcon className="w-5 h-5 ml-2" />
+                          حذف کل اطلاعات
+                        </button>
                     </div>
                   </div>
                   {isLoading ? (
@@ -203,9 +229,9 @@ export const DashboardPage: React.FC = () => {
                 </div>
             );
         case 'access-control':
-            return <AccessControlPage roles={roles} />;
+            return <AccessControlPage roles={roles} onRolesChange={fetchRoles} />;
         case 'settings':
-            return <SettingsPage roles={roles} onRolesChange={fetchRoles} />;
+            return <SettingsPage />;
         default:
             return null;
     }

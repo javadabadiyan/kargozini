@@ -6,7 +6,10 @@ export default async function handler(
   req: VercelRequest,
   res: VercelResponse,
 ) {
-    const createTableQuery = `
+  // GET: Fetch all personnel
+  if (req.method === 'GET') {
+    try {
+      await sql`
         CREATE TABLE IF NOT EXISTS personnel (
             id SERIAL PRIMARY KEY,
             personnel_code VARCHAR(50) UNIQUE NOT NULL,
@@ -31,12 +34,7 @@ export default async function handler(
             field_of_study VARCHAR(100),
             status VARCHAR(50)
         );
-    `;
-
-  // GET: Fetch all personnel
-  if (req.method === 'GET') {
-    try {
-      await sql.query(createTableQuery);
+      `;
       const { rows } = await sql<Personnel>`SELECT * FROM personnel ORDER BY id DESC;`;
       return res.status(200).json(rows);
     } catch (error) {
@@ -151,6 +149,19 @@ export default async function handler(
 
   // DELETE: Delete personnel
   if (req.method === 'DELETE') {
+    // Handle deleting all personnel
+    if (req.query.action === 'delete_all') {
+      try {
+        await sql`TRUNCATE TABLE personnel RESTART IDENTITY;`;
+        return res.status(204).send(null);
+      } catch (error) {
+        console.error(error);
+        const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+        return res.status(500).json({ error: 'Failed to delete all personnel', details: errorMessage });
+      }
+    }
+
+    // Handle deleting a single personnel
     try {
       const id = Number(req.query.id);
       if (!id) return res.status(400).json({ error: 'Personnel ID is required' });

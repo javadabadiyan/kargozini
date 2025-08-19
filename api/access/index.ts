@@ -1,14 +1,6 @@
 import { sql } from '@vercel/postgres';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-const createTableQuery = `
-  CREATE TABLE IF NOT EXISTS role_permissions (
-    role_id INT NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
-    permission_name VARCHAR(100) NOT NULL,
-    PRIMARY KEY (role_id, permission_name)
-  );
-`;
-
 const ALL_PERMISSIONS = [
     { name: 'manage_personnel', description: 'افزودن، ویرایش و حذف پرسنل' },
     { name: 'view_personnel', description: 'مشاهده لیست پرسنل' },
@@ -24,7 +16,13 @@ export default async function handler(
   res: VercelResponse,
 ) {
     try {
-        await sql.query(createTableQuery);
+        await sql`
+            CREATE TABLE IF NOT EXISTS role_permissions (
+                role_id INT NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+                permission_name VARCHAR(100) NOT NULL,
+                PRIMARY KEY (role_id, permission_name)
+            );
+        `;
     } catch (error) {
         console.error("Database setup error in /api/access:", error);
         return res.status(500).json({ error: 'Failed to initialize access control table' });

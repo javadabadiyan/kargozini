@@ -2,26 +2,18 @@
 import React, { useState } from 'react';
 import type { Role, AppSettings } from '../types';
 import { useSettings } from '../context/SettingsContext';
-import { DeleteIcon, PlusIcon, UploadIcon, DownloadIcon, DatabaseIcon } from './icons';
+import { UploadIcon, DownloadIcon, DatabaseIcon } from './icons';
 import saveAs from 'file-saver';
 
-interface SettingsPageProps {
-  roles: Role[];
-  onRolesChange: () => void; // Callback to re-fetch roles in parent
-}
+type SettingsTab = 'general' | 'backup';
 
-type SettingsTab = 'general' | 'roles' | 'backup';
-
-export const SettingsPage: React.FC<SettingsPageProps> = ({ roles, onRolesChange }) => {
+export const SettingsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const { settings, updateSettings, isLoading: isSettingsLoading } = useSettings();
   
   const [appName, setAppName] = useState(settings?.app_name || '');
   const [appLogo, setAppLogo] = useState<string | null>(settings?.app_logo || null);
 
-  const [newRoleName, setNewRoleName] = useState('');
-  const [isSubmittingRole, setIsSubmittingRole] = useState(false);
-  
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -39,48 +31,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ roles, onRolesChange
         alert('تنظیمات با موفقیت ذخیره شد.');
     } catch (error) {
         alert('خطا در ذخیره سازی تنظیمات.');
-    }
-  };
-
-  const handleAddRole = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newRoleName.trim()) {
-      alert('نام نقش نمی‌تواند خالی باشد.');
-      return;
-    }
-    setIsSubmittingRole(true);
-    try {
-      const response = await fetch('/api/roles', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newRoleName }),
-      });
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.error || 'Failed to add role');
-      }
-      setNewRoleName('');
-      onRolesChange(); // Re-fetch roles
-    } catch (error) {
-      console.error(error);
-      alert(`خطا در افزودن نقش: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    } finally {
-        setIsSubmittingRole(false);
-    }
-  };
-
-  const handleDeleteRole = async (roleId: number) => {
-    if (window.confirm('آیا از حذف این نقش اطمینان دارید؟ تمام دسترسی‌های این نقش نیز حذف خواهد شد.')) {
-      try {
-        const response = await fetch(`/api/roles?id=${roleId}`, {
-          method: 'DELETE',
-        });
-        if (!response.ok) throw new Error('Failed to delete role');
-        onRolesChange();
-      } catch (error) {
-        console.error(error);
-        alert('خطا در حذف نقش.');
-      }
     }
   };
   
@@ -153,26 +103,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ roles, onRolesChange
     </div>
   );
 
-  const renderRoles = () => (
-    <div>
-      <form onSubmit={handleAddRole} className="flex items-center space-x-2 space-x-reverse mb-6">
-        <input type="text" value={newRoleName} onChange={(e) => setNewRoleName(e.target.value)} placeholder="نام نقش جدید" className="flex-grow px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500" />
-        <button type="submit" disabled={isSubmittingRole} className="flex items-center bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition disabled:bg-blue-300">
-          <PlusIcon className="w-5 h-5 ml-2" />
-          {isSubmittingRole ? 'در حال افزودن...' : 'افزودن نقش'}
-        </button>
-      </form>
-      <div className="space-y-3">
-          {roles.map((role) => (
-              <div key={role.id} className="flex justify-between items-center bg-gray-50 p-3 rounded-md">
-                  <span className="text-gray-700 font-medium">{role.name}</span>
-                  <button onClick={() => handleDeleteRole(role.id)} className="text-red-500 hover:text-red-700 transition"><DeleteIcon /></button>
-              </div>
-          ))}
-      </div>
-    </div>
-  );
-
   const renderBackup = () => (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {/* Export Section */}
@@ -211,9 +141,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ roles, onRolesChange
             <button onClick={() => setActiveTab('general')} className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'general' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
               عمومی
             </button>
-            <button onClick={() => setActiveTab('roles')} className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'roles' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
-              نقش‌ها
-            </button>
             <button onClick={() => setActiveTab('backup')} className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'backup' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
               پشتیبان‌گیری
             </button>
@@ -221,7 +148,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({ roles, onRolesChange
         </div>
         <div className="p-6">
             {activeTab === 'general' && renderGeneralSettings()}
-            {activeTab === 'roles' && renderRoles()}
             {activeTab === 'backup' && renderBackup()}
         </div>
       </div>

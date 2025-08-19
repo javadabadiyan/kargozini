@@ -2,28 +2,24 @@ import { sql } from '@vercel/postgres';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import type { AppSettings } from '../../types';
 
-const createTableQuery = `
-    CREATE TABLE IF NOT EXISTS app_settings (
-        id INT PRIMARY KEY DEFAULT 1,
-        app_name VARCHAR(255) NOT NULL,
-        app_logo TEXT,
-        CONSTRAINT single_row CHECK (id = 1)
-    );
-`;
-
-const ensureDefaultSettingsQuery = `
-    INSERT INTO app_settings (id, app_name, app_logo)
-    VALUES (1, 'سیستم جامع کارگزینی', NULL)
-    ON CONFLICT (id) DO NOTHING;
-`;
-
 export default async function handler(
   req: VercelRequest,
   res: VercelResponse,
 ) {
   try {
-    await sql.query(createTableQuery);
-    await sql.query(ensureDefaultSettingsQuery);
+    await sql`
+        CREATE TABLE IF NOT EXISTS app_settings (
+            id INT PRIMARY KEY DEFAULT 1,
+            app_name VARCHAR(255) NOT NULL,
+            app_logo TEXT,
+            CONSTRAINT single_row CHECK (id = 1)
+        );
+    `;
+    await sql`
+        INSERT INTO app_settings (id, app_name, app_logo)
+        VALUES (1, 'سیستم جامع کارگزینی', NULL)
+        ON CONFLICT (id) DO NOTHING;
+    `;
   } catch (error) {
     console.error("Database setup error in /api/settings:", error);
     return res.status(500).json({ error: 'Failed to initialize settings table' });
