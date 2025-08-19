@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
-import { UserTable } from './UserTable';
+import { UserTable, tableHeaders } from './UserTable';
 import { AddUserModal } from './AddUserModal';
 import { PlusIcon, UploadIcon, DownloadIcon, DeleteIcon } from './icons';
 import { SettingsPage } from './SettingsPage';
@@ -53,13 +53,8 @@ export const DashboardPage: React.FC = () => {
   }, []);
   
   const handleDownloadSample = () => {
-    const headers = [
-      'personnel_code', 'first_name', 'last_name', 'father_name', 'national_id',
-      'id_number', 'birth_date', 'birth_place', 'issue_date', 'issue_place',
-      'marital_status', 'military_status', 'job', 'position', 'employment_type',
-      'unit', 'service_place', 'employment_date', 'education_degree', 'field_of_study', 'status'
-    ];
-    const ws = XLSX.utils.aoa_to_sheet([headers]);
+    const persianHeaders = tableHeaders.map(h => h.label);
+    const ws = XLSX.utils.aoa_to_sheet([persianHeaders]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Personnel');
     XLSX.writeFile(wb, 'Sample_Personnel.xlsx');
@@ -76,17 +71,35 @@ export const DashboardPage: React.FC = () => {
         const workbook = XLSX.read(data, { type: 'binary' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        const json: Omit<Personnel, 'id'>[] = XLSX.utils.sheet_to_json(worksheet);
+        const jsonFromSheet: Record<string, any>[] = XLSX.utils.sheet_to_json(worksheet);
 
-        if (json.length === 0) {
+        if (jsonFromSheet.length === 0) {
           alert('فایل اکسل خالی است یا فرمت آن صحیح نیست.');
           return;
         }
 
+        const labelToKeyMap = tableHeaders.reduce((acc, header) => {
+            acc[header.label] = header.key;
+            return acc;
+        }, {} as Record<string, string>);
+
+        const mappedJson = jsonFromSheet.map(row => {
+            const newRow: any = {};
+            for (const persianKey in row) {
+                const englishKey = labelToKeyMap[persianKey];
+                if (englishKey) {
+                    // Ensure all values from excel are treated as strings to avoid type issues
+                    newRow[englishKey] = row[persianKey] != null ? String(row[persianKey]) : '';
+                }
+            }
+            return newRow as Omit<Personnel, 'id'>;
+        });
+
+
         const response = await fetch('/api/users?action=import', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(json),
+          body: JSON.stringify(mappedJson),
         });
 
         if (!response.ok) {
@@ -94,7 +107,7 @@ export const DashboardPage: React.FC = () => {
           throw new Error(err.error || 'Failed to import personnel');
         }
 
-        alert(`${json.length} پرسنل با موفقیت وارد شدند.`);
+        alert(`${mappedJson.length} پرسنل با موفقیت وارد شدند.`);
         fetchPersonnel(); // Refresh the list
       } catch (error) {
         console.error("Excel import error:", error);

@@ -9,7 +9,7 @@ interface PersonnelTableProps {
   onDelete: (personnelId: number) => void;
 }
 
-const tableHeaders = [
+export const tableHeaders = [
     { key: 'personnel_code', label: 'کد پرسنلی' },
     { key: 'first_name', label: 'نام' },
     { key: 'last_name', label: 'نام خانوادگی' },
