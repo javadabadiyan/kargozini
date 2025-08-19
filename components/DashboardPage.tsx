@@ -12,7 +12,8 @@ import type { Personnel, User } from '../types';
 import * as XLSX from 'xlsx';
 
 type Page = 'dashboard' | 'users' | 'settings' | 'user-management' |
-            'commitment_letter' | 'disciplinary_committee' | 'performance_evaluation' | 'job_group' | 'bonus_management';
+            'commitment_letter' | 'disciplinary_committee' | 'performance_evaluation' | 'job_group' | 'bonus_management' |
+            'security_members' | 'security_log_traffic' | 'security_traffic_report';
 
 const Button = ({ onClick, children, className, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { children: React.ReactNode }) => (
     <button
@@ -331,6 +332,12 @@ export const DashboardPage: React.FC = () => {
             return <PlaceholderPage title="گروه شغلی پرسنل" />;
         case 'bonus_management':
             return <PlaceholderPage title="مدیریت کارانه" />;
+        case 'security_members':
+            return <PlaceholderPage title="کارمندان عضو تردد" />;
+        case 'security_log_traffic':
+            return <PlaceholderPage title="ثبت تردد" />;
+        case 'security_traffic_report':
+            return <PlaceholderPage title="گزارش گیری تردد" />;
         default:
             return null;
     }

@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { UserIcon, SettingsIcon, LockIcon, DashboardIcon, BriefcaseIcon, ChevronDownIcon } from './icons';
+import { UserIcon, SettingsIcon, LockIcon, DashboardIcon, BriefcaseIcon, ChevronDownIcon, ShieldIcon } from './icons';
 import { useSettings } from '../context/SettingsContext';
 
 
 type Page = 'dashboard' | 'users' | 'settings' | 'user-management' | 
-            'commitment_letter' | 'disciplinary_committee' | 'performance_evaluation' | 'job_group' | 'bonus_management';
+            'commitment_letter' | 'disciplinary_committee' | 'performance_evaluation' | 'job_group' | 'bonus_management' |
+            'security_members' | 'security_log_traffic' | 'security_traffic_report';
 
 interface SidebarProps {
   activePage: Page;
@@ -17,10 +18,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, isO
   const { settings } = useSettings();
   
   const hrPages = ['commitment_letter', 'disciplinary_committee', 'performance_evaluation', 'job_group', 'bonus_management'];
+  const securityPages = ['security_members', 'security_log_traffic', 'security_traffic_report'];
+
   const [isHrMenuOpen, setIsHrMenuOpen] = useState(hrPages.includes(activePage));
+  const [isSecurityMenuOpen, setIsSecurityMenuOpen] = useState(securityPages.includes(activePage));
 
   useEffect(() => {
     setIsHrMenuOpen(hrPages.includes(activePage));
+    setIsSecurityMenuOpen(securityPages.includes(activePage));
   }, [activePage]);
 
   const navItems = [
@@ -36,6 +41,16 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, isO
         { id: 'performance_evaluation', label: 'ارزیابی عملکرد' },
         { id: 'job_group', label: 'گروه شغلی پرسنل' },
         { id: 'bonus_management', label: 'مدیریت کارانه' },
+      ]
+    },
+    { 
+      id: 'security_menu', 
+      label: 'حراست', 
+      icon: ShieldIcon,
+      children: [
+        { id: 'security_members', label: 'کارمندان عضو تردد' },
+        { id: 'security_log_traffic', label: 'ثبت تردد' },
+        { id: 'security_traffic_report', label: 'گزارش گیری تردد' },
       ]
     },
     { id: 'user-management', label: 'مدیریت کاربران', icon: LockIcon },
@@ -54,6 +69,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, isO
         onClose();
     }
   }
+
+  const handleMenuToggle = (menuId: string) => {
+    if (menuId === 'hr_menu') setIsHrMenuOpen(!isHrMenuOpen);
+    if (menuId === 'security_menu') setIsSecurityMenuOpen(!isSecurityMenuOpen);
+  };
+
+  const isMenuOpen = (menuId: string) => {
+    if (menuId === 'hr_menu') return isHrMenuOpen;
+    if (menuId === 'security_menu') return isSecurityMenuOpen;
+    return false;
+  };
 
   return (
     <>
@@ -77,7 +103,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, isO
                 {item.children ? (
                   <>
                     <button
-                      onClick={() => setIsHrMenuOpen(!isHrMenuOpen)}
+                      onClick={() => handleMenuToggle(item.id)}
                       className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-all duration-200 ${
                         isParentActive(item)
                           ? 'bg-slate-700 text-white'
@@ -88,9 +114,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePage, setActivePage, isO
                         <item.icon className="w-6 h-6 ml-3" />
                         <span>{item.label}</span>
                       </div>
-                      <ChevronDownIcon className={`w-5 h-5 transition-transform ${isHrMenuOpen ? 'rotate-180' : ''}`} />
+                      <ChevronDownIcon className={`w-5 h-5 transition-transform ${isMenuOpen(item.id) ? 'rotate-180' : ''}`} />
                     </button>
-                    {isHrMenuOpen && (
+                    {isMenuOpen(item.id) && (
                       <ul className="pr-4 mt-2 space-y-2 animate-fade-in-down">
                         {item.children.map(child => (
                            <li key={child.id}>
