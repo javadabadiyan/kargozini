@@ -314,10 +314,13 @@ export const DashboardPage: React.FC = () => {
       />
       <div className="flex-1 flex flex-col overflow-hidden md:mr-64">
         <Header onMenuToggle={() => setIsSidebarOpen(true)} />
-        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-4 sm:p-8">
+        <main className="flex-1 flex flex-col overflow-y-auto bg-gray-100 p-4 sm:p-8">
           <div className="container mx-auto">
             {renderContent()}
           </div>
+           <footer className="text-center text-gray-500 text-sm mt-auto pt-4">
+              طراحی و کدنویسی جواد آبادیان
+            </footer>
         </main>
       </div>
       {activePage === 'users' && (

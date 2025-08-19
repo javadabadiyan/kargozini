@@ -2,6 +2,7 @@ import { sql } from '@vercel/postgres';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { scrypt, randomBytes, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
+import { Buffer } from 'node:buffer';
 import type { User } from '../../types';
 
 const scryptAsync = promisify(scrypt);
