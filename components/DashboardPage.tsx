@@ -11,6 +11,7 @@ import { DashboardView } from './DashboardView';
 import { RelativesPage } from './RelativesPage';
 import type { Personnel, User } from '../types';
 import * as XLSX from 'xlsx';
+import { toPersianDigits } from './format';
 
 type Page = 'dashboard' | 'users' | 'settings' | 'user-management' |
             'commitment_letter' | 'disciplinary_committee' | 'performance_evaluation' | 'job_group' | 'bonus_management' |
@@ -133,7 +134,7 @@ export const DashboardPage: React.FC = () => {
           throw new Error(err.error || 'Failed to import personnel');
         }
 
-        alert(`${mappedJson.length} پرسنل با موفقیت وارد شدند.`);
+        alert(`${toPersianDigits(mappedJson.length)} پرسنل با موفقیت وارد شدند.`);
         fetchPersonnel();
       } catch (error) {
         console.error("Excel import error:", error);
@@ -310,7 +311,7 @@ export const DashboardPage: React.FC = () => {
                             <Button onClick={handlePrevPage} disabled={currentPage === 1} className="bg-white text-slate-700 border border-slate-300 hover:bg-slate-100 disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed">
                                 قبلی
                             </Button>
-                            <span className="text-sm text-slate-700">صفحه {currentPage} از {totalPages} (مجموع: {filteredPersonnel.length} رکورد)</span>
+                            <span className="text-sm text-slate-700">صفحه {toPersianDigits(currentPage)} از {toPersianDigits(totalPages)} (مجموع: {toPersianDigits(filteredPersonnel.length)} رکورد)</span>
                             <Button onClick={handleNextPage} disabled={currentPage === totalPages} className="bg-white text-slate-700 border border-slate-300 hover:bg-slate-100 disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed">
                                 بعدی
                             </Button>

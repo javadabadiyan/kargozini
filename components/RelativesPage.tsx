@@ -3,6 +3,7 @@ import type { Personnel, Relative, RelativeWithPersonnel } from '../types';
 import { PlusIcon, UploadIcon, DownloadIcon, EditIcon, DeleteIcon } from './icons';
 import { AddRelativeModal } from './AddRelativeModal';
 import * as XLSX from 'xlsx';
+import { toPersianDigits } from './format';
 
 interface RelativesPageProps {
   personnelList: Personnel[];
@@ -142,7 +143,7 @@ export const RelativesPage: React.FC<RelativesPageProps> = ({ personnelList }) =
           throw new Error(err.error || 'Failed to import relatives');
         }
 
-        alert(`${mappedJson.length} ردیف با موفقیت وارد شد.`);
+        alert(`${toPersianDigits(mappedJson.length)} ردیف با موفقیت وارد شد.`);
         await fetchRelatives();
       } catch (error) {
         alert(`خطا در ورود اطلاعات از اکسل: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -220,12 +221,12 @@ export const RelativesPage: React.FC<RelativesPageProps> = ({ personnelList }) =
                 filteredRelatives.map((r) => (
                   <tr key={r.id} className="hover:bg-slate-50/70 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{r.personnel_first_name} {r.personnel_last_name}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{r.personnel_code}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{toPersianDigits(r.personnel_code)}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{r.first_name}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{r.last_name}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{r.relation}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{r.national_id}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{r.birth_date}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{toPersianDigits(r.national_id)}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{toPersianDigits(r.birth_date)}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-left text-sm font-medium">
                       <div className="flex items-center justify-end space-x-4 space-x-reverse">
                         <button onClick={() => handleOpenModal(r)} className="text-slate-400 hover:text-indigo-600 transition" title="ویرایش">

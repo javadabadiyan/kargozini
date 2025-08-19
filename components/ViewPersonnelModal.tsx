@@ -2,6 +2,7 @@ import React from 'react';
 import type { Personnel } from '../types';
 import { CloseIcon } from './icons';
 import { tableHeaders } from './UserTable';
+import { toPersianDigits } from './format';
 
 interface ViewPersonnelModalProps {
   isOpen: boolean;
@@ -12,7 +13,7 @@ interface ViewPersonnelModalProps {
 const DetailItem = ({ label, value }: { label: string, value: any }) => (
     <div className="py-2 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6 px-2 even:bg-gray-50">
         <dt className="text-sm font-medium text-gray-600">{label}</dt>
-        <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{value || '-'}</dd>
+        <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{toPersianDigits(value)}</dd>
     </div>
 );
 

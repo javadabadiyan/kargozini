@@ -1,6 +1,7 @@
 import React from 'react';
 import type { Personnel } from '../types';
 import { EditIcon, DeleteIcon, EyeIcon } from './icons';
+import { toPersianDigits } from './format';
 
 interface PersonnelTableProps {
   personnel: Personnel[];
@@ -61,7 +62,7 @@ export const UserTable: React.FC<PersonnelTableProps> = ({ personnel, onView, on
               <tr key={p.id} className="hover:bg-slate-50/70 transition-colors">
                 {tableHeaders.map(header => (
                     <td key={header.key} className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
-                        {p[header.key as keyof Personnel]}
+                        {toPersianDigits(p[header.key as keyof Personnel])}
                     </td>
                 ))}
                 <td className="px-6 py-4 whitespace-nowrap text-left text-sm font-medium">

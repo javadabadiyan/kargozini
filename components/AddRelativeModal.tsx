@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import type { Personnel, Relative } from '../types';
 import { CloseIcon } from './icons';
+import { toPersianDigits } from './format';
 
 interface AddRelativeModalProps {
   isOpen: boolean;
@@ -82,7 +83,7 @@ export const AddRelativeModal: React.FC<AddRelativeModalProps> = ({ isOpen, onCl
                 <option value="">یک پرسنل را انتخاب کنید</option>
                 {personnelList.map(p => (
                     <option key={p.id} value={p.id}>
-                        {p.first_name} {p.last_name} ({p.personnel_code})
+                        {p.first_name} {p.last_name} ({toPersianDigits(p.personnel_code)})
                     </option>
                 ))}
               </select>

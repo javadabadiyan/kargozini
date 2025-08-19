@@ -1,5 +1,6 @@
 import React from 'react';
 import { UserIcon, UsersIcon } from './icons';
+import { toPersianDigits } from './format';
 
 interface DashboardViewProps {
   personnelCount: number;
@@ -13,7 +14,7 @@ const StatCard: React.FC<{ title: string; value: number; icon: React.ReactNode }
     </div>
     <div>
       <p className="text-slate-500 text-sm font-medium">{title}</p>
-      <p className="text-3xl font-bold text-slate-800">{value.toLocaleString('fa-IR')}</p>
+      <p className="text-3xl font-bold text-slate-800">{toPersianDigits(value)}</p>
     </div>
   </div>
 );
