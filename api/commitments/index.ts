@@ -97,7 +97,9 @@ export default async function handler(
             borrower_first_name, borrower_last_name, borrower_father_name, borrower_national_id
         } = req.body;
 
-        if (!addressee || !title || !letter_date || amount == null || !body || !guarantor_first_name || !guarantor_last_name || (!personnel_id && !borrower_first_name)) {
+        if (!addressee || !title || !letter_date || amount == null || !body || 
+            !guarantor_first_name || !guarantor_last_name || 
+            (!personnel_id && (!borrower_first_name || !borrower_last_name))) {
             return res.status(400).json({ error: 'Missing required fields' });
         }
         

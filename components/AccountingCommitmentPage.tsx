@@ -335,8 +335,11 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
   };
 
   const handleSave = async () => {
-    if (!addressee || !title || !letterBody || (!selectedPersonnel && !borrowerDetails.first_name) || !guarantor.first_name || !date || amount === '') {
-        alert('لطفاً تمام فیلدهای ستاره‌دار و اطلاعات وام گیرنده را پر کنید.');
+    if (!addressee || !title || !letterBody || 
+        (!selectedPersonnel && (!borrowerDetails.first_name || !borrowerDetails.last_name)) || 
+        (!guarantor.first_name || !guarantor.last_name) || 
+        !date || amount === '') {
+        alert('لطفاً تمام فیلدهای ستاره‌دار و اطلاعات وام گیرنده و ضامن را به طور کامل پر کنید.');
         return;
     }
     
