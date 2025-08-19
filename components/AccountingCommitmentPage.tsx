@@ -9,24 +9,21 @@ interface AccountingCommitmentPageProps {
 
 const PersonnelSearch = ({
   personnelList,
-  selectedPersonnel,
   onSelect,
   label,
   placeholder,
+  value,
+  onChange,
 }: {
   personnelList: Personnel[];
-  selectedPersonnel: Personnel | null;
-  onSelect: (p: Personnel | null) => void;
+  onSelect: (p: Personnel) => void;
   label: string;
   placeholder: string;
+  value: string;
+  onChange: (val: string) => void;
 }) => {
-  const [search, setSearch] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    setSearch(selectedPersonnel ? `${selectedPersonnel.first_name} ${selectedPersonnel.last_name} (${toPersianDigits(selectedPersonnel.personnel_code)})` : '');
-  }, [selectedPersonnel]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -39,19 +36,18 @@ const PersonnelSearch = ({
   }, []);
 
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setSearch(e.target.value);
-    onSelect(null);
+    onChange(e.target.value);
     if (!isOpen) setIsOpen(true);
   };
-
+  
   const handleSelectPersonnel = (p: Personnel) => {
     onSelect(p);
     setIsOpen(false);
   };
 
   const filteredPersonnel = personnelList.filter(p => {
-    if (!search || selectedPersonnel) return false;
-    const searchTerm = search.toLowerCase();
+    if (!value) return false;
+    const searchTerm = value.toLowerCase();
     return (
         `${p.first_name} ${p.last_name}`.toLowerCase().includes(searchTerm) ||
         p.personnel_code.toLowerCase().includes(searchTerm)
@@ -60,10 +56,10 @@ const PersonnelSearch = ({
 
   return (
     <div className="relative" ref={dropdownRef}>
-      <label className="block text-sm font-medium text-slate-700 mb-1">{label}<span className="text-red-500 mr-1">*</span></label>
+      <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
       <input
         type="text"
-        value={search}
+        value={value}
         onChange={handleSearchChange}
         onFocus={() => setIsOpen(true)}
         placeholder={placeholder}
@@ -89,6 +85,7 @@ const PersonnelSearch = ({
 
 
 export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> = ({ personnelList }) => {
+  const [addressee, setAddressee] = useState('ریاست محترم بانک رفاه شعبه مرکزی سیرجان');
   const [title, setTitle] = useState('تعهد حسابداری');
   const [letterBody, setLetterBody] = useState('');
   const [date, setDate] = useState(new Date().toLocaleDateString('fa-IR', { year: 'numeric', month: '2-digit', day: '2-digit' }));
@@ -96,19 +93,18 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
   const [totalFactors, setTotalFactors] = useState<number | ''>('');
   
   const [selectedPersonnel, setSelectedPersonnel] = useState<Personnel | null>(null);
+  const [borrowerDetails, setBorrowerDetails] = useState({
+      first_name: '', last_name: '', father_name: '', national_id: ''
+  });
+
+  const [guarantorSearch, setGuarantorSearch] = useState('');
   const [guarantor, setGuarantor] = useState({
-      first_name: '',
-      last_name: '',
-      father_name: '',
-      personnel_code: ''
+      first_name: '', last_name: '', father_name: '', personnel_code: ''
   });
 
   const [calculation, setCalculation] = useState<{
-      ceiling: number;
-      previousTotal: number;
-      effectiveCeiling: number;
-      remaining: number;
-      isPermitted: boolean;
+      ceiling: number; previousTotal: number; effectiveCeiling: number;
+      remaining: number; isPermitted: boolean;
   } | null>(null);
 
 
@@ -117,8 +113,7 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
-  const printableContentRef = useRef<HTMLDivElement>(null);
-  const [printableData, setPrintableData] = useState({ title: '', body: '', date: '' });
+  const [printableData, setPrintableData] = useState({ title: '', body: '', date: '', addressee: '' });
   
   const fetchCommitments = async () => {
     setIsLoading(true);
@@ -135,9 +130,7 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
     }
   };
 
-  useEffect(() => {
-    fetchCommitments();
-  }, []);
+  useEffect(() => { fetchCommitments(); }, []);
 
   useEffect(() => {
     const filtered = commitments.filter(c =>
@@ -147,15 +140,24 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
     );
     setFilteredCommitments(filtered);
   }, [searchQuery, commitments]);
+
+  useEffect(() => {
+    if (selectedPersonnel) {
+        setBorrowerDetails({
+            first_name: selectedPersonnel.first_name,
+            last_name: selectedPersonnel.last_name,
+            father_name: selectedPersonnel.father_name || '',
+            national_id: selectedPersonnel.national_id || '',
+        });
+    }
+  }, [selectedPersonnel]);
   
-  const generateLetterBody = (personnel: Personnel | null, currentGuarantor: typeof guarantor, loanAmount: number | '') => {
-      const template = `احتراماً حسابداری این شرکت تعهد می نماید در صورت عدم پرداخت اقساط وام به مبلغ ${loanAmount ? formatRial(loanAmount) : '[مبلغ وام]'} ریال بنام آقای ${personnel ? `${personnel.first_name} ${personnel.last_name}` : '[نام وام گیرنده]'} فرزند ${personnel ? personnel.father_name : '[نام پدر]'} با کد ملی ${personnel ? toPersianDigits(personnel.national_id) : '[کد ملی]'} از حقوق ضامن نامبرده آقای ${currentGuarantor.first_name || currentGuarantor.last_name ? `${currentGuarantor.first_name} ${currentGuarantor.last_name}` : '[نام ضامن]'} فرزند ${currentGuarantor.father_name || '[نام پدر ضامن]'} با کد ${currentGuarantor.personnel_code ? toPersianDigits(currentGuarantor.personnel_code) : '[کد پرسنلی ضامن]'} در این شرکت شاغل باشد بعد از اعلام بانک و با رعایت سقف قانونی کسر و به حساب آن بانک واریز نماید.\n\nاین گواهی بنا به درخواست نامبرده جهت ارائه به بانک فوق صادر گردیده است و فاقد هرگونه ارزش دیگری می باشد.`;
+  const generateLetterBody = () => {
+      const template = `احتراماً حسابداری این شرکت تعهد می نماید در صورت عدم پرداخت اقساط وام به مبلغ ${amount ? formatRial(amount) : '[مبلغ وام]'} ریال بنام آقای ${borrowerDetails.first_name || borrowerDetails.last_name ? `${borrowerDetails.first_name} ${borrowerDetails.last_name}` : '[نام وام گیرنده]'} فرزند ${borrowerDetails.father_name || '[نام پدر]'} با کد ملی ${borrowerDetails.national_id ? toPersianDigits(borrowerDetails.national_id) : '[کد ملی]'} از حقوق ضامن نامبرده آقای ${guarantor.first_name || guarantor.last_name ? `${guarantor.first_name} ${guarantor.last_name}` : '[نام ضامن]'} فرزند ${guarantor.father_name || '[نام پدر ضامن]'} با کد ${guarantor.personnel_code ? toPersianDigits(guarantor.personnel_code) : '[کد پرسنلی ضامن]'} در این شرکت شاغل باشد بعد از اعلام بانک و با رعایت سقف قانونی کسر و به حساب آن بانک واریز نماید.\n\nاین گواهی بنا به درخواست نامبرده جهت ارائه به بانک فوق صادر گردیده است و فاقد هرگونه ارزش دیگری می باشد.`;
       setLetterBody(template);
   };
   
-  useEffect(() => {
-    generateLetterBody(selectedPersonnel, guarantor, amount);
-  }, [selectedPersonnel, guarantor, amount]);
+  useEffect(generateLetterBody, [borrowerDetails, guarantor, amount]);
 
   useEffect(() => {
     if (selectedPersonnel && totalFactors !== '' && amount !== '') {
@@ -174,27 +176,41 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
     }
   }, [selectedPersonnel, totalFactors, amount, commitments]);
 
+  const handleBorrowerDetailsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if(selectedPersonnel) setSelectedPersonnel(null);
+    setBorrowerDetails(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  };
+
   const handleGuarantorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setGuarantor(prev => ({ ...prev, [name]: value }));
+    setGuarantor(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  };
+
+  const handleSelectGuarantor = (p: Personnel) => {
+    setGuarantor({
+        first_name: p.first_name, last_name: p.last_name,
+        father_name: p.father_name || '', personnel_code: p.personnel_code || ''
+    });
+    setGuarantorSearch(`${p.first_name} ${p.last_name}`);
   };
 
   const handleSave = async () => {
-    if (!title || !letterBody || !selectedPersonnel || !guarantor.first_name || !guarantor.last_name || !date || !amount) {
+    if (!title || !letterBody || !borrowerDetails.first_name || !guarantor.first_name || !date || !amount) {
         alert('لطفاً تمام فیلدهای ستاره‌دار را پر کنید.');
         return;
     }
     
     const commitmentData = {
-        title,
-        body: letterBody,
-        personnel_id: selectedPersonnel.id,
-        letter_date: date,
+        title, body: letterBody, letter_date: date,
         amount: Number(amount),
+        personnel_id: selectedPersonnel ? selectedPersonnel.id : null,
         guarantor_first_name: guarantor.first_name,
         guarantor_last_name: guarantor.last_name,
         guarantor_father_name: guarantor.father_name,
         guarantor_personnel_code: guarantor.personnel_code,
+        borrower_first_name: !selectedPersonnel ? borrowerDetails.first_name : undefined,
+        borrower_last_name: !selectedPersonnel ? borrowerDetails.last_name : undefined,
+        borrower_father_name: !selectedPersonnel ? borrowerDetails.father_name : undefined,
+        borrower_national_id: !selectedPersonnel ? borrowerDetails.national_id : undefined,
     };
 
     try {
@@ -203,17 +219,18 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(commitmentData),
         });
-        if (!response.ok) {
-            const err = await response.json();
-            throw new Error(err.error || 'Failed to save');
-        }
-        await fetchCommitments(); // Refresh list
+        if (!response.ok) throw new Error((await response.json()).error || 'Failed to save');
+        await fetchCommitments();
         alert('نامه تعهد با موفقیت ذخیره شد.');
-        // Reset form
+        
         setSelectedPersonnel(null);
+        setBorrowerDetails({ first_name: '', last_name: '', father_name: '', national_id: '' });
         setGuarantor({ first_name: '', last_name: '', father_name: '', personnel_code: '' });
+        setGuarantorSearch('');
         setAmount('');
         setTotalFactors('');
+        setAddressee('ریاست محترم بانک رفاه شعبه مرکزی سیرجان');
+
     } catch(e) {
         alert(`خطا در ذخیره سازی: ${e instanceof Error ? e.message : 'Unknown error'}`);
     }
@@ -231,12 +248,19 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
     }
   };
 
-  const handlePrint = (commitment: { title: string, body: string, date: string }) => {
-    setPrintableData(commitment);
+  const handlePrint = (commitment: any) => {
+    setPrintableData({ ...commitment, addressee: commitment.addressee || addressee });
     setTimeout(() => window.print(), 100);
   };
   
   const renderCalculation = () => {
+      if (!selectedPersonnel) {
+          return (
+            <div className="mt-4 p-4 border border-slate-200 bg-slate-50 rounded-lg text-sm text-slate-600">
+                برای محاسبه سقف تعهد، وام گیرنده را از لیست پرسنل موجود انتخاب نمایید.
+            </div>
+          );
+      }
       if (!calculation) return null;
       
       const { ceiling, previousTotal, effectiveCeiling, remaining, isPermitted } = calculation;
@@ -266,7 +290,7 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
             <div className="text-sm">تاریخ: {toPersianDigits(printableData.date)}</div>
             <div className="text-sm">شماره: .................</div>
           </div>
-          <h1 className="text-2xl font-bold text-center mb-4">ریاست محترم بانک رفاه شعبه مرکزی سیرجان</h1>
+          <h1 className="text-2xl font-bold text-center mb-4">{printableData.addressee}</h1>
           <h2 className="text-xl text-center mb-12">موضوع: {printableData.title}</h2>
           <p className="leading-loose text-lg text-justify whitespace-pre-line">{printableData.body}</p>
           <div className="mt-24 text-center">
@@ -280,83 +304,58 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
         
         <div className="bg-white rounded-xl shadow-md p-6 border border-slate-200 mb-8">
             <h2 className="text-xl font-bold text-slate-800 mb-4 border-b pb-3">ایجاد نامه جدید</h2>
+            
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-4">
-                <PersonnelSearch 
-                    label="وام گیرنده"
-                    placeholder="جستجوی وام گیرنده..."
-                    personnelList={personnelList}
-                    selectedPersonnel={selectedPersonnel}
-                    onSelect={setSelectedPersonnel}
-                />
+               <div>
+                  <label htmlFor="addressee" className="block text-sm font-medium text-slate-700 mb-1">گیرنده نامه<span className="text-red-500 mr-1">*</span></label>
+                  <input id="addressee" value={addressee} onChange={(e) => setAddressee(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
+                </div>
                  <div>
                   <label htmlFor="total_factors" className="block text-sm font-medium text-slate-700 mb-1">جمع عوامل حکمی (ریال)<span className="text-red-500 mr-1">*</span></label>
-                  <input
-                      type="number"
-                      id="total_factors"
-                      value={totalFactors}
-                      onChange={(e) => setTotalFactors(Number(e.target.value))}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="مبلغ جمع عوامل حکم"
-                  />
+                  <input type="number" id="total_factors" value={totalFactors} onChange={(e) => setTotalFactors(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-300 rounded-lg" placeholder="برای محاسبه سقف تعهد"/>
                 </div>
                 <div>
                   <label htmlFor="amount" className="block text-sm font-medium text-slate-700 mb-1">مبلغ وام (ریال)<span className="text-red-500 mr-1">*</span></label>
-                  <input
-                      type="number"
-                      id="amount"
-                      value={amount}
-                      onChange={(e) => setAmount(Number(e.target.value))}
-                      className="w-full px-3 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="مبلغ وام درخواستی"
-                  />
+                  <input type="number" id="amount" value={amount} onChange={(e) => setAmount(Number(e.target.value))} className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
                 </div>
             </div>
-            {renderCalculation()}
+
             <div className="mt-6 pt-4 border-t">
-                <h3 className="text-lg font-semibold text-slate-800 mb-3">اطلاعات ضامن (دستی)</h3>
-                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">نام<span className="text-red-500 mr-1">*</span></label>
-                        <input name="first_name" value={guarantor.first_name} onChange={handleGuarantorChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
-                     </div>
-                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">نام خانوادگی<span className="text-red-500 mr-1">*</span></label>
-                        <input name="last_name" value={guarantor.last_name} onChange={handleGuarantorChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
-                     </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">نام پدر</label>
-                        <input name="father_name" value={guarantor.father_name} onChange={handleGuarantorChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
-                     </div>
-                     <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-1">کد پرسنلی</label>
-                        <input name="personnel_code" value={guarantor.personnel_code} onChange={handleGuarantorChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
-                     </div>
+                <h3 className="text-lg font-semibold text-slate-800 mb-3">اطلاعات وام گیرنده</h3>
+                <PersonnelSearch label="جستجوی وام گیرنده از پرسنل (اختیاری)" placeholder="جستجو برای تکمیل خودکار..." personnelList={personnelList} onSelect={setSelectedPersonnel} value={selectedPersonnel ? `${selectedPersonnel.first_name} ${selectedPersonnel.last_name}` : ''} onChange={() => setSelectedPersonnel(null)} />
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
+                    <input name="first_name" value={borrowerDetails.first_name} onChange={handleBorrowerDetailsChange} placeholder="نام*" className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
+                    <input name="last_name" value={borrowerDetails.last_name} onChange={handleBorrowerDetailsChange} placeholder="نام خانوادگی*" className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
+                    <input name="father_name" value={borrowerDetails.father_name} onChange={handleBorrowerDetailsChange} placeholder="نام پدر" className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
+                    <input name="national_id" value={borrowerDetails.national_id} onChange={handleBorrowerDetailsChange} placeholder="کد ملی" className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
+                </div>
+            </div>
+            
+            {renderCalculation()}
+            
+            <div className="mt-6 pt-4 border-t">
+                <h3 className="text-lg font-semibold text-slate-800 mb-3">اطلاعات ضامن</h3>
+                 <PersonnelSearch label="جستجوی ضامن از پرسنل (اختیاری)" placeholder="جستجو برای تکمیل خودکار..." personnelList={personnelList} onSelect={handleSelectGuarantor} value={guarantorSearch} onChange={setGuarantorSearch} />
+                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-4">
+                    <input name="first_name" value={guarantor.first_name} onChange={handleGuarantorChange} placeholder="نام ضامن*" className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
+                    <input name="last_name" value={guarantor.last_name} onChange={handleGuarantorChange} placeholder="نام خانوادگی ضامن*" className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
+                    <input name="father_name" value={guarantor.father_name} onChange={handleGuarantorChange} placeholder="نام پدر ضامن" className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
+                    <input name="personnel_code" value={guarantor.personnel_code} onChange={handleGuarantorChange} placeholder="کد پرسنلی ضامن" className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
                  </div>
             </div>
             <div className="mt-4">
                 <label className="block text-sm font-medium text-slate-700 mb-1">متن نامه (پیش‌نمایش خودکار)</label>
-                <textarea
-                    value={letterBody}
-                    readOnly
-                    rows={8}
-                    className="w-full px-3 py-2 border border-slate-200 bg-slate-50 rounded-lg shadow-sm leading-relaxed"
-                />
+                <textarea value={letterBody} readOnly rows={8} className="w-full px-3 py-2 border border-slate-200 bg-slate-50 rounded-lg shadow-sm leading-relaxed"/>
             </div>
             <div className="flex justify-end pt-6 mt-4 border-t border-slate-200 space-x-2 space-x-reverse">
-                <button onClick={() => handlePrint({ title, body: letterBody, date })} className="px-5 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition font-medium shadow-sm">چاپ پیش‌نمایش</button>
+                <button onClick={() => handlePrint({ title, body: letterBody, date, addressee })} className="px-5 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition font-medium shadow-sm">چاپ پیش‌نمایش</button>
                 <button onClick={handleSave} className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium shadow-sm">ذخیره در آرشیو</button>
             </div>
         </div>
 
         <div className="bg-white rounded-xl shadow-md p-6 border border-slate-200">
             <h2 className="text-xl font-bold text-slate-800 mb-4 border-b pb-3">آرشیو نامه‌های ذخیره شده</h2>
-            <input
-                type="text"
-                placeholder="جستجو در آرشیو..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full md:w-1/3 mb-4 px-4 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <input type="text" placeholder="جستجو در آرشیو..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full md:w-1/3 mb-4 px-4 py-2 border border-slate-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"/>
              <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-slate-200">
                     <thead className="bg-slate-50">
@@ -382,7 +381,7 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
                                     <td className="px-4 py-4 whitespace-nowrap text-sm text-slate-700">{toPersianDigits(c.letter_date)}</td>
                                     <td className="px-4 py-4 whitespace-nowrap text-left text-sm font-medium">
                                         <div className="flex items-center justify-end space-x-4 space-x-reverse">
-                                            <button onClick={() => handlePrint({ title: c.title, body: c.body, date: c.letter_date })} className="text-slate-500 hover:text-blue-600 transition" title="چاپ">چاپ</button>
+                                            <button onClick={() => handlePrint(c)} className="text-slate-500 hover:text-blue-600 transition" title="چاپ">چاپ</button>
                                             <button onClick={() => handleDelete(c.id)} className="text-slate-500 hover:text-red-600 transition" title="حذف"><DeleteIcon className="w-5 h-5"/></button>
                                         </div>
                                     </td>

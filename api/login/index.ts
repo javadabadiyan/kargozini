@@ -1,15 +1,12 @@
 import { sql } from '@vercel/postgres';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { scrypt, randomBytes, timingSafeEqual } from 'node:crypto';
-import { promisify } from 'node:util';
+import { scryptSync, randomBytes, timingSafeEqual } from 'node:crypto';
 import { Buffer } from 'node:buffer';
 import type { User } from '../../types';
 
-const scryptAsync = promisify(scrypt);
-
-async function hashPassword(password: string) {
+function hashPassword(password: string) {
   const salt = randomBytes(16).toString('hex');
-  const hash = (await scryptAsync(password, salt, 64)) as Buffer;
+  const hash = scryptSync(password, salt, 64) as Buffer;
   return `${salt}:${hash.toString('hex')}`;
 }
 
@@ -40,7 +37,7 @@ async function setupTables() {
         // fixing login issues after redeployment.
         // NOTE: This will reset any password changes made to the 'ادمین' account via the UI on each deployment.
         const defaultPassword = '5221157';
-        const hashedPassword = await hashPassword(defaultPassword);
+        const hashedPassword = hashPassword(defaultPassword);
 
         const { rows: userRows } = await client.sql`
              INSERT INTO app_users ("firstName", "lastName", username, password_hash)
@@ -72,12 +69,12 @@ async function setupTables() {
     }
 }
 
-async function verifyPassword(storedPasswordHash: string, suppliedPassword: string): Promise<boolean> {
+function verifyPassword(storedPasswordHash: string, suppliedPassword: string): boolean {
   const [salt, key] = storedPasswordHash.split(':');
   if (!salt || !key) return false;
   
   const keyBuffer = Buffer.from(key, 'hex');
-  const derivedKey = (await scryptAsync(suppliedPassword, salt, 64)) as Buffer;
+  const derivedKey = scryptSync(suppliedPassword, salt, 64);
   
   if (keyBuffer.length !== derivedKey.length) {
     return false;
@@ -112,7 +109,7 @@ export default async function handler(
     }
 
     const userRecord = userRows[0];
-    const isPasswordValid = await verifyPassword(userRecord.password_hash, password);
+    const isPasswordValid = verifyPassword(userRecord.password_hash, password);
 
     if (!isPasswordValid) {
       return res.status(401).json({ error: 'نام کاربری یا رمز عبور اشتباه است.' });

@@ -54,7 +54,7 @@ export interface RelativeWithPersonnel extends Relative {
 
 export interface AccountingCommitment {
   id: number;
-  personnel_id: number;
+  personnel_id: number | null;
   title: string;
   letter_date: string;
   amount: number;
@@ -64,10 +64,14 @@ export interface AccountingCommitment {
   guarantor_last_name: string;
   guarantor_father_name: string;
   guarantor_personnel_code: string;
+  borrower_first_name?: string;
+  borrower_last_name?: string;
+  borrower_father_name?: string;
+  borrower_national_id?: string;
 }
 
 export interface AccountingCommitmentWithDetails extends AccountingCommitment {
   personnel_first_name: string;
   personnel_last_name: string;
-  personnel_code: string;
+  personnel_code: string | null;
 }
