@@ -1,27 +1,4 @@
-import { sql } from '@vercel/postgres';
-import type { VercelRequest, VercelResponse } from '@vercel/node';
-
-export default async function handler(
-  _request: VercelRequest,
-  response: VercelResponse,
-) {
-  try {
-    await sql`
-      CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        "firstName" VARCHAR(50) NOT NULL,
-        "lastName" VARCHAR(50) NOT NULL,
-        username VARCHAR(50) UNIQUE NOT NULL,
-        role VARCHAR(50) NOT NULL
-      );
-    `;
-    return response.status(200).json({ message: "Table 'users' created successfully." });
-  } catch (error) {
-    console.error(error);
-    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-    return response.status(500).json({ 
-        error: 'Failed to create table', 
-        details: errorMessage 
-    });
-  }
-}
+// This setup script is obsolete.
+// The old 'users' table has been replaced by the 'app_users' table,
+// which is managed automatically by the /api/login and /api/app-users endpoints.
+// This file can be safely deleted.
