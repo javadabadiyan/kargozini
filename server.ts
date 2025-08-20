@@ -1,15 +1,13 @@
-import express from 'express';
-import { Request, Response } from 'express';
+import express, { Express, Request, Response } from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import cors from 'cors';
-import process from 'process';
-import handler, { setupTables } from './api/users/index';
+import handler, { setupTables } from './api/users/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const app = express();
+const app: Express = express();
 const port = process.env.PORT || 10000;
 
 // Enable CORS
@@ -36,7 +34,7 @@ app.use(express.static(clientBuildPath));
 
 // The "catchall" handler: for any request that doesn't match one above,
 // send back React's index.html file to enable client-side routing.
-app.get('*', (req, res) => {
+app.get('*', (req: Request, res: Response) => {
     res.sendFile(path.join(clientBuildPath, 'index.html'));
 });
 

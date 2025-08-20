@@ -1,5 +1,5 @@
 import { sql } from '@vercel/postgres';
-import { Request, Response } from 'express';
+import type { Request, Response } from 'express';
 import { scrypt, scryptSync, randomBytes, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { Buffer } from 'node:buffer';
