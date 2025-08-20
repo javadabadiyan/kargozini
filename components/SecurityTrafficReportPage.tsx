@@ -33,19 +33,10 @@ export const SecurityTrafficReportPage: React.FC = () => {
 
     const filteredLogs = useMemo(() => {
         return allLogs.filter(log => {
-            const logDate = new Date(log.log_date);
-            const fromDate = dateRange.from ? new Date(dateRange.from) : null;
-            const toDate = dateRange.to ? new Date(dateRange.to) : null;
-            
-            // Adjust to ignore time part for date comparison
-            if (fromDate) fromDate.setHours(0, 0, 0, 0);
-            if (toDate) toDate.setHours(23, 59, 59, 999);
-            logDate.setHours(12,0,0,0);
-
-
+            // log_date is 'YYYY-MM-DD' string from DB, safe for string comparison
             const matchesDate = 
-                (!fromDate || logDate >= fromDate) &&
-                (!toDate || logDate <= toDate);
+                (!dateRange.from || log.log_date >= dateRange.from) &&
+                (!dateRange.to || log.log_date <= dateRange.to);
             
             const matchesSearch = 
                 !searchQuery ||
@@ -62,7 +53,7 @@ export const SecurityTrafficReportPage: React.FC = () => {
             `${log.first_name} ${log.last_name}`,
             log.unit,
             log.position,
-            new Date(log.log_date).toLocaleDateString('fa-IR'),
+            new Date(log.log_date + 'T00:00:00').toLocaleDateString('fa-IR'), // Ensure correct date parsing
             new Date(log.entry_time).toLocaleTimeString('fa-IR'),
             log.exit_time ? new Date(log.exit_time).toLocaleTimeString('fa-IR') : '-',
             log.shift
@@ -142,7 +133,7 @@ export const SecurityTrafficReportPage: React.FC = () => {
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-800">{log.first_name} {log.last_name}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{log.unit}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{log.position}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{toPersianDigits(new Date(log.log_date).toLocaleDateString('fa-IR'))}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{toPersianDigits(new Date(log.log_date + 'T00:00:00').toLocaleDateString('fa-IR'))}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{toPersianDigits(new Date(log.entry_time).toLocaleTimeString('fa-IR'))}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
                                             {log.exit_time ? toPersianDigits(new Date(log.exit_time).toLocaleTimeString('fa-IR')) : '-'}

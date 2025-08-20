@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import type { Personnel, AccountingCommitment, AccountingCommitmentWithDetails } from '../types';
 import { toPersianDigits, formatRial, toEnglishDigits } from './format';
-import { CloseIcon, UploadIcon, EyeIcon, EditIcon, DeleteIcon, ChevronDownIcon } from './icons';
+import { CloseIcon, UploadIcon, EyeIcon, EditIcon, DeleteIcon, ChevronDownIcon, PhoneIcon, GlobeIcon, MailIcon, LocationIcon } from './icons';
 import * as XLSX from 'xlsx';
 
 // --- Local Components ---
@@ -82,67 +82,62 @@ const PersonnelSearch = ({
   );
 };
 
-const PhoneIcon = ({ className = 'w-4 h-4' }: { className?: string }) => (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" /></svg>);
-const GlobeIcon = ({ className = 'w-4 h-4' }: { className?: string }) => (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A11.953 11.953 0 0012 16.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 003 12c0 .778.099 1.533.284 2.253m0 0A11.953 11.953 0 0112 13.5c2.998 0 5.74 1.1 7.843 2.918" /></svg>);
-const MailIcon = ({ className = 'w-4 h-4' }: { className?: string }) => (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" /></svg>);
-const LocationIcon = ({ className = 'w-4 h-4' }: { className?: string }) => (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" /></svg>);
+const PrintableLetter = React.forwardRef<HTMLDivElement, { commitment: AccountingCommitmentWithDetails }>(({ commitment }, ref) => (
+    <div ref={ref} className="w-[148mm] h-[210mm] bg-white relative p-6 mx-auto flex flex-col font-['Vazirmatn'] text-black overflow-hidden print:shadow-none print:m-0">
+      {/* Decorative Side Bar */}
+      <div className="absolute top-0 right-0 h-full w-[12mm] bg-[#333745]"></div>
+      <div className="absolute top-0 right-[4mm] h-full w-[4mm] bg-[#366FB3]"></div>
+      <div className="absolute top-[25mm] right-0 w-[24mm] h-[12mm] bg-[#F3D04E]" style={{ clipPath: 'polygon(0 0, 100% 0, 100% 100%, 0 100%, 20% 50%)'}}></div>
+
+      {/* Header */}
+      <header className="flex-shrink-0">
+        <h1 className="text-center text-2xl font-bold mb-8">بسمه تعالی</h1>
+        <div className="flex justify-between items-start text-sm">
+          <div className="space-y-2">
+            <p>تاریخ : <span className="font-semibold">{toPersianDigits(commitment.letter_date)}</span></p>
+            <p>شماره : ........................</p>
+            <p>پیوست : ........................</p>
+          </div>
+          <div className="text-center -mr-8">
+             <div className="w-24 h-24 mx-auto rounded-full flex items-center justify-center bg-white border-4 border-blue-600 shadow-md">
+               <p className="text-gray-400 text-xs">Logo</p>
+             </div>
+             <h2 className="font-bold text-lg mt-2">شرکت نگین گهر خاورمیانه</h2>
+             <p className="text-xs">Negin Gohar Khavarmianeh Co.</p>
+          </div>
+        </div>
+      </header>
+
+      {/* Body */}
+      <main className="flex-grow pt-8 text-justify text-base leading-loose">
+         <h2 className="text-xl font-bold mb-4">{commitment.addressee}</h2>
+         <h3 className="text-lg font-semibold mb-6">موضوع: {commitment.title}</h3>
+         <p style={{ whiteSpace: 'pre-line' }}>{commitment.body}</p>
+      </main>
+      
+      {/* Footer */}
+      <footer className="absolute bottom-0 left-0 right-0 text-xs flex-shrink-0">
+        <div className="h-1 bg-red-500"></div>
+        <div className="bg-[#F3D04E] p-1 flex justify-around items-center text-black font-semibold">
+            <div className="flex items-center gap-1"><PhoneIcon /><span>فکس : ۳۲۲۷۱۲۲۰-۰۳۴</span></div>
+            <div className="flex items-center gap-1"><PhoneIcon /><span>تلفن : ۳۲۲۷۱۶۸۱۳-۰۳۴ | ۳۲۲۷۱۲۲۰۹-۰۳۴</span></div>
+            <div className="flex items-center gap-1"><GlobeIcon /><span>www.negingoharco.com</span></div>
+            <div className="flex items-center gap-1"><MailIcon /><span>info@negingoharco.com</span></div>
+        </div>
+        <div className="flex justify-between items-center text-black px-4 py-1">
+           <div className="flex items-center gap-1"><LocationIcon /><span>آدرس : بلوار پارادیس – بلوار مهاجرین – کوچه مهاجرین ۹ – پلاک ۱۱۷ – طبقه همکف – کد پستی ۷۶۱۴۷۶۴۱۹۳</span></div>
+           <div className="flex items-center gap-2">
+              <div className="w-12 h-6 bg-gray-200 flex items-center justify-center text-gray-500 text-[8px]">ISO</div>
+              <div className="w-12 h-6 bg-gray-200 flex items-center justify-center text-gray-500 text-[8px]">ISO</div>
+              <div className="w-12 h-6 bg-gray-200 flex items-center justify-center text-gray-500 text-[8px]">ISO</div>
+           </div>
+        </div>
+      </footer>
+    </div>
+));
 
 const ViewLetterModal = ({ commitment, onClose }: { commitment: AccountingCommitmentWithDetails | null; onClose: () => void; }) => {
   if (!commitment) return null;
-
-  const PrintableLetter = React.forwardRef<HTMLDivElement, { commitment: AccountingCommitmentWithDetails }>(({ commitment }, ref) => (
-      <div ref={ref} className="w-[148mm] h-[210mm] bg-white relative p-6 mx-auto flex flex-col font-['Vazirmatn'] text-black overflow-hidden print:shadow-none print:m-0">
-        {/* Decorative Side Bar */}
-        <div className="absolute top-0 right-0 h-full w-[12mm] bg-[#333745]"></div>
-        <div className="absolute top-0 right-[4mm] h-full w-[4mm] bg-[#366FB3]"></div>
-        <div className="absolute top-[25mm] right-0 w-[24mm] h-[12mm] bg-[#F3D04E]" style={{ clipPath: 'polygon(0 0, 100% 0, 100% 100%, 0 100%, 20% 50%)'}}></div>
-
-        {/* Header */}
-        <header className="flex-shrink-0">
-          <h1 className="text-center text-2xl font-bold mb-8">بسمه تعالی</h1>
-          <div className="flex justify-between items-start text-sm">
-            <div className="space-y-2">
-              <p>تاریخ : <span className="font-semibold">{toPersianDigits(commitment.letter_date)}</span></p>
-              <p>شماره : ........................</p>
-              <p>پیوست : ........................</p>
-            </div>
-            <div className="text-center -mr-8">
-               <div className="w-24 h-24 mx-auto rounded-full flex items-center justify-center bg-white border-4 border-blue-600 shadow-md">
-                 <p className="text-gray-400 text-xs">Logo</p>
-               </div>
-               <h2 className="font-bold text-lg mt-2">شرکت نگین گهر خاورمیانه</h2>
-               <p className="text-xs">Negin Gohar Khavarmianeh Co.</p>
-            </div>
-          </div>
-        </header>
-
-        {/* Body */}
-        <main className="flex-grow pt-8 text-justify text-base leading-loose">
-           <h2 className="text-xl font-bold mb-4">{commitment.addressee}</h2>
-           <h3 className="text-lg font-semibold mb-6">موضوع: {commitment.title}</h3>
-           <p style={{ whiteSpace: 'pre-line' }}>{commitment.body}</p>
-        </main>
-        
-        {/* Footer */}
-        <footer className="absolute bottom-0 left-0 right-0 text-xs flex-shrink-0">
-          <div className="h-1 bg-red-500"></div>
-          <div className="bg-[#F3D04E] p-1 flex justify-around items-center text-black font-semibold">
-              <div className="flex items-center gap-1"><PhoneIcon /><span>فکس : ۳۲۲۷۱۲۲۰-۰۳۴</span></div>
-              <div className="flex items-center gap-1"><PhoneIcon /><span>تلفن : ۳۲۲۷۱۶۸۱۳-۰۳۴ | ۳۲۲۷۱۲۲۰۹-۰۳۴</span></div>
-              <div className="flex items-center gap-1"><GlobeIcon /><span>www.negingoharco.com</span></div>
-              <div className="flex items-center gap-1"><MailIcon /><span>info@negingoharco.com</span></div>
-          </div>
-          <div className="flex justify-between items-center text-black px-4 py-1">
-             <div className="flex items-center gap-1"><LocationIcon /><span>آدرس : بلوار پارادیس – بلوار مهاجرین – کوچه مهاجرین ۹ – پلاک ۱۱۷ – طبقه همکف – کد پستی ۷۶۱۴۷۶۴۱۹۳</span></div>
-             <div className="flex items-center gap-2">
-                <div className="w-12 h-6 bg-gray-200 flex items-center justify-center text-gray-500 text-[8px]">ISO</div>
-                <div className="w-12 h-6 bg-gray-200 flex items-center justify-center text-gray-500 text-[8px]">ISO</div>
-                <div className="w-12 h-6 bg-gray-200 flex items-center justify-center text-gray-500 text-[8px]">ISO</div>
-             </div>
-          </div>
-        </footer>
-      </div>
-  ));
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4 no-print">
@@ -563,7 +558,12 @@ export const AccountingCommitmentPage: React.FC<{ personnelList: Personnel[] }> 
 
         <div>
             <h2 className="text-2xl font-bold text-slate-700 mb-4">آرشیو نامه‌های تعهد</h2>
-            <CommitmentArchive commitments={commitments} onView={setCommitmentToView} onEdit={handleEdit} onDelete={handleDeleteCommitment} />
+            <CommitmentArchive 
+                commitments={commitments} 
+                onView={(c) => { setCommitmentToView(c); setIsViewModalOpen(true); }} 
+                onEdit={handleEdit} 
+                onDelete={handleDeleteCommitment} 
+            />
         </div>
     </div>
   );
