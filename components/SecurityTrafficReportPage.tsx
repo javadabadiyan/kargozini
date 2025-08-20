@@ -37,6 +37,12 @@ export const SecurityTrafficReportPage: React.FC = () => {
             const fromDate = dateRange.from ? new Date(dateRange.from) : null;
             const toDate = dateRange.to ? new Date(dateRange.to) : null;
             
+            // Adjust to ignore time part for date comparison
+            if (fromDate) fromDate.setHours(0, 0, 0, 0);
+            if (toDate) toDate.setHours(23, 59, 59, 999);
+            logDate.setHours(12,0,0,0);
+
+
             const matchesDate = 
                 (!fromDate || logDate >= fromDate) &&
                 (!toDate || logDate <= toDate);
@@ -67,32 +73,14 @@ export const SecurityTrafficReportPage: React.FC = () => {
         XLSX.utils.book_append_sheet(wb, ws, 'Traffic Report');
         XLSX.writeFile(wb, 'گزارش_تردد.xlsx');
     };
-
-    const handlePrint = () => {
-        const printableContent = document.getElementById('report-table-container');
-        if (printableContent) {
-            const printWindow = window.open('', '', 'height=800,width=1000');
-            if(printWindow) {
-                printWindow.document.write('<html><head><title>گزارش تردد</title>');
-                printWindow.document.write('<style>@import url("https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;700&display=swap"); body { font-family: "Vazirmatn", sans-serif; direction: rtl; } table { width: 100%; border-collapse: collapse; } th, td { border: 1px solid #ddd; padding: 8px; text-align: right; } th { background-color: #f2f2f2; } </style>');
-                printWindow.document.write('</head><body>');
-                printWindow.document.write('<h1>گزارش تردد پرسنل</h1>');
-                printWindow.document.write(printableContent.innerHTML);
-                printWindow.document.write('</body></html>');
-                printWindow.document.close();
-                printWindow.focus();
-                printWindow.print();
-                printWindow.close();
-            }
-        }
-    };
-
-
+    
     return (
         <div className="animate-fade-in-up">
-            <h1 className="text-3xl font-bold text-slate-700 mb-6">گزارش‌گیری تردد</h1>
+            <div className="no-print">
+                <h1 className="text-3xl font-bold text-slate-700 mb-6">گزارش‌گیری تردد</h1>
+            </div>
             
-            <div className="bg-white rounded-xl shadow-md p-6 border border-slate-200 mb-8">
+            <div className="bg-white rounded-xl shadow-md p-6 border border-slate-200 mb-8 no-print">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-center">
                     <input
                         type="text"
@@ -119,14 +107,15 @@ export const SecurityTrafficReportPage: React.FC = () => {
                         <button onClick={handleExportExcel} className="w-full flex items-center justify-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
                            <DownloadIcon className="w-5 h-5 ml-2"/> اکسل
                         </button>
-                         <button onClick={handlePrint} className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
-                            چاپ PDF
+                         <button onClick={() => window.print()} className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+                            چاپ
                         </button>
                     </div>
                 </div>
             </div>
 
-            <div id="report-table-container" className="bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden">
+            <div className="bg-white rounded-xl shadow-md border border-slate-200 overflow-hidden print-report-container">
+                 <h1 className="text-3xl font-bold text-slate-700 my-4 hidden print:block">گزارش تردد پرسنل</h1>
                 <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-slate-200">
                         <thead className="bg-slate-50">
@@ -142,7 +131,7 @@ export const SecurityTrafficReportPage: React.FC = () => {
                         </thead>
                         <tbody className="bg-white divide-y divide-slate-200">
                            {isLoading ? (
-                                <tr><td colSpan={7} className="text-center py-8 text-slate-500">در حال بارگذاری گزارش...</td></tr>
+                                <tr><td colSpan={7} className="text-center py-8 text-slate-500 no-print">در حال بارگذاری گزارش...</td></tr>
                             ) : error ? (
                                 <tr><td colSpan={7} className="text-center py-8 text-red-500">{error}</td></tr>
                             ) : filteredLogs.length === 0 ? (
