@@ -12,6 +12,7 @@ import { RelativesPage } from './RelativesPage';
 import { AccountingCommitmentPage } from './AccountingCommitmentPage';
 import { SecurityTrafficLogPage } from './SecurityTrafficLogPage';
 import { SecurityTrafficReportPage } from './SecurityTrafficReportPage';
+import { SecurityMembersPage } from './SecurityMembersPage';
 import type { Personnel, User } from '../types';
 import * as XLSX from 'xlsx';
 import { toPersianDigits } from './format';
@@ -339,7 +340,7 @@ export const DashboardPage: React.FC = () => {
         case 'bonus_management':
             return <PlaceholderPage title="مدیریت کارانه" />;
         case 'security_members':
-            return <PlaceholderPage title="کارمندان عضو تردد" />;
+            return <SecurityMembersPage personnelList={personnel} />;
         case 'security_log_traffic':
             return <SecurityTrafficLogPage personnelList={personnel} />;
         case 'security_traffic_report':

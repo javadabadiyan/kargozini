@@ -90,3 +90,12 @@ export interface SecurityTrafficLogWithDetails extends SecurityTrafficLog {
   unit: string;
   position: string;
 }
+
+export interface SecurityMember {
+  id: number; // This is the personnel ID
+  first_name: string;
+  last_name: string;
+  personnel_code: string;
+  unit: string;
+  position: string;
+}
