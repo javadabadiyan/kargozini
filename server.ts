@@ -1,4 +1,4 @@
-import express, { Express, Request, Response } from 'express';
+import express, { Express, RequestHandler } from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import cors from 'cors';
@@ -18,14 +18,15 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // API route: All requests to /api/users will be handled by our consolidated handler.
-app.use('/api/users', (req: Request, res: Response) => {
+const apiUserHandler: RequestHandler = (req, res) => {
     Promise.resolve(handler(req, res)).catch(error => {
         console.error("Unhandled error from API handler:", error);
         if (!res.headersSent) {
             res.status(500).json({ error: 'Internal Server Error' });
         }
     });
-});
+};
+app.use('/api/users', apiUserHandler);
 
 // Serve static files from the React app build directory
 // __dirname will be 'build/' after compilation. The client is in 'dist/'.
@@ -34,9 +35,10 @@ app.use(express.static(clientBuildPath));
 
 // The "catchall" handler: for any request that doesn't match one above,
 // send back React's index.html file to enable client-side routing.
-app.get('*', (req: Request, res: Response) => {
+const catchallHandler: RequestHandler = (req, res) => {
     res.sendFile(path.join(clientBuildPath, 'index.html'));
-});
+};
+app.get('*', catchallHandler);
 
 // Initialize database and then start server
 async function startServer() {
