@@ -1,6 +1,6 @@
 import { sql } from '@vercel/postgres';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { scrypt, randomBytes, timingSafeEqual } from 'node:crypto';
+import { scrypt, scryptSync, randomBytes, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { Buffer } from 'node:buffer';
 import type { User } from '../../types';
@@ -19,6 +19,21 @@ async function hashPassword(password: string) {
   const hash = (await scryptAsync(password, salt, 64)) as Buffer;
   return `${salt}:${hash.toString('hex')}`;
 }
+
+function verifyPassword(storedPasswordHash: string, suppliedPassword: string): boolean {
+  const [salt, key] = storedPasswordHash.split(':');
+  if (!salt || !key) return false;
+  
+  const keyBuffer = Buffer.from(key, 'hex');
+  const derivedKey = scryptSync(suppliedPassword, salt, 64);
+  
+  if (keyBuffer.length !== derivedKey.length) {
+    return false;
+  }
+  
+  return timingSafeEqual(keyBuffer, derivedKey);
+}
+
 
 async function setupTables() {
     const client = await sql.connect();
@@ -103,8 +118,45 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
     }
 
-    // POST: Create, Update, Import, or Change Password
+    // POST: Login, Create, Update, Import, or Change Password
     if (req.method === 'POST') {
+        // Handle Login action
+        if (req.query.action === 'login') {
+             try {
+                const { username, password } = req.body;
+                if (!username || !password) {
+                  return res.status(400).json({ error: 'نام کاربری و رمز عبور الزامی است.' });
+                }
+
+                const { rows: userRows } = await sql`SELECT * FROM app_users WHERE username = ${username};`;
+                if (userRows.length === 0) {
+                  return res.status(401).json({ error: 'نام کاربری یا رمز عبور اشتباه است.' });
+                }
+
+                const userRecord = userRows[0];
+                const isPasswordValid = verifyPassword(userRecord.password_hash, password);
+                if (!isPasswordValid) {
+                  return res.status(401).json({ error: 'نام کاربری یا رمز عبور اشتباه است.' });
+                }
+
+                const { rows: permissionRows } = await sql`SELECT permission_name FROM user_permissions WHERE user_id = ${userRecord.id};`;
+                const permissions = permissionRows.map(p => p.permission_name);
+                
+                const user: User = {
+                  id: userRecord.id,
+                  firstName: userRecord.firstName,
+                  lastName: userRecord.lastName,
+                  username: userRecord.username,
+                  permissions: permissions,
+                };
+                return res.status(200).json(user);
+            } catch (error) {
+                console.error("Login error:", error);
+                return res.status(500).json({ error: 'خطای داخلی سرور' });
+            }
+        }
+        
+        // Handle other POST actions (User Management)
         const client = await sql.connect();
         try {
             await client.sql`BEGIN`;

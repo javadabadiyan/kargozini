@@ -18,7 +18,7 @@ export const LoginPage: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/login', {
+      const response = await fetch('/api/app-users?action=login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
