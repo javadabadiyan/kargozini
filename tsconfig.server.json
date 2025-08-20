@@ -9,6 +9,6 @@
     "resolveJsonModule": true,
     "esModuleInterop": true
   },
-  "include": ["server.ts", "api/**/*.ts", "types.ts"],
+  "include": ["server.ts", "api/users/index.ts", "types.ts"],
   "exclude": ["node_modules", "dist"]
 }
