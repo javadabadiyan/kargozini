@@ -1,68 +1,102 @@
 import { sql } from '@vercel/postgres';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import type { Personnel, Relative, RelativeWithPersonnel, AccountingCommitmentWithDetails } from '../../types';
+import { scrypt, scryptSync, randomBytes, timingSafeEqual } from 'node:crypto';
+import { promisify } from 'node:util';
+import { Buffer } from 'node:buffer';
+import type { Personnel, Relative, RelativeWithPersonnel, AccountingCommitmentWithDetails, User, AppSettings, SecurityTrafficLogWithDetails, SecurityMember } from '../../types';
 
-async function setupTables() {
-    await sql`
-        CREATE TABLE IF NOT EXISTS personnel (
-            id SERIAL PRIMARY KEY,
-            personnel_code VARCHAR(50) UNIQUE NOT NULL,
-            first_name VARCHAR(100) NOT NULL,
-            last_name VARCHAR(100) NOT NULL,
-            father_name VARCHAR(100),
-            national_id VARCHAR(20) UNIQUE,
-            id_number VARCHAR(20),
-            birth_date VARCHAR(50),
-            birth_place VARCHAR(100),
-            issue_date VARCHAR(50),
-            issue_place VARCHAR(100),
-            marital_status VARCHAR(50),
-            military_status VARCHAR(50),
-            job VARCHAR(100),
-            "position" VARCHAR(100),
-            employment_type VARCHAR(100),
-            unit VARCHAR(100),
-            service_place VARCHAR(100),
-            employment_date VARCHAR(50),
-            education_degree VARCHAR(100),
-            field_of_study VARCHAR(100),
-            status VARCHAR(50)
-        );
-    `;
-    await sql`
-        CREATE TABLE IF NOT EXISTS relatives (
-            id SERIAL PRIMARY KEY,
-            personnel_id INT NOT NULL REFERENCES personnel(id) ON DELETE CASCADE,
-            first_name VARCHAR(100) NOT NULL,
-            last_name VARCHAR(100) NOT NULL,
-            relation VARCHAR(50),
-            national_id VARCHAR(20),
-            birth_date VARCHAR(50),
-            CONSTRAINT unique_relative_national_id UNIQUE (national_id)
-        );
-    `;
-     await sql`
-        CREATE TABLE IF NOT EXISTS accounting_commitments (
-            id SERIAL PRIMARY KEY,
-            personnel_id INT REFERENCES personnel(id) ON DELETE SET NULL,
-            addressee VARCHAR(255) NOT NULL DEFAULT 'ریاست محترم',
-            title VARCHAR(255) NOT NULL,
-            letter_date VARCHAR(50) NOT NULL,
-            amount BIGINT NOT NULL,
-            body TEXT NOT NULL,
-            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-            guarantor_first_name VARCHAR(100),
-            guarantor_last_name VARCHAR(100),
-            borrower_first_name VARCHAR(100),
-            borrower_last_name VARCHAR(100),
-            borrower_father_name VARCHAR(100),
-            borrower_national_id VARCHAR(20)
-        );
-    `;
+// --- UTILS ---
+const scryptAsync = promisify(scrypt);
+
+async function hashPassword(password: string) {
+  const salt = randomBytes(16).toString('hex');
+  const hash = (await scryptAsync(password, salt, 64)) as Buffer;
+  return `${salt}:${hash.toString('hex')}`;
 }
 
+function verifyPassword(storedPasswordHash: string, suppliedPassword: string): boolean {
+  const [salt, key] = storedPasswordHash.split(':');
+  if (!salt || !key) return false;
+  
+  const keyBuffer = Buffer.from(key, 'hex');
+  const derivedKey = scryptSync(suppliedPassword, salt, 64);
+  
+  if (keyBuffer.length !== derivedKey.length) return false;
+  
+  return timingSafeEqual(keyBuffer, derivedKey);
+}
+
+const ALL_PERMISSIONS = [
+    { name: 'manage_personnel', description: 'افزودن، ویرایش و حذف پرسنل' },
+    { name: 'manage_users', description: 'مدیریت کاربران و دسترسی‌های آنها' },
+    { name: 'manage_settings', description: 'تغییر تنظیمات کلی برنامه' },
+    { name: 'perform_backup', description: 'ایجاد و بازگردانی پشتیبان' },
+];
+
+// --- DATABASE SETUP ---
+async function setupTables() {
+    const client = await sql.connect();
+    try {
+        await client.sql`BEGIN`;
+
+        // Personnel Module Tables
+        await client.sql`
+            CREATE TABLE IF NOT EXISTS personnel (
+                id SERIAL PRIMARY KEY, personnel_code VARCHAR(50) UNIQUE NOT NULL, first_name VARCHAR(100) NOT NULL, last_name VARCHAR(100) NOT NULL, father_name VARCHAR(100), national_id VARCHAR(20) UNIQUE, id_number VARCHAR(20), birth_date VARCHAR(50), birth_place VARCHAR(100), issue_date VARCHAR(50), issue_place VARCHAR(100), marital_status VARCHAR(50), military_status VARCHAR(50), job VARCHAR(100), "position" VARCHAR(100), employment_type VARCHAR(100), unit VARCHAR(100), service_place VARCHAR(100), employment_date VARCHAR(50), education_degree VARCHAR(100), field_of_study VARCHAR(100), status VARCHAR(50)
+            );
+        `;
+        await client.sql`
+            CREATE TABLE IF NOT EXISTS relatives (
+                id SERIAL PRIMARY KEY, personnel_id INT NOT NULL REFERENCES personnel(id) ON DELETE CASCADE, first_name VARCHAR(100) NOT NULL, last_name VARCHAR(100) NOT NULL, relation VARCHAR(50), national_id VARCHAR(20), birth_date VARCHAR(50), CONSTRAINT unique_relative_national_id UNIQUE (national_id)
+            );
+        `;
+        await client.sql`
+            CREATE TABLE IF NOT EXISTS accounting_commitments (
+                id SERIAL PRIMARY KEY, personnel_id INT REFERENCES personnel(id) ON DELETE SET NULL, addressee VARCHAR(255) NOT NULL DEFAULT 'ریاست محترم', title VARCHAR(255) NOT NULL, letter_date VARCHAR(50) NOT NULL, amount BIGINT NOT NULL, body TEXT NOT NULL, created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP, guarantor_first_name VARCHAR(100), guarantor_last_name VARCHAR(100), borrower_first_name VARCHAR(100), borrower_last_name VARCHAR(100), borrower_father_name VARCHAR(100), borrower_national_id VARCHAR(20)
+            );
+        `;
+
+        // Admin Module Tables
+        await client.sql`CREATE TABLE IF NOT EXISTS app_users (id SERIAL PRIMARY KEY, "firstName" VARCHAR(100) NOT NULL, "lastName" VARCHAR(100) NOT NULL, username VARCHAR(100) UNIQUE NOT NULL, password_hash TEXT NOT NULL);`;
+        await client.sql`CREATE TABLE IF NOT EXISTS user_permissions (user_id INT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE, permission_name VARCHAR(100) NOT NULL, PRIMARY KEY (user_id, permission_name));`;
+        
+        const defaultPassword = '5221157';
+        const hashedPassword = await hashPassword(defaultPassword);
+        const { rows: userRows } = await client.sql`
+             INSERT INTO app_users ("firstName", "lastName", username, password_hash) VALUES ('مدیر', 'سیستم', 'ادمین', ${hashedPassword})
+             ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash, "firstName" = EXCLUDED."firstName", "lastName" = EXCLUDED."lastName"
+             RETURNING id;
+        `;
+        const adminId = userRows[0].id;
+
+        await client.sql`DELETE FROM user_permissions WHERE user_id = ${adminId};`;
+        for (const p of ALL_PERMISSIONS) {
+            await client.sql`INSERT INTO user_permissions (user_id, permission_name) VALUES (${adminId}, ${p.name}) ON CONFLICT DO NOTHING;`;
+        }
+        
+        await client.sql`CREATE TABLE IF NOT EXISTS app_settings (id INT PRIMARY KEY DEFAULT 1, app_name VARCHAR(255) NOT NULL, app_logo TEXT, CONSTRAINT single_row CHECK (id = 1));`;
+        await client.sql`INSERT INTO app_settings (id, app_name, app_logo) VALUES (1, 'سیستم جامع کارگزینی', NULL) ON CONFLICT (id) DO NOTHING;`;
+
+        // Security Module Tables
+        await client.sql`
+            CREATE TABLE IF NOT EXISTS security_traffic_logs (
+                id SERIAL PRIMARY KEY, personnel_id INT NOT NULL REFERENCES personnel(id) ON DELETE CASCADE, log_date DATE NOT NULL DEFAULT CURRENT_DATE, shift VARCHAR(10) NOT NULL, entry_time TIMESTAMPTZ NOT NULL, exit_time TIMESTAMPTZ, UNIQUE(personnel_id, log_date, shift)
+            );
+        `;
+        await client.sql`CREATE TABLE IF NOT EXISTS security_members (id SERIAL PRIMARY KEY, personnel_id INT NOT NULL UNIQUE REFERENCES personnel(id) ON DELETE CASCADE);`;
+
+        await client.sql`COMMIT`;
+    } catch (e) {
+        await client.sql`ROLLBACK`;
+        throw e;
+    } finally {
+        client.release();
+    }
+}
+
+
 // --- Handler for PERSONNEL ---
-async function handlePersonnel(req: VercelRequest, res: VercelResponse) {
+async function handlePersonnelLogic(req: VercelRequest, res: VercelResponse) {
     if (req.method === 'GET') {
         const { rows } = await sql<Personnel>`SELECT * FROM personnel ORDER BY id DESC;`;
         return res.status(200).json(rows);
@@ -115,7 +149,6 @@ async function handlePersonnel(req: VercelRequest, res: VercelResponse) {
     }
 }
 
-// --- Handler for RELATIVES ---
 async function handleRelatives(req: VercelRequest, res: VercelResponse) {
     if (req.method === 'GET') {
         const { rows } = await sql<RelativeWithPersonnel>`
@@ -162,7 +195,6 @@ async function handleRelatives(req: VercelRequest, res: VercelResponse) {
     }
 }
 
-// --- Handler for COMMITMENTS ---
 async function handleCommitments(req: VercelRequest, res: VercelResponse) {
     if (req.method === 'GET') {
         const { rows } = await sql<AccountingCommitmentWithDetails>`
@@ -199,34 +231,308 @@ async function handleCommitments(req: VercelRequest, res: VercelResponse) {
     }
 }
 
+async function handlePersonnelModule(req: VercelRequest, res: VercelResponse) {
+    const { type } = req.query;
+    if (type === 'relatives') {
+        return await handleRelatives(req, res);
+    } else if (type === 'commitments') {
+        return await handleCommitments(req, res);
+    } else {
+        return await handlePersonnelLogic(req, res);
+    }
+}
+
+// --- Handler for ADMIN ---
+async function handleSettings(req: VercelRequest, res: VercelResponse) {
+    if (req.method === 'GET') {
+        const { rows } = await sql<AppSettings>`SELECT app_name, app_logo FROM app_settings WHERE id = 1;`;
+        return res.status(rows.length > 0 ? 200 : 404).json(rows[0] || { error: 'Settings not found' });
+    }
+    if (req.method === 'POST') {
+        const { app_name, app_logo } = req.body as AppSettings;
+        if (!app_name) return res.status(400).json({ error: 'App name is required' });
+        const result = await sql<AppSettings>`UPDATE app_settings SET app_name = ${app_name}, app_logo = ${app_logo} WHERE id = 1 RETURNING app_name, app_logo;`;
+        return res.status(200).json(result.rows[0]);
+    }
+}
+
+async function handleBackup(req: VercelRequest, res: VercelResponse) {
+    const scope = req.query.scope as string;
+    const backupData: any = {};
+    if (scope === 'personnel' || scope === 'all') {
+        const { rows } = await sql`SELECT * FROM personnel;`;
+        backupData.personnel = rows;
+    }
+    if (scope === 'users' || scope === 'all') {
+        const { rows: users } = await sql`SELECT id, "firstName", "lastName", username FROM app_users;`;
+        const { rows: permissions } = await sql`SELECT * FROM user_permissions;`;
+        backupData.users = users;
+        backupData.user_permissions = permissions;
+    }
+    return res.status(200).json(backupData);
+}
+
+async function handleRestore(req: VercelRequest, res: VercelResponse) {
+    const { personnel, users, user_permissions } = req.body;
+    const client = await sql.connect();
+    try {
+        await client.sql`BEGIN`;
+        if (Array.isArray(personnel)) {
+            await client.sql`TRUNCATE personnel RESTART IDENTITY CASCADE;`;
+            for (const p of personnel) {
+                 await client.sql`INSERT INTO personnel (id, personnel_code, first_name, last_name, father_name, national_id, id_number, birth_date, birth_place, issue_date, issue_place, marital_status, military_status, job, "position", employment_type, unit, service_place, employment_date, education_degree, field_of_study, status) VALUES (${p.id}, ${p.personnel_code}, ${p.first_name}, ${p.last_name}, ${p.father_name}, ${p.national_id}, ${p.id_number}, ${p.birth_date}, ${p.birth_place}, ${p.issue_date}, ${p.issue_place}, ${p.marital_status}, ${p.military_status}, ${p.job}, ${p.position}, ${p.employment_type}, ${p.unit}, ${p.service_place}, ${p.employment_date}, ${p.education_degree}, ${p.field_of_study}, ${p.status});`;
+            }
+        }
+        if (Array.isArray(users)) {
+            await client.sql`TRUNCATE app_users RESTART IDENTITY CASCADE;`;
+            const hashedPassword = await hashPassword('5221157');
+            for (const u of users) {
+                 await client.sql`INSERT INTO app_users (id, "firstName", "lastName", username, password_hash) VALUES (${u.id}, ${u.firstName}, ${u.lastName}, ${u.username}, ${hashedPassword});`;
+            }
+        }
+        if (Array.isArray(user_permissions)) {
+            await client.sql`TRUNCATE user_permissions RESTART IDENTITY CASCADE;`;
+            for (const up of user_permissions) {
+                 await client.sql`INSERT INTO user_permissions (user_id, permission_name) VALUES (${up.user_id}, ${up.permission_name});`;
+            }
+        }
+        await client.sql`COMMIT`;
+        return res.status(200).json({ message: 'پشتیبان با موفقیت بازگردانی شد.' });
+    } finally {
+        client.release();
+    }
+}
+
+async function handleAdminModule(req: VercelRequest, res: VercelResponse) {
+    const action = req.query.action as string;
+
+    if (action === 'settings') return await handleSettings(req, res);
+    if (action === 'backup') return await handleBackup(req, res);
+    if (req.method === 'POST' && action === 'restore') return await handleRestore(req, res);
+
+    if (req.method === 'GET') {
+        const { rows } = await sql`SELECT u.id, u."firstName", u."lastName", u.username, COALESCE(json_agg(p.permission_name) FILTER (WHERE p.permission_name IS NOT NULL), '[]') as permissions FROM app_users u LEFT JOIN user_permissions p ON u.id = p.user_id GROUP BY u.id ORDER BY u.id;`;
+        return res.status(200).json(rows);
+    }
+
+    if (req.method === 'POST') {
+        if (action === 'login') {
+            const { username, password } = req.body;
+            if (!username || !password) return res.status(400).json({ error: 'نام کاربری و رمز عبور الزامی است.' });
+            const { rows: userRows } = await sql`SELECT * FROM app_users WHERE username = ${username};`;
+            if (userRows.length === 0 || !verifyPassword(userRows[0].password_hash, password)) {
+                return res.status(401).json({ error: 'نام کاربری یا رمز عبور اشتباه است.' });
+            }
+            const userRecord = userRows[0];
+            const { rows: permissionRows } = await sql`SELECT permission_name FROM user_permissions WHERE user_id = ${userRecord.id};`;
+            const user: User = { id: userRecord.id, firstName: userRecord.firstName, lastName: userRecord.lastName, username: userRecord.username, permissions: permissionRows.map(p => p.permission_name) };
+            return res.status(200).json(user);
+        }
+        
+        const client = await sql.connect();
+        try {
+            await client.sql`BEGIN`;
+            if (action === 'import') {
+                 for (const user of req.body as any[]) {
+                    if (!user.username || !user.password) continue;
+                    const hashedPassword = await hashPassword(user.password);
+                    const { rows } = await client.sql`INSERT INTO app_users ("firstName", "lastName", username, password_hash) VALUES (${user.firstName}, ${user.lastName}, ${user.username}, ${hashedPassword}) ON CONFLICT (username) DO UPDATE SET "firstName" = EXCLUDED."firstName", "lastName" = EXCLUDED."lastName", password_hash = EXCLUDED.password_hash RETURNING id;`;
+                    const userId = rows[0].id;
+                    if (userId && Array.isArray(user.permissions)) {
+                        await client.sql`DELETE FROM user_permissions WHERE user_id = ${userId};`;
+                        for (const p of user.permissions) if (ALL_PERMISSIONS.some(ap => ap.name === p)) {
+                           await client.sql`INSERT INTO user_permissions (user_id, permission_name) VALUES (${userId}, ${p}) ON CONFLICT DO NOTHING;`;
+                        }
+                    }
+                }
+            } else if (action === 'change_password') {
+                const { id, password } = req.body;
+                if (!id || !password || password.length < 6) throw new Error('Invalid data');
+                await client.sql`UPDATE app_users SET password_hash = ${await hashPassword(password)} WHERE id = ${id};`;
+            } else { // Create/Update User
+                const { id, firstName, lastName, username, password, permissions } = req.body;
+                if (id) {
+                    await client.sql`UPDATE app_users SET "firstName"=${firstName}, "lastName"=${lastName}, username=${username} WHERE id=${id};`;
+                    if (password) await client.sql`UPDATE app_users SET password_hash=${await hashPassword(password)} WHERE id=${id};`;
+                    await client.sql`DELETE FROM user_permissions WHERE user_id=${id};`;
+                    for (const p of permissions) await client.sql`INSERT INTO user_permissions (user_id, permission_name) VALUES (${id}, ${p});`;
+                } else {
+                    if (!password) throw new Error("Password required");
+                    const { rows } = await client.sql`INSERT INTO app_users ("firstName", "lastName", username, password_hash) VALUES (${firstName}, ${lastName}, ${username}, ${await hashPassword(password)}) RETURNING id;`;
+                    for (const p of permissions) await client.sql`INSERT INTO user_permissions (user_id, permission_name) VALUES (${rows[0].id}, ${p});`;
+                }
+            }
+            await client.sql`COMMIT`;
+            return res.status(200).json({ success: true });
+        } catch (error) {
+            await client.sql`ROLLBACK`;
+            const errorMessage = error instanceof Error ? error.message : 'Unknown';
+            return res.status(errorMessage.includes('duplicate key') ? 409 : 500).json({ error: errorMessage.includes('duplicate key') ? 'نام کاربری تکراری است.' : 'Failed to save user data' });
+        } finally {
+            client.release();
+        }
+    }
+    
+    if (req.method === 'DELETE') {
+        const id = Number(req.query.id);
+        if (!id) return res.status(400).json({ error: 'User ID is required' });
+        await sql`DELETE FROM app_users WHERE id = ${id};`;
+        return res.status(204).send(null);
+    }
+}
+
+// --- Handler for SECURITY ---
+async function handleTrafficLogs(req: VercelRequest, res: VercelResponse) {
+    if (req.method === 'GET') {
+        const { date } = req.query;
+        let rows: SecurityTrafficLogWithDetails[];
+
+        if (date && typeof date === 'string') {
+            ({ rows } = await sql<SecurityTrafficLogWithDetails>`
+                SELECT l.*, p.first_name, p.last_name, p.unit, p.position 
+                FROM security_traffic_logs l 
+                JOIN personnel p ON l.personnel_id = p.id
+                WHERE l.log_date = ${date}
+                ORDER BY l.entry_time DESC;
+            `);
+        } else {
+            ({ rows } = await sql<SecurityTrafficLogWithDetails>`
+                SELECT l.*, p.first_name, p.last_name, p.unit, p.position 
+                FROM security_traffic_logs l 
+                JOIN personnel p ON l.personnel_id = p.id
+                ORDER BY l.entry_time DESC;
+            `);
+        }
+        
+        return res.status(200).json(rows);
+    }
+    
+    if (req.method === 'POST') {
+        const { personnel_id, shift, action } = req.body;
+        if (!personnel_id || !shift || !action) {
+            return res.status(400).json({ error: 'اطلاعات ناقص است.' });
+        }
+
+        const today = new Date().toISOString().split('T')[0];
+
+        if (action === 'entry') {
+            await sql`
+                INSERT INTO security_traffic_logs (personnel_id, shift, entry_time)
+                VALUES (${personnel_id}, ${shift}, NOW())
+                ON CONFLICT (personnel_id, log_date, shift) DO NOTHING;
+            `;
+            return res.status(201).json({ message: 'ورود ثبت شد.' });
+        }
+        
+        if (action === 'exit') {
+            const { rows } = await sql`
+                UPDATE security_traffic_logs 
+                SET exit_time = NOW() 
+                WHERE personnel_id = ${personnel_id} 
+                AND log_date = ${today} 
+                AND shift = ${shift} 
+                AND exit_time IS NULL
+                RETURNING id;
+            `;
+            if (rows.length === 0) {
+                 return res.status(404).json({ error: 'رکورد ورودی برای ثبت خروج یافت نشد.' });
+            }
+            return res.status(200).json({ message: 'خروج ثبت شد.' });
+        }
+        
+        return res.status(400).json({ error: 'عملیات نامعتبر است.' });
+    }
+}
+
+async function handleSecurityMembers(req: VercelRequest, res: VercelResponse) {
+    if (req.method === 'GET') {
+        const { rows } = await sql<SecurityMember>`
+            SELECT p.id, p.first_name, p.last_name, p.personnel_code, p.unit, p.position
+            FROM security_members sm
+            JOIN personnel p ON sm.personnel_id = p.id
+            ORDER BY p.last_name, p.first_name;
+        `;
+        return res.status(200).json(rows);
+    }
+
+    if (req.method === 'POST') {
+        const client = await sql.connect();
+        try {
+            await client.sql`BEGIN`;
+            if (req.query.action === 'import') {
+                const personnelCodes = req.body as string[];
+                if (!Array.isArray(personnelCodes)) throw new Error('Invalid import data: Expected an array of personnel codes.');
+                for (const code of personnelCodes) {
+                    const { rows } = await client.sql`SELECT id FROM personnel WHERE personnel_code = ${code};`;
+                    if (rows.length > 0) {
+                        await client.sql`INSERT INTO security_members (personnel_id) VALUES (${rows[0].id}) ON CONFLICT (personnel_id) DO NOTHING;`;
+                    }
+                }
+            } else {
+                const { personnel_id } = req.body;
+                if (!personnel_id) return res.status(400).json({ error: 'Personnel ID is required' });
+                await client.sql`INSERT INTO security_members (personnel_id) VALUES (${personnel_id}) ON CONFLICT (personnel_id) DO NOTHING;`;
+            }
+            await client.sql`COMMIT`;
+            return res.status(201).json({ success: true });
+        } catch (error) {
+            await client.sql`ROLLBACK`;
+            throw error;
+        } finally {
+            client.release();
+        }
+    }
+
+    if (req.method === 'DELETE') {
+        if (req.query.action === 'delete_all') {
+            await sql`TRUNCATE TABLE security_members;`;
+            return res.status(204).send(null);
+        } else {
+            const id = Number(req.query.id);
+            if (!id) return res.status(400).json({ error: 'Personnel ID is required' });
+            await sql`DELETE FROM security_members WHERE personnel_id = ${id};`;
+            return res.status(204).send(null);
+        }
+    }
+}
+
+async function handleSecurityModule(req: VercelRequest, res: VercelResponse) {
+  const { type } = req.query;
+  if (type === 'members') {
+    return await handleSecurityMembers(req, res);
+  } else { // Default to 'logs'
+    return await handleTrafficLogs(req, res);
+  }
+}
+
 // --- MAIN HANDLER ---
 export default async function handler(req: VercelRequest, res: VercelResponse) {
     try {
         await setupTables();
     } catch (error) {
-        console.error("Database setup error in /api/users (consolidated):", error);
+        console.error("Database setup error:", error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         return res.status(500).json({ error: 'Failed to initialize data tables', details: errorMessage });
     }
 
-    const { type } = req.query;
+    const { module } = req.query;
 
     try {
-        if (type === 'relatives') {
-            return await handleRelatives(req, res);
-        } else if (type === 'commitments') {
-            return await handleCommitments(req, res);
-        } else {
-            return await handlePersonnel(req, res);
+        if (module === 'admin') {
+            return await handleAdminModule(req, res);
+        } else if (module === 'security') {
+            return await handleSecurityModule(req, res);
+        } else { // Default to 'personnel'
+            return await handlePersonnelModule(req, res);
         }
     } catch (error) {
-        console.error(`Error in /api/users (type=${String(type) || 'personnel'}):`, error);
+        console.error(`Error in module=${String(module) || 'personnel'}:`, error);
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
         let statusCode = 500;
         let publicError = 'Failed to process request';
-        if (errorMessage.includes('unique_relative_national_id') || errorMessage.includes('duplicate key value violates unique constraint')) {
+        if (errorMessage.includes('unique constraint') || errorMessage.includes('duplicate key')) {
             statusCode = 409; // Conflict
-            publicError = 'کد ملی یا کد پرسنلی وارد شده تکراری است.';
+            publicError = 'کد ملی یا کد پرسنلی یا نام کاربری وارد شده تکراری است.';
         }
         return res.status(statusCode).json({ error: publicError, details: errorMessage });
     }

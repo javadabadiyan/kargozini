@@ -1,3 +1,3 @@
 // This API endpoint is obsolete.
-// The old role-based access control has been replaced by a per-user permission system.
-// This file can be safely deleted to reduce the number of serverless functions.
+// Role management has been replaced by the permission system in the main API endpoint.
+// This file MUST BE DELETED from the project repository to solve the Vercel deployment limit error.

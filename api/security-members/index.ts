@@ -1,3 +1,3 @@
 // This API endpoint is obsolete.
-// Its functionality has been merged into /api/traffic/index.ts (as ?type=members).
-// This file can be safely deleted to reduce the number of serverless functions.
+// Its functionality has been merged into `/api/users?module=security&type=members`.
+// This file MUST BE DELETED from the project repository to solve the Vercel deployment limit error.

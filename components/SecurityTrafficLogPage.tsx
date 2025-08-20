@@ -15,7 +15,7 @@ export const SecurityTrafficLogPage: React.FC<{ personnelList: Personnel[] }> = 
         setIsLoading(true);
         try {
             const today = new Date().toISOString().split('T')[0];
-            const response = await fetch(`/api/traffic?type=logs&date=${today}`);
+            const response = await fetch(`/api/users?module=security&type=logs&date=${today}`);
             if (!response.ok) throw new Error('Failed to fetch logs');
             const data: SecurityTrafficLogWithDetails[] = await response.json();
             setTodaysLogs(data);
@@ -39,7 +39,7 @@ export const SecurityTrafficLogPage: React.FC<{ personnelList: Personnel[] }> = 
         setError('');
         setIsLoading(true);
         try {
-            const response = await fetch('/api/traffic?type=logs', {
+            const response = await fetch('/api/users?module=security&type=logs', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

@@ -94,7 +94,7 @@ export const UserManagementPage: React.FC<UserManagementPageProps> = ({ users, o
                 });
 
 
-                const response = await fetch('/api/app-users?action=import', {
+                const response = await fetch('/api/users?module=admin&action=import', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(mappedUsers),
@@ -118,7 +118,7 @@ export const UserManagementPage: React.FC<UserManagementPageProps> = ({ users, o
     const handleDeleteUser = async (userId: number) => {
         if (window.confirm('آیا از حذف این کاربر اطمینان دارید؟')) {
             try {
-                const response = await fetch(`/api/app-users?id=${userId}`, { method: 'DELETE' });
+                const response = await fetch(`/api/users?module=admin&id=${userId}`, { method: 'DELETE' });
                 if (!response.ok) throw new Error('Failed to delete user');
                 onUsersChange();
             } catch (error) {
@@ -205,7 +205,7 @@ const UserModal = ({ user, onClose, onSave }: { user: User | null, onClose: () =
         e.preventDefault();
         const body = user ? { ...formData, id: user.id } : formData;
         try {
-            const response = await fetch('/api/app-users', {
+            const response = await fetch('/api/users?module=admin', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body),
@@ -269,7 +269,7 @@ const PasswordModal = ({ user, onClose }: { user: User, onClose: () => void }) =
             return;
         }
         try {
-            const response = await fetch('/api/app-users?action=change_password', {
+            const response = await fetch('/api/users?module=admin&action=change_password', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ id: user.id, password }),

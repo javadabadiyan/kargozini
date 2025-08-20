@@ -17,7 +17,7 @@ export const SecurityTrafficReportPage: React.FC = () => {
         const fetchAllLogs = async () => {
             setIsLoading(true);
             try {
-                const response = await fetch('/api/traffic?type=logs');
+                const response = await fetch('/api/users?module=security&type=logs');
                 if (!response.ok) throw new Error('Failed to fetch logs');
                 const data: SecurityTrafficLogWithDetails[] = await response.json();
                 setAllLogs(data);

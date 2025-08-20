@@ -16,7 +16,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
 
   const fetchSettings = async () => {
     try {
-      const response = await fetch('/api/app-users?action=settings');
+      const response = await fetch('/api/users?module=admin&action=settings');
       if (response.ok) {
         const data = await response.json();
         setSettings(data);
@@ -38,7 +38,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
 
   const updateSettings = async (newSettings: AppSettings) => {
     try {
-        const response = await fetch('/api/app-users?action=settings', {
+        const response = await fetch('/api/users?module=admin&action=settings', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(newSettings),

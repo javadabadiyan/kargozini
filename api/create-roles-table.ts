@@ -1,3 +1,3 @@
-// This setup script is obsolete.
-// The old 'roles' table is no longer used by the application.
-// This file can be safely deleted.
+// This setup script is obsolete and no longer needed.
+// Database table creation is now handled automatically by the main API endpoint.
+// This file MUST BE DELETED from the project repository to solve the Vercel deployment limit error.

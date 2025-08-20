@@ -1,4 +1,3 @@
-// This setup script is obsolete.
-// The old 'users' table has been replaced by the 'app_users' table,
-// which is managed automatically by the /api/login and /api/app-users endpoints.
-// This file can be safely deleted.
+// This setup script is obsolete and no longer needed.
+// Database table creation is now handled automatically by the main API endpoint.
+// This file MUST BE DELETED from the project repository to solve the Vercel deployment limit error.
