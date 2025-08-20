@@ -1,9 +1,10 @@
 import express from 'express';
-import type { Request, Response } from 'express';
+import { Request, Response } from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import cors from 'cors';
-import handler from './api/users/index';
+import process from 'process';
+import handler, { setupTables } from './api/users/index';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -39,6 +40,20 @@ app.get('*', (req, res) => {
     res.sendFile(path.join(clientBuildPath, 'index.html'));
 });
 
-app.listen(port, () => {
-    console.log(`Server is running on http://localhost:${port}`);
-});
+// Initialize database and then start server
+async function startServer() {
+  try {
+    console.log("Initializing database tables...");
+    await setupTables();
+    console.log("Database tables initialized successfully.");
+
+    app.listen(port, () => {
+      console.log(`Server is running on http://localhost:${port}`);
+    });
+  } catch (error) {
+    console.error("Failed to start server due to database initialization error:", error);
+    process.exit(1);
+  }
+}
+
+startServer();

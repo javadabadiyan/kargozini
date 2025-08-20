@@ -1,5 +1,5 @@
 import { sql } from '@vercel/postgres';
-import type { Request, Response } from 'express';
+import { Request, Response } from 'express';
 import { scrypt, scryptSync, randomBytes, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { Buffer } from 'node:buffer';
@@ -34,7 +34,7 @@ const ALL_PERMISSIONS = [
 ];
 
 // --- DATABASE SETUP ---
-async function setupTables() {
+export async function setupTables() {
     const client = await sql.connect();
     try {
         await client.sql`BEGIN`;
@@ -507,14 +507,6 @@ async function handleSecurityModule(req: Request, res: Response) {
 
 // --- MAIN HANDLER ---
 export default async function handler(req: Request, res: Response) {
-    try {
-        await setupTables();
-    } catch (error) {
-        console.error("Database setup error:", error);
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        return res.status(500).json({ error: 'Failed to initialize data tables', details: errorMessage });
-    }
-
     const { module } = req.query;
 
     try {
