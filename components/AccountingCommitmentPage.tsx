@@ -294,7 +294,7 @@ export const AccountingCommitmentPage: React.FC<{ personnelList: Personnel[] }> 
 
   const fetchCommitments = useCallback(async () => {
     try {
-      const response = await fetch('/api/commitments');
+      const response = await fetch('/api/users?type=commitments');
       if (!response.ok) throw new Error('Failed to fetch commitments');
       setCommitments(await response.json());
     } catch (error) {
@@ -393,11 +393,8 @@ export const AccountingCommitmentPage: React.FC<{ personnelList: Personnel[] }> 
 
     const { borrower_search, guarantor_search, total_factors, ...dataToSave } = formState;
 
-    const { id, ...restData } = dataToSave;
-
-    const payload: Partial<AccountingCommitment> & { id?: number } = {
-        ...restData,
-        ...(id && { id }),
+    const payload = {
+        ...dataToSave,
         body: letterBody,
         amount: Number(dataToSave.amount),
         borrower_first_name: !dataToSave.personnel_id ? dataToSave.borrower_first_name : undefined,
@@ -407,7 +404,7 @@ export const AccountingCommitmentPage: React.FC<{ personnelList: Personnel[] }> 
     };
 
     try {
-        const response = await fetch('/api/commitments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        const response = await fetch('/api/users?type=commitments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         if (!response.ok) throw new Error((await response.json()).error || 'Failed to save');
         await fetchCommitments();
         alert(`نامه تعهد با موفقیت ${formState.id ? 'ویرایش' : 'ذخیره'} شد.`);
@@ -476,7 +473,7 @@ export const AccountingCommitmentPage: React.FC<{ personnelList: Personnel[] }> 
   const handleDeleteCommitment = async (id: number) => {
     if (window.confirm('آیا از حذف این نامه تعهد اطمینان دارید؟')) {
         try {
-            const response = await fetch(`/api/commitments?id=${id}`, { method: 'DELETE' });
+            const response = await fetch(`/api/users?type=commitments&id=${id}`, { method: 'DELETE' });
             if (!response.ok) throw new Error('Failed to delete commitment');
             await fetchCommitments();
         } catch (error) {

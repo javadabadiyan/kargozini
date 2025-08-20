@@ -29,7 +29,7 @@ export const RelativesPage: React.FC<RelativesPageProps> = ({ personnelList }) =
   const fetchRelatives = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/relatives');
+      const response = await fetch('/api/users?type=relatives');
       if (!response.ok) throw new Error('Failed to fetch relatives');
       const data = await response.json();
       setRelatives(data);
@@ -57,7 +57,7 @@ export const RelativesPage: React.FC<RelativesPageProps> = ({ personnelList }) =
 
   const handleSaveRelative = async (relativeData: Omit<Relative, 'id'> | Relative) => {
     try {
-        const response = await fetch('/api/relatives', {
+        const response = await fetch('/api/users?type=relatives', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(relativeData),
@@ -76,7 +76,7 @@ export const RelativesPage: React.FC<RelativesPageProps> = ({ personnelList }) =
   const handleDeleteRelative = async (relativeId: number) => {
     if (window.confirm('آیا از حذف این مورد اطمینان دارید؟')) {
       try {
-        const response = await fetch(`/api/relatives?id=${relativeId}`, { method: 'DELETE' });
+        const response = await fetch(`/api/users?type=relatives&id=${relativeId}`, { method: 'DELETE' });
         if (!response.ok) throw new Error('Failed to delete relative');
         await fetchRelatives();
       } catch (error) {
@@ -132,7 +132,7 @@ export const RelativesPage: React.FC<RelativesPageProps> = ({ personnelList }) =
             return newRow;
         });
 
-        const response = await fetch('/api/relatives?action=import', {
+        const response = await fetch('/api/users?type=relatives&action=import', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(mappedJson),
