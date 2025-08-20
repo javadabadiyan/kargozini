@@ -3,7 +3,7 @@ import type { Request, Response } from 'express';
 import { scrypt, scryptSync, randomBytes, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { Buffer } from 'node:buffer';
-import type { Personnel, Relative, RelativeWithPersonnel, AccountingCommitmentWithDetails, User, AppSettings, SecurityTrafficLogWithDetails, SecurityMember } from '../../types';
+import type { Personnel, Relative, RelativeWithPersonnel, AccountingCommitmentWithDetails, User, AppSettings, SecurityTrafficLogWithDetails, SecurityMember } from '../../types.js';
 
 // --- UTILS ---
 const scryptAsync = promisify(scrypt);
