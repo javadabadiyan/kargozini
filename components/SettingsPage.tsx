@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import type { AppSettings } from '../types';
 import { useSettings } from '../context/SettingsContext';
@@ -36,7 +37,7 @@ export const SettingsPage: React.FC = () => {
   
   const handleBackup = async (scope: 'personnel' | 'users' | 'all') => {
       try {
-        const response = await fetch(`/api/backup?scope=${scope}`);
+        const response = await fetch(`/api/settings?action=backup&scope=${scope}`);
         if (!response.ok) throw new Error('Failed to create backup');
         const data = await response.json();
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -61,7 +62,7 @@ export const SettingsPage: React.FC = () => {
         try {
             const content = e.target?.result as string;
             const data = JSON.parse(content);
-            const response = await fetch('/api/backup', {
+            const response = await fetch('/api/settings?action=restore', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
