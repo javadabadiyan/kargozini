@@ -1,10 +1,9 @@
 import { sql } from '@vercel/postgres';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import type { SecurityTrafficLogWithDetails } from '../../types';
+import type { SecurityTrafficLogWithDetails, SecurityMember } from '../../types';
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
-  try {
-    // Ensure personnel table exists as a dependency
+async function setupTables() {
+    // Ensure personnel table exists as a dependency for both features
     await sql`
         CREATE TABLE IF NOT EXISTS personnel (
             id SERIAL PRIMARY KEY,
@@ -43,26 +42,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             UNIQUE(personnel_id, log_date, shift)
         );
     `;
-  } catch (error) {
-    console.error("Database setup error in /api/traffic:", error);
-    if (!res.headersSent) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      return res.status(500).json({ error: 'Failed to initialize traffic table', details: errorMessage });
-    }
-    return;
-  }
+    // Create security members table
+     await sql`
+      CREATE TABLE IF NOT EXISTS security_members (
+        id SERIAL PRIMARY KEY,
+        personnel_id INT NOT NULL UNIQUE REFERENCES personnel(id) ON DELETE CASCADE
+      );
+    `;
+}
 
-  // GET: Fetch traffic logs
-  if (req.method === 'GET') {
-    try {
+// --- Handler for TRAFFIC LOGS ---
+async function handleTrafficLogs(req: VercelRequest, res: VercelResponse) {
+    if (req.method === 'GET') {
         const { date } = req.query;
         let rows: SecurityTrafficLogWithDetails[];
 
         if (date && typeof date === 'string') {
             ({ rows } = await sql<SecurityTrafficLogWithDetails>`
-                SELECT 
-                    l.*, 
-                    p.first_name, p.last_name, p.unit, p.position 
+                SELECT l.*, p.first_name, p.last_name, p.unit, p.position 
                 FROM security_traffic_logs l 
                 JOIN personnel p ON l.personnel_id = p.id
                 WHERE l.log_date = ${date}
@@ -70,9 +67,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             `);
         } else {
             ({ rows } = await sql<SecurityTrafficLogWithDetails>`
-                SELECT 
-                    l.*, 
-                    p.first_name, p.last_name, p.unit, p.position 
+                SELECT l.*, p.first_name, p.last_name, p.unit, p.position 
                 FROM security_traffic_logs l 
                 JOIN personnel p ON l.personnel_id = p.id
                 ORDER BY l.entry_time DESC;
@@ -80,16 +75,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
         
         return res.status(200).json(rows);
-    } catch (error) {
-      console.error(error);
-      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-      return res.status(500).json({ error: 'Failed to fetch traffic logs', details: errorMessage });
     }
-  }
-
-  // POST: Create or update a traffic log
-  if (req.method === 'POST') {
-    try {
+    
+    if (req.method === 'POST') {
         const { personnel_id, shift, action } = req.body;
         if (!personnel_id || !shift || !action) {
             return res.status(400).json({ error: 'اطلاعات ناقص است.' });
@@ -123,17 +111,94 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         }
         
         return res.status(400).json({ error: 'عملیات نامعتبر است.' });
-
-    } catch (error) {
-        console.error("Traffic log save error:", error);
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        if (errorMessage.includes('unique constraint')) {
-            return res.status(409).json({ error: 'یک تردد با این مشخصات برای امروز قبلا ثبت شده است.' });
-        }
-        return res.status(500).json({ error: 'Failed to save traffic log', details: errorMessage });
     }
+
+    res.setHeader('Allow', ['GET', 'POST']);
+    return res.status(405).end(`Method ${req.method} Not Allowed`);
+}
+
+
+// --- Handler for SECURITY MEMBERS ---
+async function handleSecurityMembers(req: VercelRequest, res: VercelResponse) {
+    if (req.method === 'GET') {
+        const { rows } = await sql<SecurityMember>`
+            SELECT p.id, p.first_name, p.last_name, p.personnel_code, p.unit, p.position
+            FROM security_members sm
+            JOIN personnel p ON sm.personnel_id = p.id
+            ORDER BY p.last_name, p.first_name;
+        `;
+        return res.status(200).json(rows);
+    }
+
+    if (req.method === 'POST') {
+        const client = await sql.connect();
+        try {
+            await client.sql`BEGIN`;
+            if (req.query.action === 'import') {
+                const personnelCodes = req.body as string[];
+                if (!Array.isArray(personnelCodes)) throw new Error('Invalid import data: Expected an array of personnel codes.');
+                for (const code of personnelCodes) {
+                    const { rows } = await client.sql`SELECT id FROM personnel WHERE personnel_code = ${code};`;
+                    if (rows.length > 0) {
+                        await client.sql`INSERT INTO security_members (personnel_id) VALUES (${rows[0].id}) ON CONFLICT (personnel_id) DO NOTHING;`;
+                    }
+                }
+            } else {
+                const { personnel_id } = req.body;
+                if (!personnel_id) return res.status(400).json({ error: 'Personnel ID is required' });
+                await client.sql`INSERT INTO security_members (personnel_id) VALUES (${personnel_id}) ON CONFLICT (personnel_id) DO NOTHING;`;
+            }
+            await client.sql`COMMIT`;
+            return res.status(201).json({ success: true });
+        } catch (error) {
+            await client.sql`ROLLBACK`;
+            throw error;
+        } finally {
+            client.release();
+        }
+    }
+
+    if (req.method === 'DELETE') {
+        if (req.query.action === 'delete_all') {
+            await sql`TRUNCATE TABLE security_members;`;
+            return res.status(204).send(null);
+        } else {
+            const id = Number(req.query.id);
+            if (!id) return res.status(400).json({ error: 'Personnel ID is required' });
+            await sql`DELETE FROM security_members WHERE personnel_id = ${id};`;
+            return res.status(204).send(null);
+        }
+    }
+
+    res.setHeader('Allow', ['GET', 'POST', 'DELETE']);
+    return res.status(405).end(`Method ${req.method} Not Allowed`);
+}
+
+
+// --- MAIN HANDLER ---
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  try {
+    await setupTables();
+  } catch (error) {
+    console.error("Database setup error in /api/traffic (consolidated):", error);
+    if (!res.headersSent) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return res.status(500).json({ error: 'Failed to initialize security tables', details: errorMessage });
+    }
+    return;
   }
 
-  res.setHeader('Allow', ['GET', 'POST']);
-  return res.status(405).end(`Method ${req.method} Not Allowed`);
+  const { type } = req.query;
+
+  try {
+    if (type === 'members') {
+      return await handleSecurityMembers(req, res);
+    } else { // Default to 'logs'
+      return await handleTrafficLogs(req, res);
+    }
+  } catch (error) {
+      console.error(`Error in /api/traffic (type=${String(type) || 'logs'}):`, error);
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      return res.status(500).json({ error: 'An internal server error occurred', details: errorMessage });
+  }
 }
