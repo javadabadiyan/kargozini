@@ -1,5 +1,5 @@
 import { sql } from '@vercel/postgres';
-import type { Request, Response } from 'express';
+import type { Request as ExpressRequest, Response as ExpressResponse } from 'express';
 import { scrypt, scryptSync, randomBytes, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { Buffer } from 'node:buffer';
@@ -96,7 +96,7 @@ export async function setupTables() {
 
 
 // --- Handler for PERSONNEL ---
-async function handlePersonnelLogic(req: Request, res: Response) {
+async function handlePersonnelLogic(req: ExpressRequest, res: ExpressResponse) {
     if (req.method === 'GET') {
         const { rows } = await sql<Personnel>`SELECT * FROM personnel ORDER BY id DESC;`;
         return res.status(200).json(rows);
@@ -149,7 +149,7 @@ async function handlePersonnelLogic(req: Request, res: Response) {
     }
 }
 
-async function handleRelatives(req: Request, res: Response) {
+async function handleRelatives(req: ExpressRequest, res: ExpressResponse) {
     if (req.method === 'GET') {
         const { rows } = await sql<RelativeWithPersonnel>`
             SELECT r.*, p.first_name as personnel_first_name, p.last_name as personnel_last_name, p.personnel_code 
@@ -195,7 +195,7 @@ async function handleRelatives(req: Request, res: Response) {
     }
 }
 
-async function handleCommitments(req: Request, res: Response) {
+async function handleCommitments(req: ExpressRequest, res: ExpressResponse) {
     if (req.method === 'GET') {
         const { rows } = await sql<AccountingCommitmentWithDetails>`
             SELECT c.*, COALESCE(p1.first_name, c.borrower_first_name, '') as personnel_first_name, COALESCE(p1.last_name, c.borrower_last_name, '') as personnel_last_name, p1.personnel_code
@@ -231,7 +231,7 @@ async function handleCommitments(req: Request, res: Response) {
     }
 }
 
-async function handlePersonnelModule(req: Request, res: Response) {
+async function handlePersonnelModule(req: ExpressRequest, res: ExpressResponse) {
     const { type } = req.query;
     if (type === 'relatives') {
         return await handleRelatives(req, res);
@@ -243,7 +243,7 @@ async function handlePersonnelModule(req: Request, res: Response) {
 }
 
 // --- Handler for ADMIN ---
-async function handleSettings(req: Request, res: Response) {
+async function handleSettings(req: ExpressRequest, res: ExpressResponse) {
     if (req.method === 'GET') {
         const { rows } = await sql<AppSettings>`SELECT app_name, app_logo FROM app_settings WHERE id = 1;`;
         return res.status(rows.length > 0 ? 200 : 404).json(rows[0] || { error: 'Settings not found' });
@@ -256,7 +256,7 @@ async function handleSettings(req: Request, res: Response) {
     }
 }
 
-async function handleBackup(req: Request, res: Response) {
+async function handleBackup(req: ExpressRequest, res: ExpressResponse) {
     const scope = req.query.scope as string;
     const backupData: any = {};
     if (scope === 'personnel' || scope === 'all') {
@@ -272,7 +272,7 @@ async function handleBackup(req: Request, res: Response) {
     return res.status(200).json(backupData);
 }
 
-async function handleRestore(req: Request, res: Response) {
+async function handleRestore(req: ExpressRequest, res: ExpressResponse) {
     const { personnel, users, user_permissions } = req.body;
     const client = await sql.connect();
     try {
@@ -303,7 +303,7 @@ async function handleRestore(req: Request, res: Response) {
     }
 }
 
-async function handleAdminModule(req: Request, res: Response) {
+async function handleAdminModule(req: ExpressRequest, res: ExpressResponse) {
     const action = req.query.action as string;
 
     if (action === 'settings') return await handleSettings(req, res);
@@ -382,7 +382,7 @@ async function handleAdminModule(req: Request, res: Response) {
 }
 
 // --- Handler for SECURITY ---
-async function handleTrafficLogs(req: Request, res: Response) {
+async function handleTrafficLogs(req: ExpressRequest, res: ExpressResponse) {
     if (req.method === 'GET') {
         const { date } = req.query;
         let rows: SecurityTrafficLogWithDetails[];
@@ -444,7 +444,7 @@ async function handleTrafficLogs(req: Request, res: Response) {
     }
 }
 
-async function handleSecurityMembers(req: Request, res: Response) {
+async function handleSecurityMembers(req: ExpressRequest, res: ExpressResponse) {
     if (req.method === 'GET') {
         const { rows } = await sql<SecurityMember>`
             SELECT p.id, p.first_name, p.last_name, p.personnel_code, p.unit, p.position
@@ -496,7 +496,7 @@ async function handleSecurityMembers(req: Request, res: Response) {
     }
 }
 
-async function handleSecurityModule(req: Request, res: Response) {
+async function handleSecurityModule(req: ExpressRequest, res: ExpressResponse) {
   const { type } = req.query;
   if (type === 'members') {
     return await handleSecurityMembers(req, res);
@@ -506,7 +506,7 @@ async function handleSecurityModule(req: Request, res: Response) {
 }
 
 // --- MAIN HANDLER ---
-export default async function handler(req: Request, res: Response) {
+export default async function handler(req: ExpressRequest, res: ExpressResponse) {
     const { module } = req.query;
 
     try {

@@ -1,4 +1,4 @@
-import express, { Express, Request, Response } from 'express';
+import express, { Express, Request as ExpressRequest, Response as ExpressResponse } from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import cors from 'cors';
@@ -18,7 +18,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // API route: All requests to /api/users will be handled by our consolidated handler.
-app.use('/api/users', (req: Request, res: Response) => {
+app.use('/api/users', (req: ExpressRequest, res: ExpressResponse) => {
     Promise.resolve(handler(req, res)).catch(error => {
         console.error("Unhandled error from API handler:", error);
         if (!res.headersSent) {
@@ -34,7 +34,7 @@ app.use(express.static(clientBuildPath));
 
 // The "catchall" handler: for any request that doesn't match one above,
 // send back React's index.html file to enable client-side routing.
-app.get('*', (req: Request, res: Response) => {
+app.get('*', (req: ExpressRequest, res: ExpressResponse) => {
     res.sendFile(path.join(clientBuildPath, 'index.html'));
 });
 
@@ -50,7 +50,7 @@ async function startServer() {
     });
   } catch (error) {
     console.error("Failed to start server due to database initialization error:", error);
-    process.exit(1);
+    (process as any).exit(1);
   }
 }
 
