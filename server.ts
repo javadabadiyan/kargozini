@@ -1,4 +1,5 @@
-import express, { Express, Request, Response, NextFunction } from 'express';
+import express from 'express';
+import type { Express, Request as ExpressRequest, Response as ExpressResponse, NextFunction } from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import cors from 'cors';
@@ -18,7 +19,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // API route: All requests to /api/users will be handled by our consolidated handler.
-const apiUserHandler = (req: Request, res: Response, next: NextFunction) => {
+const apiUserHandler = (req: ExpressRequest, res: ExpressResponse, next: NextFunction) => {
     handler(req, res).catch(next);
 };
 app.use('/api/users', apiUserHandler);
@@ -30,7 +31,7 @@ app.use(express.static(clientBuildPath));
 
 // The "catchall" handler: for any request that doesn't match one above,
 // send back React's index.html file to enable client-side routing.
-const catchallHandler = (req: Request, res: Response) => {
+const catchallHandler = (req: ExpressRequest, res: ExpressResponse) => {
     res.sendFile(path.join(clientBuildPath, 'index.html'));
 };
 app.get('*', catchallHandler);
