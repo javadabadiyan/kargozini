@@ -1,4 +1,4 @@
-import express, { Express, Request as ExpressRequest, Response as ExpressResponse } from 'express';
+import express, { Express, Request, Response } from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import cors from 'cors';
@@ -18,7 +18,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // API route: All requests to /api/users will be handled by our consolidated handler.
-app.use('/api/users', (req: ExpressRequest, res: ExpressResponse) => {
+app.use('/api/users', (req: Request, res: Response) => {
     Promise.resolve(handler(req, res)).catch(error => {
         console.error("Unhandled error from API handler:", error);
         if (!res.headersSent) {
@@ -34,7 +34,7 @@ app.use(express.static(clientBuildPath));
 
 // The "catchall" handler: for any request that doesn't match one above,
 // send back React's index.html file to enable client-side routing.
-app.get('*', (req: ExpressRequest, res: ExpressResponse) => {
+app.get('*', (req: Request, res: Response) => {
     res.sendFile(path.join(clientBuildPath, 'index.html'));
 });
 
