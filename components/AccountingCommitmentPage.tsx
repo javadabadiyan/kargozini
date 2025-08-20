@@ -4,6 +4,8 @@ import { toPersianDigits, formatRial, toEnglishDigits } from './format';
 import { CloseIcon, UploadIcon, EyeIcon, EditIcon, DeleteIcon, ChevronDownIcon, PhoneIcon, GlobeIcon, MailIcon, LocationIcon } from './icons';
 import * as XLSX from 'xlsx';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+
 // --- Local Components ---
 
 const PersonnelSearch = ({
@@ -289,7 +291,7 @@ export const AccountingCommitmentPage: React.FC<{ personnelList: Personnel[] }> 
 
   const fetchCommitments = useCallback(async () => {
     try {
-      const response = await fetch('/api/users?module=personnel&type=commitments');
+      const response = await fetch(`${API_BASE_URL}/api/users?module=personnel&type=commitments`);
       if (!response.ok) throw new Error('Failed to fetch commitments');
       setCommitments(await response.json());
     } catch (error) {
@@ -399,7 +401,7 @@ export const AccountingCommitmentPage: React.FC<{ personnelList: Personnel[] }> 
     };
 
     try {
-        const response = await fetch('/api/users?module=personnel&type=commitments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        const response = await fetch(`${API_BASE_URL}/api/users?module=personnel&type=commitments`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         if (!response.ok) throw new Error((await response.json()).error || 'Failed to save');
         await fetchCommitments();
         alert(`نامه تعهد با موفقیت ${formState.id ? 'ویرایش' : 'ذخیره'} شد.`);
@@ -468,7 +470,7 @@ export const AccountingCommitmentPage: React.FC<{ personnelList: Personnel[] }> 
   const handleDeleteCommitment = async (id: number) => {
     if (window.confirm('آیا از حذف این نامه تعهد اطمینان دارید؟')) {
         try {
-            const response = await fetch(`/api/users?module=personnel&type=commitments&id=${id}`, { method: 'DELETE' });
+            const response = await fetch(`${API_BASE_URL}/api/users?module=personnel&type=commitments&id=${id}`, { method: 'DELETE' });
             if (!response.ok) throw new Error('Failed to delete commitment');
             await fetchCommitments();
         } catch (error) {

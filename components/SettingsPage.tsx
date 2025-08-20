@@ -6,6 +6,8 @@ import saveAs from 'file-saver';
 
 type SettingsTab = 'general' | 'backup';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+
 export const SettingsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const { settings, updateSettings, isLoading: isSettingsLoading } = useSettings();
@@ -35,7 +37,7 @@ export const SettingsPage: React.FC = () => {
   
   const handleBackup = async (scope: 'personnel' | 'users' | 'all') => {
       try {
-        const response = await fetch(`/api/users?module=admin&action=backup&scope=${scope}`);
+        const response = await fetch(`${API_BASE_URL}/api/users?module=admin&action=backup&scope=${scope}`);
         if (!response.ok) throw new Error('Failed to create backup');
         const data = await response.json();
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -60,7 +62,7 @@ export const SettingsPage: React.FC = () => {
         try {
             const content = e.target?.result as string;
             const data = JSON.parse(content);
-            const response = await fetch('/api/users?module=admin&action=restore', {
+            const response = await fetch(`${API_BASE_URL}/api/users?module=admin&action=restore`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)

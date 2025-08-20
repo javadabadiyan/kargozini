@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import type { Personnel, SecurityTrafficLogWithDetails } from '../types';
 import { toPersianDigits } from './format';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+
 const SHIFTS = ['A', 'B', 'C'];
 
 export const SecurityTrafficLogPage: React.FC<{ personnelList: Personnel[] }> = ({ personnelList }) => {
@@ -15,7 +17,7 @@ export const SecurityTrafficLogPage: React.FC<{ personnelList: Personnel[] }> = 
         setIsLoading(true);
         try {
             const today = new Date().toISOString().split('T')[0];
-            const response = await fetch(`/api/users?module=security&type=logs&date=${today}`);
+            const response = await fetch(`${API_BASE_URL}/api/users?module=security&type=logs&date=${today}`);
             if (!response.ok) throw new Error('Failed to fetch logs');
             const data: SecurityTrafficLogWithDetails[] = await response.json();
             setTodaysLogs(data);
@@ -39,7 +41,7 @@ export const SecurityTrafficLogPage: React.FC<{ personnelList: Personnel[] }> = 
         setError('');
         setIsLoading(true);
         try {
-            const response = await fetch('/api/users?module=security&type=logs', {
+            const response = await fetch(`${API_BASE_URL}/api/users?module=security&type=logs`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

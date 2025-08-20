@@ -4,6 +4,8 @@ import { useSettings } from '../context/SettingsContext';
 import { UserIcon, LockIcon } from './icons';
 import type { User } from '../types';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+
 export const LoginPage: React.FC = () => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -18,7 +20,7 @@ export const LoginPage: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/users?module=admin&action=login', {
+      const response = await fetch(`${API_BASE_URL}/api/users?module=admin&action=login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

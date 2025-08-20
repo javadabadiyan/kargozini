@@ -4,6 +4,8 @@ import { toPersianDigits } from './format';
 import { DownloadIcon } from './icons';
 import * as XLSX from 'xlsx';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+
 export const SecurityTrafficReportPage: React.FC = () => {
     const [allLogs, setAllLogs] = useState<SecurityTrafficLogWithDetails[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -17,7 +19,7 @@ export const SecurityTrafficReportPage: React.FC = () => {
         const fetchAllLogs = async () => {
             setIsLoading(true);
             try {
-                const response = await fetch('/api/users?module=security&type=logs');
+                const response = await fetch(`${API_BASE_URL}/api/users?module=security&type=logs`);
                 if (!response.ok) throw new Error('Failed to fetch logs');
                 const data: SecurityTrafficLogWithDetails[] = await response.json();
                 setAllLogs(data);
