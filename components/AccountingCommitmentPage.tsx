@@ -4,10 +4,7 @@ import { toPersianDigits, formatRial, toEnglishDigits } from './format';
 import { CloseIcon, UploadIcon, EyeIcon, EditIcon, DeleteIcon, ChevronDownIcon } from './icons';
 import * as XLSX from 'xlsx';
 
-
-interface AccountingCommitmentPageProps {
-  personnelList: Personnel[];
-}
+// --- Local Components ---
 
 const PersonnelSearch = ({
   personnelList,
@@ -47,14 +44,14 @@ const PersonnelSearch = ({
     setIsOpen(false);
   };
 
-  const filteredPersonnel = personnelList.filter(p => {
-    if (!value) return false;
+  const filteredPersonnel = useMemo(() => {
+    if (!value) return [];
     const searchTerm = value.toLowerCase();
-    return (
+    return personnelList.filter(p => (
         `${p.first_name} ${p.last_name}`.toLowerCase().includes(searchTerm) ||
         p.personnel_code.toLowerCase().includes(searchTerm)
-    );
-  });
+    ));
+  }, [value, personnelList]);
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -85,59 +82,16 @@ const PersonnelSearch = ({
   );
 };
 
-// --- Footer Icons for Printable Letter ---
-const PhoneIcon = ({ className = 'w-4 h-4' }: { className?: string }) => (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" /></svg>);
-const GlobeIcon = ({ className = 'w-4 h-4' }: { className?: string }) => (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A11.953 11.953 0 0012 16.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 003 12c0 .778.099 1.533.284 2.253m0 0A11.953 11.953 0 0112 13.5c2.998 0 5.74 1.1 7.843 2.918" /></svg>);
-const MailIcon = ({ className = 'w-4 h-4' }: { className?: string }) => (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" /></svg>);
+const PhoneIcon = ({ className = 'w-4 h-4' }: { className?: string }) => (<svg xmlns="http://www.w.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" /></svg>);
+const GlobeIcon = ({ className = 'w-4 h-4' }: { className?: string }) => (<svg xmlns="http://www.w.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A11.953 11.953 0 0012 16.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 003 12c0 .778.099 1.533.284 2.253m0 0A11.953 11.953 0 0112 13.5c2.998 0 5.74 1.1 7.843 2.918" /></svg>);
+const MailIcon = ({ className = 'w-4 h-4' }: { className?: string }) => (<svg xmlns="http://www.w.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" /></svg>);
 const LocationIcon = ({ className = 'w-4 h-4' }: { className?: string }) => (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" /></svg>);
 
-
-const ViewLetterModal = ({
-  commitment,
-  onClose,
-}: {
-  commitment: AccountingCommitmentWithDetails | null;
-  onClose: () => void;
-}) => {
+const ViewLetterModal = ({ commitment, onClose }: { commitment: AccountingCommitmentWithDetails | null; onClose: () => void; }) => {
   if (!commitment) return null;
 
-  const printableRef = useRef<HTMLDivElement>(null);
-  
-  const handlePrint = () => {
-    const content = printableRef.current;
-    if (content) {
-      const printWindow = window.open('', '', 'height=842,width=595'); // A5 dimensions in pixels approx
-      if (printWindow) {
-        printWindow.document.write('<html><head><title>چاپ نامه تعهد</title>');
-        printWindow.document.write('<script src="https://cdn.tailwindcss.com"><\/script>');
-        printWindow.document.write(`
-          <style>
-            @import url("https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;700&display=swap");
-            @page { size: A5; margin: 0; }
-            body { 
-              font-family: "Vazirmatn", sans-serif; 
-              direction: rtl; 
-              -webkit-print-color-adjust: exact !important; 
-              print-color-adjust: exact !important;
-              background-color: white;
-            }
-          </style>
-        `);
-        printWindow.document.write('</head><body class="bg-white">');
-        printWindow.document.write(content.innerHTML);
-        printWindow.document.write('</body></html>');
-        printWindow.document.close();
-        setTimeout(() => {
-            printWindow.focus();
-            printWindow.print();
-            printWindow.close();
-        }, 500);
-      }
-    }
-  };
-
   const PrintableLetter = React.forwardRef<HTMLDivElement, { commitment: AccountingCommitmentWithDetails }>(({ commitment }, ref) => (
-      <div ref={ref} className="w-[148mm] h-[210mm] bg-white relative p-6 mx-auto flex flex-col font-['Vazirmatn'] text-black overflow-hidden">
+      <div ref={ref} className="w-[148mm] h-[210mm] bg-white relative p-6 mx-auto flex flex-col font-['Vazirmatn'] text-black overflow-hidden print:shadow-none print:m-0">
         {/* Decorative Side Bar */}
         <div className="absolute top-0 right-0 h-full w-[12mm] bg-[#333745]"></div>
         <div className="absolute top-0 right-[4mm] h-full w-[4mm] bg-[#366FB3]"></div>
@@ -191,7 +145,7 @@ const ViewLetterModal = ({
   ));
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4">
+    <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4 no-print">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl p-6 relative animate-fade-in-down max-h-[90vh] flex flex-col">
         <div className="flex justify-between items-center border-b pb-3 mb-4">
             <h2 className="text-xl font-bold text-slate-800">نمایش نامه تعهد</h2>
@@ -199,12 +153,12 @@ const ViewLetterModal = ({
                 <CloseIcon />
             </button>
         </div>
-        <div className="overflow-auto flex-1 bg-slate-100 p-4 rounded-md">
-           <PrintableLetter ref={printableRef} commitment={commitment} />
+        <div className="overflow-auto flex-1 bg-slate-100 p-4 rounded-md printable-area">
+           <PrintableLetter commitment={commitment} />
         </div>
         <div className="flex justify-end pt-4 mt-4 border-t">
           <button onClick={onClose} className="px-4 py-2 bg-slate-200 text-slate-800 rounded-md hover:bg-slate-300 transition ml-2">بستن</button>
-          <button onClick={handlePrint} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition">چاپ</button>
+          <button onClick={() => window.print()} className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition">چاپ</button>
         </div>
       </div>
     </div>
@@ -212,10 +166,7 @@ const ViewLetterModal = ({
 };
 
 const CommitmentArchive = ({ 
-    commitments, 
-    onView, 
-    onEdit, 
-    onDelete 
+    commitments, onView, onEdit, onDelete 
 } : {
     commitments: AccountingCommitmentWithDetails[],
     onView: (c: AccountingCommitmentWithDetails) => void,
@@ -226,40 +177,28 @@ const CommitmentArchive = ({
 
     const groupedCommitments = useMemo(() => {
         const groups = commitments.reduce((acc, c) => {
-            const key = c.personnel_id ? `p_${c.personnel_id}` : `e_${c.borrower_first_name}_${c.borrower_last_name}`;
+            const borrowerName = `${c.personnel_first_name} ${c.personnel_last_name}`;
+            const key = c.personnel_id ? `p_${c.personnel_id}` : `e_${borrowerName}`;
             if (!acc[key]) {
-                acc[key] = {
-                    borrowerName: `${c.personnel_first_name} ${c.personnel_last_name}`,
-                    commitments: [],
-                    totalAmount: 0,
-                };
+                acc[key] = { borrowerName, commitments: [], totalAmount: 0 };
             }
             acc[key].commitments.push(c);
             acc[key].totalAmount += Number(c.amount);
             return acc;
         }, {} as Record<string, { borrowerName: string; commitments: AccountingCommitmentWithDetails[]; totalAmount: number }>);
-        return Object.entries(groups).map(([key, value]) => ({ key, ...value }));
+        return Object.values(groups).sort((a,b) => a.borrowerName.localeCompare(b.borrowerName));
     }, [commitments]);
 
     const toggleExpand = (key: string) => {
         setExpandedKeys(prev => {
             const newSet = new Set(prev);
-            if (newSet.has(key)) {
-                newSet.delete(key);
-            } else {
-                newSet.add(key);
-            }
+            if (newSet.has(key)) newSet.delete(key);
+            else newSet.add(key);
             return newSet;
         });
     };
 
-    if (commitments.length === 0) {
-        return (
-            <div className="text-center py-8 bg-slate-50 rounded-lg">
-                <p className="text-slate-500">هیچ نامه تعهدی در آرشیو ذخیره نشده است.</p>
-            </div>
-        );
-    }
+    if (commitments.length === 0) return <div className="text-center py-8 bg-slate-50 rounded-lg"><p className="text-slate-500">هیچ نامه تعهدی در آرشیو ذخیره نشده است.</p></div>;
 
     return (
         <div className="overflow-x-auto bg-white rounded-xl shadow-md border border-slate-200">
@@ -273,20 +212,19 @@ const CommitmentArchive = ({
                     </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-slate-200">
-                    {groupedCommitments.map(group => (
-                        <React.Fragment key={group.key}>
-                            <tr className="hover:bg-slate-50/70 cursor-pointer" onClick={() => toggleExpand(group.key)}>
-                                <td className="px-4 py-4 text-slate-400">
-                                    <ChevronDownIcon className={`w-5 h-5 transition-transform ${expandedKeys.has(group.key) ? 'rotate-180' : ''}`} />
-                                </td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-slate-800">{group.borrowerName}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{toPersianDigits(group.commitments.length)}</td>
-                                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 font-mono">{formatRial(group.totalAmount)}</td>
-                            </tr>
-                            {expandedKeys.has(group.key) && (
-                                <tr>
-                                    <td colSpan={4} className="p-0">
-                                        <div className="p-4 bg-slate-50">
+                    {groupedCommitments.map(group => {
+                         const groupKey = group.borrowerName;
+                         return (
+                            <React.Fragment key={groupKey}>
+                                <tr className="hover:bg-slate-50/70 cursor-pointer" onClick={() => toggleExpand(groupKey)}>
+                                    <td className="px-4 py-4 text-slate-400"><ChevronDownIcon className={`w-5 h-5 transition-transform ${expandedKeys.has(groupKey) ? 'rotate-180' : ''}`} /></td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-slate-800">{group.borrowerName}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600">{toPersianDigits(group.commitments.length)}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-600 font-mono">{formatRial(group.totalAmount)}</td>
+                                </tr>
+                                {expandedKeys.has(groupKey) && (
+                                    <tr>
+                                        <td colSpan={4} className="p-0"><div className="p-4 bg-slate-50">
                                             <table className="min-w-full divide-y divide-slate-200 bg-white rounded-md shadow-inner">
                                                 <thead className="bg-slate-100">
                                                     <tr>
@@ -315,237 +253,190 @@ const CommitmentArchive = ({
                                                 ))}
                                                 </tbody>
                                             </table>
-                                        </div>
-                                    </td>
-                                </tr>
-                            )}
-                        </React.Fragment>
-                    ))}
+                                        </div></td>
+                                    </tr>
+                                )}
+                            </React.Fragment>
+                        )
+                    })}
                 </tbody>
             </table>
         </div>
     );
 }
 
+// --- Main Page Component ---
 
-export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> = ({ personnelList }) => {
-  const [commitmentToEdit, setCommitmentToEdit] = useState<AccountingCommitmentWithDetails | null>(null);
+const initialFormState = {
+  id: null as number | null,
+  addressee: 'ریاست محترم بانک رفاه شعبه مرکزی سیرجان',
+  title: 'تعهد حسابداری',
+  letter_date: new Date().toLocaleDateString('fa-IR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-'),
+  amount: '' as number | '',
+  personnel_id: null as number | null,
+  borrower_search: '',
+  borrower_first_name: '',
+  borrower_last_name: '',
+  borrower_father_name: '',
+  borrower_national_id: '',
+  guarantor_search: '',
+  guarantor_first_name: '',
+  guarantor_last_name: '',
+  total_factors: '' as number | '',
+};
 
-  const [addressee, setAddressee] = useState('ریاست محترم بانک رفاه شعبه مرکزی سیرجان');
-  const [title, setTitle] = useState('تعهد حسابداری');
-  const [letterBody, setLetterBody] = useState('');
-  const [date, setDate] = useState(new Date().toLocaleDateString('fa-IR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-'));
-  const [amount, setAmount] = useState<number | ''>('');
-  const [totalFactors, setTotalFactors] = useState<number | ''>('');
-  const [personnelFactors, setPersonnelFactors] = useState<Record<string, number>>({});
-  
-  const [selectedPersonnel, setSelectedPersonnel] = useState<Personnel | null>(null);
-  const [borrowerSearch, setBorrowerSearch] = useState('');
-  const [borrowerDetails, setBorrowerDetails] = useState({
-      first_name: '', last_name: '', father_name: '', national_id: ''
-  });
-
-  const [guarantorSearch, setGuarantorSearch] = useState('');
-  const [guarantor, setGuarantor] = useState({
-      first_name: '', last_name: ''
-  });
-
-  const [calculation, setCalculation] = useState<{
-      ceiling: number; previousTotal: number; effectiveCeiling: number;
-      remaining: number; isPermitted: boolean;
-  } | null>(null);
-
+export const AccountingCommitmentPage: React.FC<{ personnelList: Personnel[] }> = ({ personnelList }) => {
+  const [formState, setFormState] = useState(initialFormState);
   const [commitments, setCommitments] = useState<AccountingCommitmentWithDetails[]>([]);
-  
+  const [personnelFactors, setPersonnelFactors] = useState<Record<string, number>>({});
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [commitmentToView, setCommitmentToView] = useState<AccountingCommitmentWithDetails | null>(null);
-  
-  const fetchCommitments = async () => {
+
+  const fetchCommitments = useCallback(async () => {
     try {
-        const response = await fetch('/api/commitments');
-        if (!response.ok) throw new Error('Failed to fetch commitments');
-        const data = await response.json();
-        setCommitments(data);
+      const response = await fetch('/api/commitments');
+      if (!response.ok) throw new Error('Failed to fetch commitments');
+      setCommitments(await response.json());
     } catch (error) {
-        console.error(error);
-        alert('خطا در بارگذاری اطلاعات پیشین تعهدات');
+      console.error(error);
+      alert('خطا در بارگذاری اطلاعات پیشین تعهدات');
     }
-  };
-
-  useEffect(() => { fetchCommitments(); }, []);
-
-  const generateLetterBody = useCallback(() => {
-    const template = `احتراماً حسابداری این شرکت تعهد می نماید در صورت عدم پرداخت اقساط وام به مبلغ ${amount ? formatRial(amount) : '[مبلغ وام]'} ریال بنام آقای ${borrowerDetails.first_name || borrowerDetails.last_name ? `${borrowerDetails.first_name} ${borrowerDetails.last_name}` : '[نام وام گیرنده]'} فرزند ${borrowerDetails.father_name || '[نام پدر]'} با کد ملی ${borrowerDetails.national_id ? toPersianDigits(borrowerDetails.national_id) : '[کد ملی]'} از حقوق ضامن نامبرده آقای ${guarantor.first_name || guarantor.last_name ? `${guarantor.first_name} ${guarantor.last_name}` : '[نام ضامن]'} در این شرکت شاغل باشد بعد از اعلام بانک و با رعایت سقف قانونی کسر و به حساب آن بانک واریز نماید.\n\nاین گواهی بنا به درخواست نامبرده جهت ارائه به بانک فوق صادر گردیده است و فاقد هرگونه ارزش دیگری می باشد.`;
-    setLetterBody(template);
-  }, [borrowerDetails, guarantor, amount]);
-  
-  useEffect(generateLetterBody, [generateLetterBody]);
-
-  useEffect(() => {
-    if (selectedPersonnel && totalFactors !== '' && amount !== '') {
-        const previousTotal = commitments
-            .filter(c => c.personnel_id === selectedPersonnel.id && c.id !== commitmentToEdit?.id)
-            .reduce((sum, c) => sum + Number(c.amount), 0);
-        
-        const ceiling = Number(totalFactors) * 30;
-        const effectiveCeiling = ceiling - previousTotal;
-        const remaining = effectiveCeiling - Number(amount);
-        const isPermitted = Number(amount) <= effectiveCeiling;
-
-        setCalculation({ ceiling, previousTotal, effectiveCeiling, remaining, isPermitted });
-    } else {
-        setCalculation(null);
-    }
-  }, [selectedPersonnel, totalFactors, amount, commitments, commitmentToEdit]);
-  
-  const handleSelectBorrower = (p: Personnel) => {
-    setSelectedPersonnel(p);
-    setBorrowerSearch(`${p.first_name} ${p.last_name} (${toPersianDigits(p.personnel_code)})`);
-    setBorrowerDetails({ first_name: p.first_name, last_name: p.last_name, father_name: p.father_name, national_id: p.national_id });
-    const factor = personnelFactors[p.personnel_code];
-    if (factor) setTotalFactors(factor); else setTotalFactors('');
-  };
-  
-  const handleBorrowerSearchChange = (val: string) => {
-    setBorrowerSearch(val);
-    if(selectedPersonnel) {
-        setSelectedPersonnel(null);
-        setBorrowerDetails({ first_name: '', last_name: '', father_name: '', national_id: '' });
-    }
-  };
-
-  const handleGuarantorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setGuarantor(prev => ({ ...prev, [e.target.name]: e.target.value }));
-  };
-
-  const handleSelectGuarantor = (p: Personnel) => {
-    setGuarantor({ first_name: p.first_name, last_name: p.last_name });
-    setGuarantorSearch(`${p.first_name} ${p.last_name} (${toPersianDigits(p.personnel_code)})`);
-  };
-  
-  const resetForm = useCallback(() => {
-    setCommitmentToEdit(null);
-    setSelectedPersonnel(null);
-    setBorrowerSearch('');
-    setBorrowerDetails({ first_name: '', last_name: '', father_name: '', national_id: '' });
-    setGuarantor({ first_name: '', last_name: '' });
-    setGuarantorSearch('');
-    setAmount('');
-    setTotalFactors('');
-    setAddressee('ریاست محترم بانک رفاه شعبه مرکزی سیرجان');
-    setTitle('تعهد حسابداری');
-    setDate(new Date().toLocaleDateString('fa-IR', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '-'));
   }, []);
 
-  useEffect(() => {
-    if (commitmentToEdit) {
-        setAddressee(commitmentToEdit.addressee);
-        setTitle(commitmentToEdit.title);
-        setDate(commitmentToEdit.letter_date);
-        setAmount(commitmentToEdit.amount);
-        
-        const p = personnelList.find(p => p.id === commitmentToEdit.personnel_id);
-        if(p) { handleSelectBorrower(p); } 
-        else {
-            setSelectedPersonnel(null);
-            setBorrowerSearch('');
-            setBorrowerDetails({
-                first_name: commitmentToEdit.borrower_first_name || '',
-                last_name: commitmentToEdit.borrower_last_name || '',
-                father_name: commitmentToEdit.borrower_father_name || '',
-                national_id: commitmentToEdit.borrower_national_id || '',
-            });
-        }
-        
-        setGuarantor({ first_name: commitmentToEdit.guarantor_first_name, last_name: commitmentToEdit.guarantor_last_name });
-        setGuarantorSearch(`${commitmentToEdit.guarantor_first_name} ${commitmentToEdit.guarantor_last_name}`);
-        
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-    }
-  }, [commitmentToEdit, personnelList]);
+  useEffect(() => { fetchCommitments(); }, [fetchCommitments]);
 
+  const letterBody = useMemo(() => {
+    const borrowerName = `${formState.borrower_first_name} ${formState.borrower_last_name}`.trim();
+    const guarantorName = `${formState.guarantor_first_name} ${formState.guarantor_last_name}`.trim();
+    return `احتراماً حسابداری این شرکت تعهد می نماید در صورت عدم پرداخت اقساط وام به مبلغ ${formState.amount ? formatRial(formState.amount) : '[مبلغ وام]'} ریال بنام آقای ${borrowerName || '[نام وام گیرنده]'} فرزند ${formState.borrower_father_name || '[نام پدر]'} با کد ملی ${formState.borrower_national_id ? toPersianDigits(formState.borrower_national_id) : '[کد ملی]'} از حقوق ضامن نامبرده آقای ${guarantorName || '[نام ضامن]'} در این شرکت شاغل باشد بعد از اعلام بانک و با رعایت سقف قانونی کسر و به حساب آن بانک واریز نماید.\n\nاین گواهی بنا به درخواست نامبرده جهت ارائه به بانک فوق صادر گردیده است و فاقد هرگونه ارزش دیگری می باشد.`;
+  }, [formState]);
+
+  const calculation = useMemo(() => {
+    if (formState.personnel_id && formState.total_factors !== '' && formState.amount !== '') {
+        const previousTotal = commitments
+            .filter(c => c.personnel_id === formState.personnel_id && c.id !== formState.id)
+            .reduce((sum, c) => sum + Number(c.amount), 0);
+        const ceiling = Number(formState.total_factors) * 30;
+        const effectiveCeiling = ceiling - previousTotal;
+        const remaining = effectiveCeiling - Number(formState.amount);
+        const isPermitted = Number(formState.amount) <= effectiveCeiling;
+        return { ceiling, previousTotal, effectiveCeiling, remaining, isPermitted };
+    }
+    return null;
+  }, [formState.personnel_id, formState.total_factors, formState.amount, formState.id, commitments]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    const isNumeric = ['amount', 'total_factors'].includes(name);
+    
+    setFormState(prev => ({
+        ...prev,
+        [name]: isNumeric ? (value === '' ? '' : parseInt(toEnglishDigits(value).replace(/,/g, ''), 10) || 0) : value
+    }));
+  };
+  
+  const handleSelectBorrower = (p: Personnel) => {
+    setFormState(prev => ({
+        ...prev,
+        personnel_id: p.id,
+        borrower_search: `${p.first_name} ${p.last_name} (${toPersianDigits(p.personnel_code)})`,
+        borrower_first_name: p.first_name,
+        borrower_last_name: p.last_name,
+        borrower_father_name: p.father_name,
+        borrower_national_id: p.national_id,
+        total_factors: personnelFactors[p.personnel_code] || '',
+    }));
+  };
+
+  const handleBorrowerSearchChange = (val: string) => {
+      setFormState(prev => ({ ...prev, borrower_search: val, personnel_id: null }));
+  };
+  
+  const handleSelectGuarantor = (p: Personnel) => {
+    setFormState(prev => ({
+        ...prev,
+        guarantor_search: `${p.first_name} ${p.last_name} (${toPersianDigits(p.personnel_code)})`,
+        guarantor_first_name: p.first_name,
+        guarantor_last_name: p.last_name,
+    }));
+  };
+
+  const resetForm = useCallback(() => setFormState(initialFormState), []);
+  
+  const handleEdit = useCallback((c: AccountingCommitmentWithDetails) => {
+    const p = c.personnel_id ? personnelList.find(p => p.id === c.personnel_id) : null;
+    setFormState({
+        id: c.id,
+        addressee: c.addressee,
+        title: c.title,
+        letter_date: c.letter_date,
+        amount: c.amount,
+        personnel_id: c.personnel_id,
+        borrower_search: p ? `${p.first_name} ${p.last_name} (${toPersianDigits(p.personnel_code)})` : '',
+        borrower_first_name: c.personnel_first_name,
+        borrower_last_name: c.personnel_last_name,
+        borrower_father_name: p ? p.father_name : c.borrower_father_name || '',
+        borrower_national_id: p ? p.national_id : c.borrower_national_id || '',
+        guarantor_first_name: c.guarantor_first_name,
+        guarantor_last_name: c.guarantor_last_name,
+        guarantor_search: `${c.guarantor_first_name} ${c.guarantor_last_name}`,
+        total_factors: p && personnelFactors[p.personnel_code] ? personnelFactors[p.personnel_code] : '',
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [personnelList, personnelFactors]);
 
   const handleSave = async () => {
-    if (!addressee || !title || !letterBody || !borrowerDetails.first_name || !borrowerDetails.last_name || !guarantor.first_name || !guarantor.last_name || !date || amount === '') {
+    if (!formState.addressee || !formState.title || !letterBody || !formState.borrower_first_name || !formState.borrower_last_name || !formState.guarantor_first_name || !formState.guarantor_last_name || !formState.letter_date || formState.amount === '') {
         alert('لطفاً تمام فیلدهای ستاره‌دار و اطلاعات وام گیرنده و ضامن را به طور کامل پر کنید.');
         return;
     }
-    
-    const commitmentData: Partial<AccountingCommitment> & { id?: number } = {
-        id: commitmentToEdit?.id,
-        title, body: letterBody, letter_date: date,
-        amount: Number(amount),
-        addressee,
-        personnel_id: selectedPersonnel ? selectedPersonnel.id : null,
-        guarantor_first_name: guarantor.first_name,
-        guarantor_last_name: guarantor.last_name,
-        borrower_first_name: !selectedPersonnel ? borrowerDetails.first_name : undefined,
-        borrower_last_name: !selectedPersonnel ? borrowerDetails.last_name : undefined,
-        borrower_father_name: !selectedPersonnel ? borrowerDetails.father_name : undefined,
-        borrower_national_id: !selectedPersonnel ? borrowerDetails.national_id : undefined,
+
+    const { borrower_search, guarantor_search, total_factors, ...dataToSave } = formState;
+
+    const payload: Partial<AccountingCommitment> & { id?: number } = {
+        ...dataToSave,
+        body: letterBody,
+        amount: Number(dataToSave.amount),
+        borrower_first_name: !dataToSave.personnel_id ? dataToSave.borrower_first_name : undefined,
+        borrower_last_name: !dataToSave.personnel_id ? dataToSave.borrower_last_name : undefined,
+        borrower_father_name: !dataToSave.personnel_id ? dataToSave.borrower_father_name : undefined,
+        borrower_national_id: !dataToSave.personnel_id ? dataToSave.borrower_national_id : undefined,
     };
 
     try {
-        const response = await fetch('/api/commitments', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(commitmentData),
-        });
+        const response = await fetch('/api/commitments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         if (!response.ok) throw new Error((await response.json()).error || 'Failed to save');
         await fetchCommitments();
-        alert(`نامه تعهد با موفقیت ${commitmentToEdit ? 'ویرایش' : 'ذخیره'} شد.`);
+        alert(`نامه تعهد با موفقیت ${formState.id ? 'ویرایش' : 'ذخیره'} شد.`);
         resetForm();
     } catch(e) {
         alert(`خطا در ذخیره سازی: ${e instanceof Error ? e.message : 'Unknown error'}`);
     }
   };
 
-  const closeViewModal = useCallback(() => {
-    setIsViewModalOpen(false);
-    setCommitmentToView(null);
-  }, []);
-
   const handlePreview = () => {
+    const p = formState.personnel_id ? personnelList.find(p => p.id === formState.personnel_id) : null;
     const previewData: AccountingCommitmentWithDetails = {
-        id: commitmentToEdit?.id || 0,
-        personnel_id: selectedPersonnel?.id || null,
-        addressee, title,
-        letter_date: date,
-        amount: Number(amount) || 0,
+        id: formState.id || 0,
+        personnel_id: formState.personnel_id,
+        addressee: formState.addressee,
+        title: formState.title,
+        letter_date: formState.letter_date,
+        amount: Number(formState.amount) || 0,
         body: letterBody,
-        created_at: commitmentToEdit?.created_at || new Date().toISOString(),
-        guarantor_first_name: guarantor.first_name,
-        guarantor_last_name: guarantor.last_name,
-        personnel_first_name: borrowerDetails.first_name,
-        personnel_last_name: borrowerDetails.last_name,
-        personnel_code: selectedPersonnel?.personnel_code || null,
-        borrower_first_name: borrowerDetails.first_name,
-        borrower_last_name: borrowerDetails.last_name,
-        borrower_father_name: borrowerDetails.father_name,
-        borrower_national_id: borrowerDetails.national_id,
+        created_at: new Date().toISOString(),
+        guarantor_first_name: formState.guarantor_first_name,
+        guarantor_last_name: formState.guarantor_last_name,
+        personnel_first_name: formState.borrower_first_name,
+        personnel_last_name: formState.borrower_last_name,
+        personnel_code: p?.personnel_code || null,
+        borrower_first_name: formState.borrower_first_name,
+        borrower_last_name: formState.borrower_last_name,
+        borrower_father_name: formState.borrower_father_name,
+        borrower_national_id: formState.borrower_national_id,
     };
     setCommitmentToView(previewData);
     setIsViewModalOpen(true);
-  };
-  
-  const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const englishValue = toEnglishDigits(e.target.value);
-    const numericValue = parseInt(englishValue.replace(/,/g, ''), 10);
-    setAmount(isNaN(numericValue) ? '' : numericValue);
-  };
-
-  const handleTotalFactorsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const englishValue = toEnglishDigits(e.target.value);
-    const numericValue = parseInt(englishValue.replace(/,/g, ''), 10);
-    setTotalFactors(isNaN(numericValue) ? '' : numericValue);
-  };
-
-  const handleDownloadFactorsSample = () => {
-    const headers = ['کد پرسنلی', 'جمع عوامل حکمی'];
-    const ws = XLSX.utils.aoa_to_sheet([headers]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Factors');
-    XLSX.writeFile(wb, 'نمونه_عوامل_حکمی.xlsx');
   };
 
   const handleFactorsImport = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -562,20 +453,14 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
             const json: any[] = XLSX.utils.sheet_to_json(worksheet);
 
             const factorsMap: Record<string, number> = {};
-            let processedCount = 0;
             json.forEach(row => {
-                const personnelCode = row['کد پرسنلی'] ? String(row['کد پرسنلی']) : null;
-                const factorAmount = row['جمع عوامل حکمی'] ? Number(toEnglishDigits(String(row['جمع عوامل حکمی'])).replace(/,/g, '')) : null;
-
-                if (personnelCode && factorAmount !== null && !isNaN(factorAmount)) {
-                    factorsMap[personnelCode] = factorAmount;
-                    processedCount++;
-                }
+                const code = row['کد پرسنلی'] ? String(row['کد پرسنلی']) : null;
+                const amount = row['جمع عوامل حکمی'] ? Number(toEnglishDigits(String(row['جمع عوامل حکمی'])).replace(/,/g, '')) : null;
+                if (code && amount !== null && !isNaN(amount)) factorsMap[code] = amount;
             });
 
             setPersonnelFactors(factorsMap);
-            alert(`${toPersianDigits(processedCount)} رکورد با موفقیت بارگذاری شد.`);
-
+            alert(`${toPersianDigits(Object.keys(factorsMap).length)} رکورد با موفقیت بارگذاری شد.`);
         } catch (error) {
             alert(`خطا در بارگذاری فایل: ${error instanceof Error ? error.message : 'Unknown error'}`);
         } finally {
@@ -597,52 +482,22 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
     }
   };
 
-  const renderCalculation = () => {
-      if (!selectedPersonnel) {
-          return (
-            <div className="mt-4 p-4 border border-slate-200 bg-slate-50 rounded-lg text-sm text-slate-600">
-                برای محاسبه سقف تعهد، وام گیرنده را از لیست پرسنل موجود انتخاب نمایید.
-            </div>
-          );
-      }
-      if (!calculation) return null;
-      
-      const { ceiling, previousTotal, effectiveCeiling, remaining, isPermitted } = calculation;
-
-      return (
-        <div className="mt-4 p-4 border border-blue-200 bg-blue-50 rounded-lg space-y-2 text-sm">
-            <h3 className="font-bold text-base text-blue-800">نتایج محاسبه سقف تعهد</h3>
-            <div className="flex justify-between"><span>سقف تعهد مجاز (۳۰ برابر حکم):</span> <span className="font-semibold">{formatRial(ceiling)} ریال</span></div>
-            <div className="flex justify-between"><span>مجموع تعهدات قبلی:</span> <span className="font-semibold text-orange-600">{formatRial(previousTotal)} ریال</span></div>
-            <div className="flex justify-between border-t pt-2 mt-2">
-                <span className="font-bold">سقف تعهد موثر (پس از کسر تعهدات):</span>
-                <span className="font-bold text-lg">{formatRial(effectiveCeiling)} ریال</span>
-            </div>
-             <div className="flex justify-between"><span>باقیمانده پس از وام فعلی:</span> <span className="font-semibold">{formatRial(remaining)} ریال</span></div>
-            <div className={`flex justify-between items-center p-2 rounded-md mt-2 ${isPermitted ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                <span className="font-bold text-base">وضعیت:</span>
-                <span className="font-bold text-base">{isPermitted ? 'مجاز به دریافت تعهد' : 'غیر مجاز (مبلغ وام بیش از سقف است)'}</span>
-            </div>
-        </div>
-      );
-  }
-
   return (
     <div className="animate-fade-in-up space-y-8">
-        {isViewModalOpen && <ViewLetterModal commitment={commitmentToView} onClose={closeViewModal} />}
+        {isViewModalOpen && <ViewLetterModal commitment={commitmentToView} onClose={() => setIsViewModalOpen(false)} />}
         
         <div className="bg-white rounded-xl shadow-md p-6 border border-slate-200">
-            <h1 className="text-2xl font-bold text-slate-800 mb-4 border-b pb-3">{commitmentToEdit ? `ویرایش نامه تعهد برای: ${commitmentToEdit.personnel_first_name} ${commitmentToEdit.personnel_last_name}` : 'ایجاد نامه تعهد جدید'}</h1>
+            <h1 className="text-2xl font-bold text-slate-800 mb-4 border-b pb-3">{formState.id ? `ویرایش نامه تعهد برای: ${formState.borrower_first_name} ${formState.borrower_last_name}` : 'ایجاد نامه تعهد جدید'}</h1>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-4">
                <div>
                   <label htmlFor="addressee" className="block text-sm font-medium text-slate-700 mb-1">گیرنده نامه<span className="text-red-500 mr-1">*</span></label>
-                  <input id="addressee" value={addressee} onChange={(e) => setAddressee(e.target.value)} className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
+                  <input id="addressee" name="addressee" value={formState.addressee} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
                 </div>
                  <div>
                     <label htmlFor="total_factors" className="block text-sm font-medium text-slate-700 mb-1">جمع عوامل حکمی (ریال)<span className="text-red-500 mr-1">*</span></label>
                     <div className="flex items-center gap-2">
-                        <input type="text" id="total_factors" value={totalFactors === '' ? '' : formatRial(totalFactors)} onChange={handleTotalFactorsChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg" placeholder="برای محاسبه سقف تعهد" />
+                        <input type="text" id="total_factors" name="total_factors" value={formState.total_factors === '' ? '' : formatRial(formState.total_factors)} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg" placeholder="برای محاسبه سقف تعهد" />
                         <div className="relative group">
                             <label title="ورود انبوه با اکسل" className="p-2.5 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 cursor-pointer transition">
                                 <UploadIcon className="w-5 h-5" />
@@ -650,37 +505,49 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
                             </label>
                             <div className="absolute top-full right-0 mt-2 w-56 bg-white border rounded-lg shadow-xl p-2 opacity-0 group-hover:opacity-100 invisible group-hover:visible transition-opacity text-xs z-10">
                                 <p className="text-slate-600 mb-2">برای ورود انبوه عوامل حکمی پرسنل از فایل اکسل استفاده کنید. (فرمت: کد پرسنلی، جمع عوامل حکمی)</p>
-                                <button onClick={handleDownloadFactorsSample} className="text-blue-600 hover:underline w-full text-right font-semibold">دانلود نمونه اکسل</button>
+                                <button onClick={() => { const sampleHeaders = ['کد پرسنلی', 'جمع عوامل حکمی']; const ws = XLSX.utils.aoa_to_sheet([sampleHeaders]); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'Factors'); XLSX.writeFile(wb, 'نمونه_عوامل_حکمی.xlsx'); }} className="text-blue-600 hover:underline w-full text-right font-semibold">دانلود نمونه اکسل</button>
                             </div>
                         </div>
                     </div>
                 </div>
                 <div>
                   <label htmlFor="amount" className="block text-sm font-medium text-slate-700 mb-1">مبلغ وام (ریال)<span className="text-red-500 mr-1">*</span></label>
-                  <input type="text" id="amount" value={amount === '' ? '' : formatRial(amount)} onChange={handleAmountChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
+                  <input type="text" id="amount" name="amount" value={formState.amount === '' ? '' : formatRial(formState.amount)} onChange={handleInputChange} className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
                 </div>
             </div>
 
             <div className="mt-6 pt-4 border-t">
                 <h3 className="text-lg font-semibold text-slate-800 mb-3">اطلاعات وام گیرنده</h3>
-                <PersonnelSearch label="جستجوی وام گیرنده از پرسنل" placeholder="جستجو برای تکمیل خودکار..." personnelList={personnelList} onSelect={handleSelectBorrower} value={borrowerSearch} onChange={handleBorrowerSearchChange} />
+                <PersonnelSearch label="جستجوی وام گیرنده از پرسنل" placeholder="جستجو برای تکمیل خودکار..." personnelList={personnelList} onSelect={handleSelectBorrower} value={formState.borrower_search} onChange={handleBorrowerSearchChange} />
                 <div className="flex items-center text-slate-500 my-2"><div className="flex-grow h-px bg-slate-200"></div><span className="mx-2 text-xs">یا</span><div className="flex-grow h-px bg-slate-200"></div></div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <input name="first_name" value={borrowerDetails.first_name} disabled={!!selectedPersonnel} onChange={e => setBorrowerDetails(p => ({...p, first_name: e.target.value}))} placeholder="نام*" className="w-full px-3 py-2 border border-slate-300 rounded-lg disabled:bg-slate-100"/>
-                    <input name="last_name" value={borrowerDetails.last_name} disabled={!!selectedPersonnel} onChange={e => setBorrowerDetails(p => ({...p, last_name: e.target.value}))} placeholder="نام خانوادگی*" className="w-full px-3 py-2 border border-slate-300 rounded-lg disabled:bg-slate-100"/>
-                    <input name="father_name" value={borrowerDetails.father_name} disabled={!!selectedPersonnel} onChange={e => setBorrowerDetails(p => ({...p, father_name: e.target.value}))} placeholder="نام پدر" className="w-full px-3 py-2 border border-slate-300 rounded-lg disabled:bg-slate-100"/>
-                    <input name="national_id" value={borrowerDetails.national_id} disabled={!!selectedPersonnel} onChange={e => setBorrowerDetails(p => ({...p, national_id: e.target.value}))} placeholder="کد ملی" className="w-full px-3 py-2 border border-slate-300 rounded-lg disabled:bg-slate-100"/>
+                    <input name="borrower_first_name" value={formState.borrower_first_name} disabled={!!formState.personnel_id} onChange={handleInputChange} placeholder="نام*" className="w-full px-3 py-2 border border-slate-300 rounded-lg disabled:bg-slate-100"/>
+                    <input name="borrower_last_name" value={formState.borrower_last_name} disabled={!!formState.personnel_id} onChange={handleInputChange} placeholder="نام خانوادگی*" className="w-full px-3 py-2 border border-slate-300 rounded-lg disabled:bg-slate-100"/>
+                    <input name="borrower_father_name" value={formState.borrower_father_name} disabled={!!formState.personnel_id} onChange={handleInputChange} placeholder="نام پدر" className="w-full px-3 py-2 border border-slate-300 rounded-lg disabled:bg-slate-100"/>
+                    <input name="borrower_national_id" value={formState.borrower_national_id} disabled={!!formState.personnel_id} onChange={handleInputChange} placeholder="کد ملی" className="w-full px-3 py-2 border border-slate-300 rounded-lg disabled:bg-slate-100"/>
                 </div>
             </div>
             
-            {renderCalculation()}
+            {calculation && (
+              <div className="mt-4 p-4 border border-blue-200 bg-blue-50 rounded-lg space-y-2 text-sm">
+                <h3 className="font-bold text-base text-blue-800">نتایج محاسبه سقف تعهد</h3>
+                <div className="flex justify-between"><span>سقف تعهد مجاز (۳۰ برابر حکم):</span> <span className="font-semibold">{formatRial(calculation.ceiling)} ریال</span></div>
+                <div className="flex justify-between"><span>مجموع تعهدات قبلی:</span> <span className="font-semibold text-orange-600">{formatRial(calculation.previousTotal)} ریال</span></div>
+                <div className="flex justify-between border-t pt-2 mt-2"><span className="font-bold">سقف تعهد موثر (پس از کسر تعهدات):</span><span className="font-bold text-lg">{formatRial(calculation.effectiveCeiling)} ریال</span></div>
+                <div className="flex justify-between"><span>باقیمانده پس از وام فعلی:</span> <span className="font-semibold">{formatRial(calculation.remaining)} ریال</span></div>
+                <div className={`flex justify-between items-center p-2 rounded-md mt-2 ${calculation.isPermitted ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                    <span className="font-bold text-base">وضعیت:</span>
+                    <span className="font-bold text-base">{calculation.isPermitted ? 'مجاز به دریافت تعهد' : 'غیر مجاز (مبلغ وام بیش از سقف است)'}</span>
+                </div>
+              </div>
+            )}
             
             <div className="mt-6 pt-4 border-t">
                 <h3 className="text-lg font-semibold text-slate-800 mb-3">اطلاعات ضامن</h3>
-                 <PersonnelSearch label="جستجوی ضامن از پرسنل" placeholder="جستجو برای تکمیل خودکار..." personnelList={personnelList} onSelect={handleSelectGuarantor} value={guarantorSearch} onChange={setGuarantorSearch} />
+                 <PersonnelSearch label="جستجوی ضامن از پرسنل" placeholder="جستجو برای تکمیل خودکار..." personnelList={personnelList} onSelect={handleSelectGuarantor} value={formState.guarantor_search} onChange={(val) => setFormState(p => ({...p, guarantor_search: val}))} />
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                    <input name="first_name" value={guarantor.first_name} onChange={handleGuarantorChange} placeholder="نام ضامن*" className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
-                    <input name="last_name" value={guarantor.last_name} onChange={handleGuarantorChange} placeholder="نام خانوادگی ضامن*" className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
+                    <input name="guarantor_first_name" value={formState.guarantor_first_name} onChange={handleInputChange} placeholder="نام ضامن*" className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
+                    <input name="guarantor_last_name" value={formState.guarantor_last_name} onChange={handleInputChange} placeholder="نام خانوادگی ضامن*" className="w-full px-3 py-2 border border-slate-300 rounded-lg"/>
                  </div>
             </div>
             <div className="mt-4">
@@ -688,15 +555,15 @@ export const AccountingCommitmentPage: React.FC<AccountingCommitmentPageProps> =
                 <textarea value={letterBody} readOnly rows={6} className="w-full px-3 py-2 border border-slate-200 bg-slate-50 rounded-lg shadow-sm leading-relaxed"/>
             </div>
             <div className="flex justify-end pt-6 mt-4 border-t border-slate-200 space-x-2 space-x-reverse">
-                <button onClick={resetForm} className="px-5 py-2 bg-slate-100 text-slate-800 rounded-lg hover:bg-slate-200 transition font-medium">{commitmentToEdit ? 'لغو ویرایش' : 'پاک کردن فرم'}</button>
+                <button onClick={resetForm} className="px-5 py-2 bg-slate-100 text-slate-800 rounded-lg hover:bg-slate-200 transition font-medium">{formState.id ? 'لغو ویرایش' : 'پاک کردن فرم'}</button>
                 <button onClick={handlePreview} className="px-5 py-2 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition font-medium shadow-sm">نمایش و چاپ پیش‌نمایش</button>
-                <button onClick={handleSave} className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium shadow-sm">{commitmentToEdit ? 'ذخیره تغییرات' : 'ذخیره در آرشیو'}</button>
+                <button onClick={handleSave} className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium shadow-sm">{formState.id ? 'ذخیره تغییرات' : 'ذخیره در آرشیو'}</button>
             </div>
         </div>
 
         <div>
             <h2 className="text-2xl font-bold text-slate-700 mb-4">آرشیو نامه‌های تعهد</h2>
-            <CommitmentArchive commitments={commitments} onView={handlePreview} onEdit={setCommitmentToEdit} onDelete={handleDeleteCommitment} />
+            <CommitmentArchive commitments={commitments} onView={setCommitmentToView} onEdit={handleEdit} onDelete={handleDeleteCommitment} />
         </div>
     </div>
   );
