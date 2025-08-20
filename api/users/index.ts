@@ -1,5 +1,5 @@
 import { createClient } from '@vercel/postgres';
-import * as express from 'express';
+import type { Request, Response } from 'express';
 import { scrypt, scryptSync, randomBytes, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { Buffer } from 'node:buffer';
@@ -111,7 +111,7 @@ export async function setupTables() {
 }
 
 // --- Handler for PERSONNEL ---
-async function handlePersonnelLogic(req: express.Request, res: express.Response) {
+async function handlePersonnelLogic(req: Request, res: Response) {
     return withDbClient(async (client) => {
         if (req.method === 'GET') {
             const { rows } = await client.sql<Personnel>`SELECT * FROM personnel ORDER BY id DESC;`;
@@ -165,7 +165,7 @@ async function handlePersonnelLogic(req: express.Request, res: express.Response)
     });
 }
 
-async function handleRelatives(req: express.Request, res: express.Response) {
+async function handleRelatives(req: Request, res: Response) {
     return withDbClient(async (client) => {
         if (req.method === 'GET') {
             const { rows } = await client.sql<RelativeWithPersonnel>`
@@ -213,7 +213,7 @@ async function handleRelatives(req: express.Request, res: express.Response) {
     });
 }
 
-async function handleCommitments(req: express.Request, res: express.Response) {
+async function handleCommitments(req: Request, res: Response) {
     return withDbClient(async (client) => {
         if (req.method === 'GET') {
             const { rows } = await client.sql<AccountingCommitmentWithDetails>`
@@ -251,7 +251,7 @@ async function handleCommitments(req: express.Request, res: express.Response) {
     });
 }
 
-async function handlePersonnelModule(req: express.Request, res: express.Response) {
+async function handlePersonnelModule(req: Request, res: Response) {
     const { type } = req.query;
     if (type === 'relatives') {
         return await handleRelatives(req, res);
@@ -263,7 +263,7 @@ async function handlePersonnelModule(req: express.Request, res: express.Response
 }
 
 // --- Handler for ADMIN ---
-async function handleSettings(req: express.Request, res: express.Response) {
+async function handleSettings(req: Request, res: Response) {
     return withDbClient(async (client) => {
         if (req.method === 'GET') {
             const { rows } = await client.sql<AppSettings>`SELECT app_name, app_logo FROM app_settings WHERE id = 1;`;
@@ -278,7 +278,7 @@ async function handleSettings(req: express.Request, res: express.Response) {
     });
 }
 
-async function handleBackup(req: express.Request, res: express.Response) {
+async function handleBackup(req: Request, res: Response) {
     return withDbClient(async (client) => {
         const scope = req.query.scope as string;
         const backupData: any = {};
@@ -296,7 +296,7 @@ async function handleBackup(req: express.Request, res: express.Response) {
     });
 }
 
-async function handleRestore(req: express.Request, res: express.Response) {
+async function handleRestore(req: Request, res: Response) {
     return withDbClient(async (client) => {
         await client.sql`BEGIN`;
         try {
@@ -329,7 +329,7 @@ async function handleRestore(req: express.Request, res: express.Response) {
     });
 }
 
-async function handleAdminModule(req: express.Request, res: express.Response) {
+async function handleAdminModule(req: Request, res: Response) {
     const action = req.query.action as string;
 
     if (action === 'settings') return await handleSettings(req, res);
@@ -406,7 +406,7 @@ async function handleAdminModule(req: express.Request, res: express.Response) {
 }
 
 // --- Handler for SECURITY ---
-async function handleTrafficLogs(req: express.Request, res: express.Response) {
+async function handleTrafficLogs(req: Request, res: Response) {
     return withDbClient(async (client) => {
         if (req.method === 'GET') {
             const { date } = req.query;
@@ -458,7 +458,7 @@ async function handleTrafficLogs(req: express.Request, res: express.Response) {
     });
 }
 
-async function handleSecurityMembers(req: express.Request, res: express.Response) {
+async function handleSecurityMembers(req: Request, res: Response) {
     return withDbClient(async (client) => {
         if (req.method === 'GET') {
             const { rows } = await client.sql<SecurityMember>`
@@ -508,7 +508,7 @@ async function handleSecurityMembers(req: express.Request, res: express.Response
     });
 }
 
-async function handleSecurityModule(req: express.Request, res: express.Response) {
+async function handleSecurityModule(req: Request, res: Response) {
   const { type } = req.query;
   if (type === 'members') {
     return await handleSecurityMembers(req, res);
@@ -518,7 +518,7 @@ async function handleSecurityModule(req: express.Request, res: express.Response)
 }
 
 // --- MAIN HANDLER ---
-export default async function handler(req: express.Request, res: express.Response) {
+export default async function handler(req: Request, res: Response) {
     const { module } = req.query;
     try {
         if (module === 'admin') {

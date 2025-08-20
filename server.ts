@@ -1,4 +1,4 @@
-import express, { Express, RequestHandler } from 'express';
+import express, { Express, Request, Response, NextFunction } from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import cors from 'cors';
@@ -18,13 +18,8 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // API route: All requests to /api/users will be handled by our consolidated handler.
-const apiUserHandler: RequestHandler = (req, res) => {
-    Promise.resolve(handler(req, res)).catch(error => {
-        console.error("Unhandled error from API handler:", error);
-        if (!res.headersSent) {
-            res.status(500).json({ error: 'Internal Server Error' });
-        }
-    });
+const apiUserHandler = (req: Request, res: Response, next: NextFunction) => {
+    handler(req, res).catch(next);
 };
 app.use('/api/users', apiUserHandler);
 
@@ -35,7 +30,7 @@ app.use(express.static(clientBuildPath));
 
 // The "catchall" handler: for any request that doesn't match one above,
 // send back React's index.html file to enable client-side routing.
-const catchallHandler: RequestHandler = (req, res) => {
+const catchallHandler = (req: Request, res: Response) => {
     res.sendFile(path.join(clientBuildPath, 'index.html'));
 };
 app.get('*', catchallHandler);
@@ -52,8 +47,11 @@ async function startServer() {
     });
   } catch (error) {
     console.error("Failed to start server due to database initialization error:", error);
-    (process as any).exit(1);
+    // process.exit(1) is not ideal for serverless environments.
   }
 }
 
 startServer();
+
+// Export the app for Vercel's runtime.
+export default app;
