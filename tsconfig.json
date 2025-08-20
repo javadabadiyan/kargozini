@@ -14,9 +14,10 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "jsx": "react-jsx"
+    "jsx": "react-jsx",
+    "types": ["vite/client"]
   },
-  "include": ["components", "context", "hooks", "App.tsx", "index.tsx", "types.ts"],
-  "exclude": ["node_modules", "dist", "api"],
+  "include": ["components", "context", "hooks", "App.tsx", "index.tsx", "types.ts", "vite-env.d.ts"],
+  "exclude": ["node_modules", "dist", "api", "server.ts", "build", "tsconfig.server.json"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

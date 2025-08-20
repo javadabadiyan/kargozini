@@ -6,8 +6,6 @@ import saveAs from 'file-saver';
 
 type SettingsTab = 'general' | 'backup';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
-
 export const SettingsPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
   const { settings, updateSettings, isLoading: isSettingsLoading } = useSettings();
@@ -37,7 +35,7 @@ export const SettingsPage: React.FC = () => {
   
   const handleBackup = async (scope: 'personnel' | 'users' | 'all') => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/users?module=admin&action=backup&scope=${scope}`);
+        const response = await fetch(`/api/users?module=admin&action=backup&scope=${scope}`);
         if (!response.ok) throw new Error('Failed to create backup');
         const data = await response.json();
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -62,7 +60,7 @@ export const SettingsPage: React.FC = () => {
         try {
             const content = e.target?.result as string;
             const data = JSON.parse(content);
-            const response = await fetch(`${API_BASE_URL}/api/users?module=admin&action=restore`, {
+            const response = await fetch(`/api/users?module=admin&action=restore`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data)
@@ -136,20 +134,34 @@ export const SettingsPage: React.FC = () => {
   return (
     <div>
       <h1 className="text-2xl font-semibold text-gray-700 mb-6">تنظیمات</h1>
-      <div className="bg-white rounded-lg shadow">
+      <div className="bg-white rounded-lg shadow-md border border-gray-200">
         <div className="border-b border-gray-200">
-          <nav className="-mb-px flex space-x-4 space-x-reverse px-6">
-            <button onClick={() => setActiveTab('general')} className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'general' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
-              عمومی
+          <nav className="-mb-px flex space-x-4 space-x-reverse px-6" aria-label="Tabs">
+            <button
+              onClick={() => setActiveTab('general')}
+              className={`${
+                activeTab === 'general'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+            >
+              تنظیمات عمومی
             </button>
-            <button onClick={() => setActiveTab('backup')} className={`whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${activeTab === 'backup' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
-              پشتیبان‌گیری
+            <button
+              onClick={() => setActiveTab('backup')}
+              className={`${
+                activeTab === 'backup'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
+            >
+              پشتیبان‌گیری و بازیابی
             </button>
           </nav>
         </div>
         <div className="p-6">
-            {activeTab === 'general' && renderGeneralSettings()}
-            {activeTab === 'backup' && renderBackup()}
+          {activeTab === 'general' && renderGeneralSettings()}
+          {activeTab === 'backup' && renderBackup()}
         </div>
       </div>
     </div>

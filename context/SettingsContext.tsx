@@ -10,15 +10,13 @@ interface SettingsContextType {
 
 export const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
-
 export const SettingsProvider = ({ children }: { children: ReactNode }) => {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchSettings = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users?module=admin&action=settings`);
+      const response = await fetch(`/api/users?module=admin&action=settings`);
       if (response.ok) {
         const data = await response.json();
         setSettings(data);
@@ -40,7 +38,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
 
   const updateSettings = async (newSettings: AppSettings) => {
     try {
-        const response = await fetch(`${API_BASE_URL}/api/users?module=admin&action=settings`, {
+        const response = await fetch(`/api/users?module=admin&action=settings`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(newSettings),

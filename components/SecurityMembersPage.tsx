@@ -5,8 +5,6 @@ import { AddSecurityMemberModal } from './AddSecurityMemberModal';
 import { toPersianDigits } from './format';
 import * as XLSX from 'xlsx';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
-
 interface SecurityMembersPageProps {
   personnelList: Personnel[];
 }
@@ -28,7 +26,7 @@ export const SecurityMembersPage: React.FC<SecurityMembersPageProps> = ({ person
   const fetchSecurityMembers = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users?module=security&type=members`);
+      const response = await fetch(`/api/users?module=security&type=members`);
       if (!response.ok) throw new Error('Failed to fetch security members');
       const data = await response.json();
       setSecurityMembers(data);
@@ -46,7 +44,7 @@ export const SecurityMembersPage: React.FC<SecurityMembersPageProps> = ({ person
   
   const handleAddMember = async (personnelId: number) => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users?module=security&type=members`, {
+      const response = await fetch(`/api/users?module=security&type=members`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ personnel_id: personnelId }),
@@ -62,7 +60,7 @@ export const SecurityMembersPage: React.FC<SecurityMembersPageProps> = ({ person
   const handleDeleteMember = async (personnelId: number) => {
     if (window.confirm('آیا از حذف این عضو از لیست تردد اطمینان دارید؟')) {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/users?module=security&type=members&id=${personnelId}`, { method: 'DELETE' });
+        const response = await fetch(`/api/users?module=security&type=members&id=${personnelId}`, { method: 'DELETE' });
         if (!response.ok) throw new Error('Failed to delete member');
         await fetchSecurityMembers();
       } catch (error) {
@@ -74,7 +72,7 @@ export const SecurityMembersPage: React.FC<SecurityMembersPageProps> = ({ person
   const handleDeleteAll = async () => {
     if (window.confirm('هشدار! آیا از حذف تمام اعضای لیست تردد اطمینان دارید؟ این عمل غیرقابل بازگشت است.')) {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/users?module=security&type=members&action=delete_all`, { method: 'DELETE' });
+        const response = await fetch(`/api/users?module=security&type=members&action=delete_all`, { method: 'DELETE' });
         if (!response.ok) throw new Error('Failed to delete all members');
         await fetchSecurityMembers();
       } catch (error) {
@@ -111,7 +109,7 @@ export const SecurityMembersPage: React.FC<SecurityMembersPageProps> = ({ person
 
         const personnelCodes = json.map(row => String(row['کد پرسنلی'] || '')).filter(code => code);
 
-        const response = await fetch(`${API_BASE_URL}/api/users?module=security&type=members&action=import`, {
+        const response = await fetch(`/api/users?module=security&type=members&action=import`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(personnelCodes),

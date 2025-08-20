@@ -17,8 +17,6 @@ import type { Personnel, User } from '../types';
 import * as XLSX from 'xlsx';
 import { toPersianDigits } from './format';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
-
 type Page = 'dashboard' | 'users' | 'settings' | 'user-management' |
             'commitment_letter' | 'disciplinary_committee' | 'performance_evaluation' | 'job_group' | 'bonus_management' |
             'security_members' | 'security_log_traffic' | 'security_traffic_report' |
@@ -56,7 +54,7 @@ export const DashboardPage: React.FC = () => {
   const fetchPersonnel = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/users`);
+      const response = await fetch(`/api/users`);
       if (!response.ok) throw new Error('Failed to fetch personnel');
       const data = await response.json();
       setPersonnel(data);
@@ -70,7 +68,7 @@ export const DashboardPage: React.FC = () => {
 
   const fetchAppUsers = async () => {
      try {
-      const response = await fetch(`${API_BASE_URL}/api/users?module=admin`);
+      const response = await fetch(`/api/users?module=admin`);
       if (!response.ok) throw new Error('Failed to fetch users');
       const data = await response.json();
       setAppUsers(data);
@@ -129,7 +127,7 @@ export const DashboardPage: React.FC = () => {
         });
 
 
-        const response = await fetch(`${API_BASE_URL}/api/users?action=import`, {
+        const response = await fetch(`/api/users?action=import`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(mappedJson),
@@ -178,7 +176,7 @@ export const DashboardPage: React.FC = () => {
     const body = isEditing ? { ...personnelData, id: personnelToEdit!.id } : personnelData;
 
     try {
-        const response = await fetch(`${API_BASE_URL}/api/users`, {
+        const response = await fetch(`/api/users`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
@@ -206,7 +204,7 @@ export const DashboardPage: React.FC = () => {
   const handleDeletePersonnel = async (personnelId: number) => {
     if (window.confirm('آیا از حذف این پرسنل اطمینان دارید؟')) {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/users?id=${personnelId}`, {
+        const response = await fetch(`/api/users?id=${personnelId}`, {
           method: 'DELETE',
         });
         
@@ -223,7 +221,7 @@ export const DashboardPage: React.FC = () => {
   const handleDeleteAllPersonnel = async () => {
     if (window.confirm('آیا کاملا اطمینان دارید؟ تمام اطلاعات پرسنل برای همیشه حذف خواهد شد. این عمل غیرقابل بازگشت است.')) {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/users?action=delete_all`, {
+        const response = await fetch(`/api/users?action=delete_all`, {
           method: 'DELETE',
         });
         
