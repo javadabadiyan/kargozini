@@ -5,11 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build:server": "tsc -p tsconfig.server.json",
-    "build:client": "vite build",
-    "build": "npm run build:server && npm run build:client",
-    "preview": "vite preview",
-    "start": "node build/server.js"
+    "build": "vite build",
+    "preview": "vite preview"
   },
   "engines": {
     "node": ">=18.0.0"

@@ -25,8 +25,8 @@ const apiUserHandler = (req: ExpressRequest, res: ExpressResponse, next: NextFun
 app.use('/api/users', apiUserHandler);
 
 // Serve static files from the React app build directory
-// __dirname will be 'build/' after compilation. The client is in 'dist/'.
-const clientBuildPath = path.join(__dirname, '../dist');
+// For Vercel, the server file is run from the project root, and the `dist` directory is also at the root.
+const clientBuildPath = path.join(__dirname, 'dist');
 app.use(express.static(clientBuildPath));
 
 // The "catchall" handler: for any request that doesn't match one above,
