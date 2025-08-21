@@ -1,12 +1,6 @@
-import express from 'express';
-import type { Express, Request as ExpressRequest, Response as ExpressResponse, NextFunction } from 'express';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import express, { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
-import handler, { setupTables } from './api/users/index.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import handler, { setupTables } from './backend/users/index.js';
 
 const app: Express = express();
 const port = process.env.PORT || 10000;
@@ -19,22 +13,10 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // API route: All requests to /api/users will be handled by our consolidated handler.
-const apiUserHandler = (req: ExpressRequest, res: ExpressResponse, next: NextFunction) => {
+const apiUserHandler = (req: Request, res: Response, next: NextFunction) => {
     handler(req, res).catch(next);
 };
 app.use('/api/users', apiUserHandler);
-
-// Serve static files from the React app build directory
-// For Vercel, the server file is run from the project root, and the `dist` directory is also at the root.
-const clientBuildPath = path.join(__dirname, 'dist');
-app.use(express.static(clientBuildPath));
-
-// The "catchall" handler: for any request that doesn't match one above,
-// send back React's index.html file to enable client-side routing.
-const catchallHandler = (req: ExpressRequest, res: ExpressResponse) => {
-    res.sendFile(path.join(clientBuildPath, 'index.html'));
-};
-app.get('*', catchallHandler);
 
 // Initialize database and then start server
 async function startServer() {
@@ -43,12 +25,14 @@ async function startServer() {
     await setupTables();
     console.log("Database tables initialized successfully.");
 
-    app.listen(port, () => {
-      console.log(`Server is running on http://localhost:${port}`);
-    });
+    // Only run the server locally. Vercel will handle this in production.
+    if (!process.env.VERCEL) {
+      app.listen(port, () => {
+        console.log(`Server is running on http://localhost:${port}`);
+      });
+    }
   } catch (error) {
     console.error("Failed to start server due to database initialization error:", error);
-    // process.exit(1) is not ideal for serverless environments.
   }
 }
 

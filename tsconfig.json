@@ -18,6 +18,6 @@
     "types": ["vite/client"]
   },
   "include": ["components", "context", "hooks", "App.tsx", "index.tsx", "types.ts", "vite-env.d.ts"],
-  "exclude": ["node_modules", "dist", "api", "server.ts", "build", "tsconfig.server.json"],
+  "exclude": ["node_modules", "dist", "backend", "server.ts", "build", "tsconfig.server.json"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
