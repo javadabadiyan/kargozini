@@ -4,12 +4,17 @@ import LoginPage from './components/LoginPage';
 import DashboardLayout from './components/DashboardLayout';
 
 const App: React.FC = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  // Initialize state from sessionStorage to persist login across page reloads.
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(
+    sessionStorage.getItem('isLoggedIn') === 'true'
+  );
 
   const handleLogin = useCallback((user: string, pass: string): boolean => {
     // In a real application, this would be an API call.
     // For this demo, we use hardcoded credentials.
     if (user === 'ادمین' && pass === '5221157') {
+      // Persist login state in sessionStorage
+      sessionStorage.setItem('isLoggedIn', 'true');
       setIsAuthenticated(true);
       return true;
     }
@@ -17,6 +22,8 @@ const App: React.FC = () => {
   }, []);
 
   const handleLogout = useCallback(() => {
+    // Clear login state from sessionStorage
+    sessionStorage.removeItem('isLoggedIn');
     setIsAuthenticated(false);
   }, []);
 

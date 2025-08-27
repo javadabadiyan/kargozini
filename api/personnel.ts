@@ -1,16 +1,19 @@
-import { sql } from '@vercel/postgres';
+import { createPool } from '@vercel/postgres';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 export default async function handler(
   _request: VercelRequest,
   response: VercelResponse,
 ) {
-  if (!process.env.POSTGRES_URL) {
-    return response.status(500).json({ error: "Database connection string is not configured.", details: "POSTGRES_URL environment variable is missing." });
+  const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+  if (!connectionString) {
+    return response.status(500).json({ error: "Database connection string is not configured.", details: "DATABASE_URL or POSTGRES_URL environment variable is missing." });
   }
 
+  const pool = createPool({ connectionString });
+
   try {
-    const { rows } = await sql`
+    const { rows } = await pool.sql`
       SELECT 
         id, personnel_code, first_name, last_name, father_name, national_id, id_number,
         birth_date, birth_place, issue_date, issue_place, marital_status, military_status,
