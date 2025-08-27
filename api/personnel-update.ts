@@ -1,4 +1,4 @@
-import { createPool } from '@vercel/postgres';
+import { db } from '@vercel/postgres';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import type { Personnel } from '../types';
 
@@ -11,8 +11,6 @@ export default async function handler(
     return response.status(500).json({ error: "Database connection string is not configured.", details: "DATABASE_URL or POSTGRES_URL environment variable is missing." });
   }
   
-  const pool = createPool({ connectionString });
-
   if (request.method !== 'PUT') {
     return response.status(405).json({ error: 'Method Not Allowed' });
   }
@@ -23,9 +21,10 @@ export default async function handler(
     return response.status(400).json({ error: 'اطلاعات پرسنل یا شناسه نامعتبر است.' });
   }
 
+  const client = await db.connect();
   try {
     // Note: "position" is a reserved keyword in SQL, so it needs to be double-quoted.
-    await pool.sql`
+    await client.sql`
       UPDATE personnel SET
         personnel_code = ${p.personnel_code},
         first_name = ${p.first_name},
@@ -55,5 +54,7 @@ export default async function handler(
     console.error('Database update failed:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     return response.status(500).json({ error: 'خطا در به‌روزرسانی اطلاعات در پایگاه داده.', details: errorMessage });
+  } finally {
+    client.release();
   }
 }

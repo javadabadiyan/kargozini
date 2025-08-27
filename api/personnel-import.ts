@@ -1,4 +1,4 @@
-import { createPool } from '@vercel/postgres';
+import { db } from '@vercel/postgres';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import type { Personnel } from '../types';
 
@@ -13,8 +13,6 @@ export default async function handler(
     return response.status(500).json({ error: "Database connection string is not configured.", details: "DATABASE_URL or POSTGRES_URL environment variable is missing." });
   }
   
-  const pool = createPool({ connectionString });
-
   if (request.method !== 'POST') {
     return response.status(405).json({ error: 'Method Not Allowed' });
   }
@@ -25,7 +23,7 @@ export default async function handler(
     return response.status(400).json({ error: 'لیست پرسنل نامعتبر یا خالی است.' });
   }
 
-  const client = await pool.connect();
+  const client = await db.connect();
   try {
     await client.sql`BEGIN`;
 
