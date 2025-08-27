@@ -16,20 +16,20 @@ const DependentsInfoPage: React.FC = () => {
         setLoading(true);
         setError(null);
         const response = await fetch('/api/personnel');
-        const responseText = await response.text();
 
         if (!response.ok) {
+          const errorText = await response.text();
           let errorMsg = 'خطا در دریافت اطلاعات از سرور';
           try {
-            const errorData = JSON.parse(responseText);
+            const errorData = JSON.parse(errorText);
             errorMsg = errorData.error || errorData.details || errorMsg;
           } catch (e) {
-             errorMsg = responseText || errorMsg;
+             errorMsg = errorText || errorMsg;
           }
           throw new Error(errorMsg);
         }
         
-        const data = JSON.parse(responseText);
+        const data = await response.json();
         if (data.personnel) {
           setPersonnelList(data.personnel);
         }

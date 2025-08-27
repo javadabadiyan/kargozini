@@ -48,20 +48,20 @@ const PersonnelListPage: React.FC = () => {
       setLoading(true);
       setError(null);
       const response = await fetch('/api/personnel');
-      const responseText = await response.text();
       
       if (!response.ok) {
+        const errorText = await response.text();
         let errorMsg = 'خطا در دریافت اطلاعات از سرور';
         try {
-          const errorData = JSON.parse(responseText);
+          const errorData = JSON.parse(errorText);
           errorMsg = errorData.error || errorData.details || errorMsg;
         } catch (e) {
-           errorMsg = responseText || errorMsg;
+           errorMsg = errorText || errorMsg;
         }
         throw new Error(errorMsg);
       }
       
-      const data = JSON.parse(responseText);
+      const data = await response.json();
       setPersonnelList(data.personnel || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'یک خطای ناشناخته رخ داد');
@@ -169,21 +169,21 @@ const PersonnelListPage: React.FC = () => {
         body: JSON.stringify(updatedPersonnel),
       });
 
-      const responseText = await response.text();
-
       if (!response.ok) {
+        const errorText = await response.text();
         let errorMsg = 'خطا در ذخیره تغییرات';
         try {
-            const errorData = JSON.parse(responseText);
+            const errorData = JSON.parse(errorText);
             errorMsg = errorData.error || errorData.details || errorMsg;
         } catch (e) {
-            errorMsg = responseText || errorMsg;
+            errorMsg = errorText || errorMsg;
         }
         throw new Error(errorMsg);
       }
 
+      const savedData = await response.json();
       setPersonnelList(prevList =>
-        prevList.map(p => (p.id === updatedPersonnel.id ? updatedPersonnel : p))
+        prevList.map(p => (p.id === savedData.personnel.id ? savedData.personnel : p))
       );
       handleCloseModal();
       setImportStatus({ type: 'success', message: 'اطلاعات با موفقیت به‌روزرسانی شد.' });
