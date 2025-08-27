@@ -1,6 +1,7 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import type { Personnel } from '../../types';
+import EditPersonnelModal from '../EditPersonnelModal';
+import { PencilIcon } from '../icons/Icons';
 
 // Type alias for SheetJS, assuming it's loaded from a global script
 declare const XLSX: any;
@@ -29,7 +30,8 @@ const HEADER_MAP: { [key: string]: keyof Omit<Personnel, 'id'> } = {
   'وضعیت': 'status',
 };
 
-const PERSIAN_HEADERS = Object.keys(HEADER_MAP);
+const EXPORT_HEADERS = Object.keys(HEADER_MAP);
+const TABLE_HEADERS = [...EXPORT_HEADERS, 'عملیات'];
 
 const PersonnelListPage: React.FC = () => {
   const [personnelList, setPersonnelList] = useState<Personnel[]>([]);
@@ -37,6 +39,9 @@ const PersonnelListPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [importStatus, setImportStatus] = useState<{ type: 'info' | 'success' | 'error'; message: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingPersonnel, setEditingPersonnel] = useState<Personnel | null>(null);
 
   const fetchPersonnel = async () => {
     try {
@@ -117,7 +122,7 @@ const PersonnelListPage: React.FC = () => {
   const handleExport = () => {
     const dataToExport = personnelList.map(p => {
         const row: { [key: string]: any } = {};
-        for(const header of PERSIAN_HEADERS){
+        for(const header of EXPORT_HEADERS){
             const key = HEADER_MAP[header];
             row[header] = p[key];
         }
@@ -131,10 +136,47 @@ const PersonnelListPage: React.FC = () => {
   };
 
   const handleDownloadSample = () => {
-    const ws = XLSX.utils.aoa_to_sheet([PERSIAN_HEADERS]);
+    const ws = XLSX.utils.aoa_to_sheet([EXPORT_HEADERS]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'نمونه');
     XLSX.writeFile(wb, 'Sample_Personnel_File.xlsx');
+  };
+
+  const handleEditClick = (personnel: Personnel) => {
+    setEditingPersonnel(personnel);
+    setIsEditModalOpen(true);
+  };
+
+  const handleCloseModal = () => {
+    setIsEditModalOpen(false);
+    setEditingPersonnel(null);
+  };
+
+  const handleSave = async (updatedPersonnel: Personnel) => {
+    setImportStatus({ type: 'info', message: 'در حال ذخیره تغییرات...' });
+    try {
+      const response = await fetch('/api/personnel-update', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedPersonnel),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'خطا در ذخیره تغییرات');
+      }
+
+      setPersonnelList(prevList =>
+        prevList.map(p => (p.id === updatedPersonnel.id ? updatedPersonnel : p))
+      );
+      handleCloseModal();
+      setImportStatus({ type: 'success', message: 'اطلاعات با موفقیت به‌روزرسانی شد.' });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'یک خطای ناشناخته رخ داد.';
+      setImportStatus({ type: 'error', message });
+    } finally {
+      setTimeout(() => setImportStatus(null), 5000);
+    }
   };
 
   const statusColor = {
@@ -165,30 +207,47 @@ const PersonnelListPage: React.FC = () => {
         <table className="min-w-full divide-y divide-gray-200 border">
           <thead className="bg-gray-100">
             <tr>
-              {PERSIAN_HEADERS.map(header => (
+              {TABLE_HEADERS.map(header => (
                 <th key={header} scope="col" className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider whitespace-nowrap">{header}</th>
               ))}
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {loading && <tr><td colSpan={PERSIAN_HEADERS.length} className="text-center p-4">در حال بارگذاری...</td></tr>}
-            {error && <tr><td colSpan={PERSIAN_HEADERS.length} className="text-center p-4 text-red-500">{error}</td></tr>}
+            {loading && <tr><td colSpan={TABLE_HEADERS.length} className="text-center p-4">در حال بارگذاری...</td></tr>}
+            {error && <tr><td colSpan={TABLE_HEADERS.length} className="text-center p-4 text-red-500">{error}</td></tr>}
             {!loading && !error && personnelList.length > 0 && personnelList.map((p) => (
               <tr key={p.id} className="hover:bg-slate-50">
-                {PERSIAN_HEADERS.map(header => {
+                {EXPORT_HEADERS.map(header => {
                     const key = HEADER_MAP[header];
                     return (
                         <td key={key} className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">{String(p[key] ?? '')}</td>
                     );
                 })}
+                <td className="px-4 py-3 whitespace-nowrap text-sm text-center">
+                  <button 
+                    onClick={() => handleEditClick(p)}
+                    className="text-blue-600 hover:text-blue-800 p-1 rounded-full hover:bg-blue-100 transition-colors"
+                    aria-label={`ویرایش ${p.first_name} ${p.last_name}`}
+                  >
+                    <PencilIcon className="w-5 h-5" />
+                  </button>
+                </td>
               </tr>
             ))}
             {!loading && !error && personnelList.length === 0 && (
-              <tr><td colSpan={PERSIAN_HEADERS.length} className="text-center p-4 text-gray-500">هیچ پرسنلی یافت نشد. می‌توانید از طریق فایل اکسل اطلاعات را وارد کنید.</td></tr>
+              <tr><td colSpan={TABLE_HEADERS.length} className="text-center p-4 text-gray-500">هیچ پرسنلی یافت نشد. می‌توانید از طریق فایل اکسل اطلاعات را وارد کنید.</td></tr>
             )}
           </tbody>
         </table>
       </div>
+
+      {isEditModalOpen && editingPersonnel && (
+        <EditPersonnelModal
+          personnel={editingPersonnel}
+          onClose={handleCloseModal}
+          onSave={handleSave}
+        />
+      )}
     </div>
   );
 };
