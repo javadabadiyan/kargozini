@@ -90,12 +90,16 @@ const PersonnelListPage: React.FC = () => {
         const json: any[] = XLSX.utils.sheet_to_json(worksheet);
 
         const mappedData = json.map(row => {
-          const newRow: any = {};
-          for (const key in row) {
-            const mappedKey = HEADER_MAP[key.trim()];
-            if (mappedKey) {
-              newRow[mappedKey] = String(row[key]);
-            }
+          const newRow: { [key in keyof Omit<Personnel, 'id'>]?: string | null } = {};
+          // Iterate over our defined headers to ensure all fields are considered
+          for (const header in HEADER_MAP) {
+            const dbKey = HEADER_MAP[header];
+            const value = row[header]; // XLSX uses header names as keys
+            
+            // Set to null if value is null, undefined, or an empty string
+            newRow[dbKey] = (value === null || value === undefined || String(value).trim() === '') 
+              ? null 
+              : String(value);
           }
           return newRow;
         });
@@ -113,7 +117,8 @@ const PersonnelListPage: React.FC = () => {
           throw new Error(errorData.error || 'خطا در ورود اطلاعات');
         }
 
-        setImportStatus({ type: 'success', message: 'اطلاعات با موفقیت وارد شد. لیست به‌روزرسانی می‌شود.' });
+        const successData = await response.json();
+        setImportStatus({ type: 'success', message: successData.message || 'اطلاعات با موفقیت وارد شد. لیست به‌روزرسانی می‌شود.' });
         await fetchPersonnel();
 
       } catch (err) {
