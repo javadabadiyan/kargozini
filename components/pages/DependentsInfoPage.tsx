@@ -24,7 +24,6 @@ const DependentsInfoPage: React.FC = () => {
             const errorData = JSON.parse(responseText);
             errorMsg = errorData.error || errorData.details || errorMsg;
           } catch (e) {
-            // response is not json, use text as error if available
              errorMsg = responseText || errorMsg;
           }
           throw new Error(errorMsg);
@@ -47,7 +46,7 @@ const DependentsInfoPage: React.FC = () => {
 
   const filteredPersonnel = useMemo(() =>
     personnelList.filter(p =>
-      p.name.toLowerCase().includes(searchTerm.toLowerCase())
+      `${p.first_name} ${p.last_name}`.toLowerCase().includes(searchTerm.toLowerCase())
     ), [personnelList, searchTerm]);
 
   const handleSelectPersonnel = (personnel: Personnel) => {
@@ -89,7 +88,7 @@ const DependentsInfoPage: React.FC = () => {
                       className={`flex items-center p-2 rounded-md cursor-pointer transition-colors ${selectedPersonnel?.id === person.id ? 'bg-blue-500 text-white' : 'hover:bg-gray-200'}`}
                     >
                       <UserIcon className="w-5 h-5 ml-2" />
-                      {person.name}
+                      {person.first_name} {person.last_name}
                     </li>
                   ))}
                    {filteredPersonnel.length === 0 && <p className="text-center text-gray-500">پرسنلی یافت نشد.</p>}
@@ -105,8 +104,9 @@ const DependentsInfoPage: React.FC = () => {
               {selectedPersonnel ? (
                 <div className="text-center text-gray-700">
                    <UserIcon className="w-20 h-20 mx-auto mb-4 text-blue-500" />
-                   <h3 className="text-2xl font-bold">{selectedPersonnel.name}</h3>
-                   <p className="text-md mt-2">شناسه پرسنلی: <span className="font-mono">{selectedPersonnel.id.toLocaleString('fa-IR', { useGrouping: false })}</span></p>
+                   <h3 className="text-2xl font-bold">{selectedPersonnel.first_name} {selectedPersonnel.last_name}</h3>
+                   {/* FIX: personnel_code is a string and toLocaleString with arguments is for numbers. Displaying the string directly. */}
+                   <p className="text-md mt-2">کد پرسنلی: <span className="font-mono">{selectedPersonnel.personnel_code}</span></p>
                    <p className="mt-4 text-gray-500">اطلاعات بستگان این شخص در اینجا نمایش داده خواهد شد.</p>
                 </div>
               ) : (
