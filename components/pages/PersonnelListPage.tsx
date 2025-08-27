@@ -48,12 +48,19 @@ const PersonnelListPage: React.FC = () => {
       setLoading(true);
       setError(null);
       const response = await fetch('/api/personnel');
-      const responseText = await response.text();
-
+      
       if (!response.ok) {
-        throw new Error(JSON.parse(responseText)?.error || 'خطا در دریافت اطلاعات');
+        let errorMsg = 'خطا در دریافت اطلاعات از سرور';
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.error || errorData.details || errorMsg;
+        } catch (e) {
+           errorMsg = await response.text() || errorMsg;
+        }
+        throw new Error(errorMsg);
       }
-      const data = JSON.parse(responseText);
+      
+      const data = await response.json();
       setPersonnelList(data.personnel || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'یک خطای ناشناخته رخ داد');
@@ -162,8 +169,14 @@ const PersonnelListPage: React.FC = () => {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'خطا در ذخیره تغییرات');
+        let errorMsg = 'خطا در ذخیره تغییرات';
+        try {
+            const errorData = await response.json();
+            errorMsg = errorData.error || errorData.details || errorMsg;
+        } catch (e) {
+            errorMsg = await response.text() || errorMsg;
+        }
+        throw new Error(errorMsg);
       }
 
       setPersonnelList(prevList =>

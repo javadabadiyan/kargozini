@@ -23,8 +23,11 @@ const EditPersonnelModal: React.FC<EditPersonnelModalProps> = ({ personnel, onCl
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
-    await onSave(formData);
-    setIsSaving(false);
+    try {
+      await onSave(formData);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const inputClass = "w-full px-3 py-2 text-gray-700 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent";
@@ -53,7 +56,6 @@ const EditPersonnelModal: React.FC<EditPersonnelModalProps> = ({ personnel, onCl
     { key: 'status', label: 'وضعیت' },
   ];
 
-
   return (
     <div 
       className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center"
@@ -79,44 +81,45 @@ const EditPersonnelModal: React.FC<EditPersonnelModalProps> = ({ personnel, onCl
           </button>
         </div>
         
-        <form onSubmit={handleSubmit} className="overflow-y-auto p-6">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4">
-            {fields.map(field => (
-              <div key={field.key}>
-                <label htmlFor={field.key} className="block text-sm font-medium text-gray-700 mb-1">
-                  {field.label}
-                </label>
-                <input
-                  type={field.type || 'text'}
-                  id={field.key}
-                  name={field.key}
-                  value={String(formData[field.key] ?? '')}
-                  onChange={handleChange}
-                  className={inputClass}
-                />
-              </div>
-            ))}
+        <form onSubmit={handleSubmit} className="flex-1 flex flex-col overflow-hidden">
+          <div className="overflow-y-auto p-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4">
+              {fields.map(field => (
+                <div key={field.key}>
+                  <label htmlFor={field.key} className="block text-sm font-medium text-gray-700 mb-1">
+                    {field.label}
+                  </label>
+                  <input
+                    type={field.type || 'text'}
+                    id={field.key}
+                    name={field.key}
+                    value={String(formData[field.key] ?? '')}
+                    onChange={handleChange}
+                    className={inputClass}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          <div className="flex justify-end items-center p-4 border-t bg-gray-50 rounded-b-lg mt-auto">
+            <button 
+              type="button"
+              onClick={onClose} 
+              className="px-6 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              disabled={isSaving}
+            >
+              انصراف
+            </button>
+            <button 
+              type="submit"
+              className="mr-3 px-6 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-300"
+              disabled={isSaving}
+            >
+              {isSaving ? 'در حال ذخیره...' : 'ذخیره تغییرات'}
+            </button>
           </div>
         </form>
-        
-        <div className="flex justify-end items-center p-4 border-t bg-gray-50 rounded-b-lg mt-auto">
-          <button 
-            type="button"
-            onClick={onClose} 
-            className="px-6 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-            disabled={isSaving}
-          >
-            انصراف
-          </button>
-          <button 
-            type="submit"
-            onClick={handleSubmit}
-            className="mr-3 px-6 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-300"
-            disabled={isSaving}
-          >
-            {isSaving ? 'در حال ذخیره...' : 'ذخیره تغییرات'}
-          </button>
-        </div>
       </div>
     </div>
   );
