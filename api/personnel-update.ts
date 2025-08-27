@@ -6,6 +6,10 @@ export default async function handler(
   request: VercelRequest,
   response: VercelResponse,
 ) {
+  if (!process.env.POSTGRES_URL) {
+    return response.status(500).json({ error: "Database connection string is not configured.", details: "POSTGRES_URL environment variable is missing." });
+  }
+
   if (request.method !== 'PUT') {
     return response.status(405).json({ error: 'Method Not Allowed' });
   }
@@ -45,6 +49,7 @@ export default async function handler(
     `;
     return response.status(200).json({ message: 'اطلاعات پرسنل با موفقیت به‌روزرسانی شد.', personnel: p });
   } catch (error) {
+    console.error('Database update failed:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     return response.status(500).json({ error: 'خطا در به‌روزرسانی اطلاعات در پایگاه داده.', details: errorMessage });
   }

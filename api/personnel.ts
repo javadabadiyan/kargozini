@@ -5,6 +5,10 @@ export default async function handler(
   _request: VercelRequest,
   response: VercelResponse,
 ) {
+  if (!process.env.POSTGRES_URL) {
+    return response.status(500).json({ error: "Database connection string is not configured.", details: "POSTGRES_URL environment variable is missing." });
+  }
+
   try {
     const { rows } = await sql`
       SELECT 
@@ -17,6 +21,7 @@ export default async function handler(
     `;
     return response.status(200).json({ personnel: rows });
   } catch (error) {
+    console.error('Database query failed:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     return response.status(500).json({ error: 'Failed to fetch data from the database.', details: errorMessage });
   }

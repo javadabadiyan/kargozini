@@ -9,6 +9,10 @@ export default async function handler(
   request: VercelRequest,
   response: VercelResponse,
 ) {
+  if (!process.env.POSTGRES_URL) {
+    return response.status(500).json({ error: "Database connection string is not configured.", details: "POSTGRES_URL environment variable is missing." });
+  }
+
   if (request.method !== 'POST') {
     return response.status(405).json({ error: 'Method Not Allowed' });
   }
@@ -51,6 +55,7 @@ export default async function handler(
     return response.status(200).json({ message: `${personnelList.length} رکورد با موفقیت پردازش شد.` });
   } catch (error) {
     await client.sql`ROLLBACK`;
+    console.error('Database transaction failed:', error);
 
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     if (errorMessage.includes('duplicate key value violates unique constraint')) {
