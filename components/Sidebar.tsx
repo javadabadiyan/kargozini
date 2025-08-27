@@ -7,36 +7,48 @@ import DependentsInfoPage from './pages/DependentsInfoPage';
 import PlaceholderPage from './pages/PlaceholderPage';
 import PersonnelListPage from './pages/PersonnelListPage';
 
+// Define placeholder pages as stable, named components to prevent re-creation on every render.
+const DashboardPage = () => <PlaceholderPage title="داشبورد" />;
+const DocumentUploadPage = () => <PlaceholderPage title="بارگذاری مدارک" />;
+const AccountingCommitmentPage = () => <PlaceholderPage title="نامه تعهد حسابداری" />;
+const DisciplinaryCommitteePage = () => <PlaceholderPage title="کمیته تشویق و انضباطی" />;
+const PerformanceReviewPage = () => <PlaceholderPage title="ارزیابی عملکرد" />;
+const JobGroupPage = () => <PlaceholderPage title="گروه شغلی پرسنل" />;
+const BonusManagementPage = () => <PlaceholderPage title="مدیریت کارانه" />;
+const CommutingMembersPage = () => <PlaceholderPage title="کارمندان عضو تردد" />;
+const LogCommutePage = () => <PlaceholderPage title="ثبت تردد" />;
+const CommuteReportPage = () => <PlaceholderPage title="گزارش گیری تردد" />;
+const UserManagementPage = () => <PlaceholderPage title="مدیریت کاربران" />;
 
 const menuItems: MenuItem[] = [
-  { id: 'dashboard', label: 'داشبورد', icon: HomeIcon, page: () => <PlaceholderPage title="داشبورد" /> },
+  { id: 'dashboard', label: 'داشبورد', icon: HomeIcon, page: DashboardPage },
   { 
     id: 'personnel', label: 'مدیریت پرسنل', icon: UsersIcon,
     children: [
       { id: 'personnel-list', label: 'لیست پرسنل', icon: CircleIcon, page: PersonnelListPage },
       { id: 'dependents-info', label: 'اطلاعات بستگان', icon: CircleIcon, page: DependentsInfoPage },
-      { id: 'document-upload', label: 'بارگذاری مدارک', icon: DocumentTextIcon, page: () => <PlaceholderPage title="بارگذاری مدارک" /> },
+      { id: 'document-upload', label: 'بارگذاری مدارک', icon: DocumentTextIcon, page: DocumentUploadPage },
     ]
   },
   { 
     id: 'recruitment', label: 'کارگزینی', icon: BriefcaseIcon,
     children: [
-      { id: 'accounting-commitment', label: 'نامه تعهد حسابداری', icon: CircleIcon, page: () => <PlaceholderPage title="نامه تعهد حسابداری" /> },
-      { id: 'disciplinary-committee', label: 'کمیته تشویق و انضباطی', icon: CircleIcon, page: () => <PlaceholderPage title="کمیته تشویق و انضباطی" /> },
-      { id: 'performance-review', label: 'ارزیابی عملکرد', icon: CircleIcon, page: () => <PlaceholderPage title="ارزیابی عملکرد" /> },
-      { id: 'job-group', label: 'گروه شغلی پرسنل', icon: CircleIcon, page: () => <PlaceholderPage title="گروه شغلی پرسنل" /> },
-      { id: 'bonus-management', label: 'مدیریت کارانه', icon: CircleIcon, page: () => <PlaceholderPage title="مدیریت کارانه" /> },
+      { id: 'accounting-commitment', label: 'نامه تعهد حسابداری', icon: CircleIcon, page: AccountingCommitmentPage },
+      { id: 'disciplinary-committee', label: 'کمیته تشویق و انضباطی', icon: CircleIcon, page: DisciplinaryCommitteePage },
+      { id: 'performance-review', label: 'ارزیابی عملکرد', icon: CircleIcon, page: PerformanceReviewPage },
+      { id: 'job-group', label: 'گروه شغلی پرسنل', icon: CircleIcon, page: JobGroupPage },
+      { id: 'bonus-management', label: 'مدیریت کارانه', icon: CircleIcon, page: BonusManagementPage },
     ]
   },
   {
     id: 'security', label: 'حراست', icon: ShieldCheckIcon,
     children: [
-      { id: 'commuting-members', label: 'کارمندان عضو تردد', icon: CircleIcon, page: () => <PlaceholderPage title="کارمندان عضو تردد" /> },
-      { id: 'log-commute', label: 'ثبت تردد', icon: CircleIcon, page: () => <PlaceholderPage title="ثبت تردد" /> },
-      { id: 'commute-report', label: 'گزارش گیری تردد', icon: CircleIcon, page: () => <PlaceholderPage title="گزارش گیری تردد" /> },
+      { id: 'commuting-members', label: 'کارمندان عضو تردد', icon: CircleIcon, page: CommutingMembersPage },
+      { id: 'log-commute', label: 'ثبت تردد', icon: CircleIcon, page: LogCommutePage },
+      { id: 'commute-report', label: 'گزارش گیری تردد', icon: CircleIcon, page: CommuteReportPage },
     ]
   },
-  { id: 'user-management', label: 'مدیریت کاربران', icon: LockClosedIcon, page: () => <PlaceholderPage title="مدیریت کاربران" /> },
+  { id: 'user-management', label: 'مدیریت کاربران', icon: LockClosedIcon, page: UserManagementPage },
 ];
 
 
