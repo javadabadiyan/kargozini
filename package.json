@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "esbuild index.tsx --bundle --outfile=index.js --format=esm --jsx=automatic --external:react --external:\"react-dom/*\" --external:\"react/*\""
+    "build": "mkdir -p public && cp index.html public/index.html && esbuild index.tsx --bundle --outfile=public/index.js --format=esm --jsx=automatic --external:react --external:\"react-dom/*\" --external:\"react/*\""
   },
   "dependencies": {
     "react": "^19.1.1",
