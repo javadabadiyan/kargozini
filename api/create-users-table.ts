@@ -34,10 +34,22 @@ export default async function handler(
         status VARCHAR(50)
       );
     `;
-    return response.status(200).json({ message: 'جدول "پرسنل" با موفقیت ایجاد شد یا از قبل وجود داشت.' });
+
+    // Enable the pg_trgm extension for efficient text searching (ILIKE)
+    await sql`CREATE EXTENSION IF NOT EXISTS pg_trgm;`;
+
+    // Create GIN indexes for fast ILIKE searching on name fields.
+    // This is the key fix for preventing timeouts on the personnel list page.
+    await sql`CREATE INDEX IF NOT EXISTS personnel_first_name_trgm_idx ON personnel USING gin (first_name gin_trgm_ops);`;
+    await sql`CREATE INDEX IF NOT EXISTS personnel_last_name_trgm_idx ON personnel USING gin (last_name gin_trgm_ops);`;
+    
+    // Create a standard index for sorting to improve performance of ORDER BY
+    await sql`CREATE INDEX IF NOT EXISTS personnel_last_first_name_idx ON personnel (last_name, first_name);`;
+
+    return response.status(200).json({ message: 'جدول و ایندکس‌های بهینه‌سازی با موفقیت ایجاد یا تایید شدند.' });
   } catch (error) {
-    console.error('Database table creation failed:', error);
+    console.error('Database table/index creation failed:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-    return response.status(500).json({ error: 'ایجاد جدول در پایگاه داده با خطا مواجه شد.', details: errorMessage });
+    return response.status(500).json({ error: 'ایجاد جدول یا ایندکس در پایگاه داده با خطا مواجه شد.', details: errorMessage });
   }
 }
