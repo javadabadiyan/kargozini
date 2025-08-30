@@ -1,4 +1,4 @@
-import { db } from '@vercel/postgres';
+import { sql } from '@vercel/postgres';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import type { Personnel } from '../types';
 
@@ -6,11 +6,6 @@ export default async function handler(
   request: VercelRequest,
   response: VercelResponse,
 ) {
-  const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
-  if (!connectionString) {
-    return response.status(500).json({ error: "Database connection string is not configured.", details: "DATABASE_URL or POSTGRES_URL environment variable is missing." });
-  }
-  
   if (request.method !== 'PUT') {
     return response.status(405).json({ error: 'Method Not Allowed' });
   }
@@ -21,10 +16,8 @@ export default async function handler(
     return response.status(400).json({ error: 'اطلاعات پرسنل یا شناسه نامعتبر است.' });
   }
 
-  const client = await db.connect();
   try {
-    // Note: "position" is a reserved keyword in SQL, so it needs to be double-quoted.
-    await client.sql`
+    const { rows } = await sql`
       UPDATE personnel SET
         personnel_code = ${p.personnel_code},
         first_name = ${p.first_name},
@@ -47,14 +40,28 @@ export default async function handler(
         education_level = ${p.education_level},
         field_of_study = ${p.field_of_study},
         status = ${p.status}
-      WHERE id = ${p.id};
+      WHERE id = ${p.id}
+      RETURNING *;
     `;
-    return response.status(200).json({ message: 'اطلاعات پرسنل با موفقیت به‌روزرسانی شد.', personnel: p });
+    
+    if (rows.length === 0) {
+        return response.status(404).json({ error: 'پرسنلی با این شناسه یافت نشد.'});
+    }
+
+    return response.status(200).json({ message: 'اطلاعات پرسنل با موفقیت به‌روزرسانی شد.', personnel: rows[0] });
   } catch (error) {
     console.error('Database update failed:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+
+    // Handle unique constraint violation on personnel_code
+    if (errorMessage.includes('duplicate key value violates unique constraint "personnel_personnel_code_key"')) {
+        return response.status(409).json({ error: 'کد پرسنلی وارد شده تکراری است.', details: 'یک پرسنل دیگر با این کد پرسنلی وجود دارد.' });
+    }
+    // Handle unique constraint violation on national_id
+    if (errorMessage.includes('duplicate key value violates unique constraint "personnel_national_id_key"')) {
+        return response.status(409).json({ error: 'کد ملی وارد شده تکراری است.', details: 'یک پرسنل دیگر با این کد ملی وجود دارد.' });
+    }
+
     return response.status(500).json({ error: 'خطا در به‌روزرسانی اطلاعات در پایگاه داده.', details: errorMessage });
-  } finally {
-    client.release();
   }
 }
