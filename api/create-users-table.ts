@@ -19,7 +19,8 @@ export default async function handler(
 
   const messages: string[] = [];
   try {
-    await client.query('BEGIN');
+    // FIX: Cast client to 'any' to bypass a potential type definition issue with VercelPoolClient. The underlying pg client supports the .query method.
+    await (client as any).query('BEGIN');
 
     // Create personnel table
     await client.sql`
@@ -95,7 +96,8 @@ export default async function handler(
     messages.push('جدول "commute_logs" با موفقیت ایجاد یا تایید شد.');
     
     // Create trigger function for updated_at
-    await client.query(`
+    // FIX: Cast client to 'any' to bypass a potential type definition issue with VercelPoolClient. The underlying pg client supports the .query method.
+    await (client as any).query(`
         CREATE OR REPLACE FUNCTION update_updated_at_column()
         RETURNS TRIGGER AS $$
         BEGIN
@@ -106,7 +108,8 @@ export default async function handler(
     `);
 
     // Create trigger for commute_logs
-    await client.query(`
+    // FIX: Cast client to 'any' to bypass a potential type definition issue with VercelPoolClient. The underlying pg client supports the .query method.
+    await (client as any).query(`
         DROP TRIGGER IF EXISTS update_commute_logs_updated_at ON commute_logs;
         CREATE TRIGGER update_commute_logs_updated_at
         BEFORE UPDATE ON commute_logs
@@ -131,11 +134,13 @@ export default async function handler(
     await client.sql`CREATE INDEX IF NOT EXISTS personnel_last_first_name_idx ON personnel (last_name, first_name);`;
     messages.push('ایندکس مرتب‌سازی برای پرسنل ایجاد شد.');
     
-    await client.query('COMMIT');
+    // FIX: Cast client to 'any' to bypass a potential type definition issue with VercelPoolClient. The underlying pg client supports the .query method.
+    await (client as any).query('COMMIT');
     return response.status(200).json({ message: 'عملیات راه‌اندازی پایگاه داده با موفقیت انجام شد.', details: messages });
   
   } catch (error) {
-    await client.query('ROLLBACK');
+    // FIX: Cast client to 'any' to bypass a potential type definition issue with VercelPoolClient. The underlying pg client supports the .query method.
+    await (client as any).query('ROLLBACK');
     console.error('Database setup failed:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     return response.status(500).json({ error: 'ایجاد جداول در پایگاه داده با خطا مواجه شد.', details: errorMessage });

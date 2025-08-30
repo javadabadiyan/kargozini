@@ -127,7 +127,8 @@ async function handleBulkPost(allPersonnel: NewPersonnel[], response: VercelResp
         const batch = validPersonnelList.slice(i, i + BATCH_SIZE);
         if (batch.length === 0) continue;
 
-        await client.query('BEGIN');
+        // FIX: Cast client to 'any' to bypass a potential type definition issue with VercelPoolClient. The underlying pg client supports the .query method.
+        await (client as any).query('BEGIN');
 
         const values: (string | null)[] = [];
         const valuePlaceholders: string[] = [];
@@ -148,15 +149,18 @@ async function handleBulkPost(allPersonnel: NewPersonnel[], response: VercelResp
           ON CONFLICT (personnel_code) DO UPDATE SET ${updateSet};
         `;
         
-        await client.query(query, values);
-        await client.query('COMMIT');
+        // FIX: Cast client to 'any' to bypass a potential type definition issue with VercelPoolClient. The underlying pg client supports the .query method.
+        await (client as any).query(query, values);
+        // FIX: Cast client to 'any' to bypass a potential type definition issue with VercelPoolClient. The underlying pg client supports the .query method.
+        await (client as any).query('COMMIT');
         totalProcessed += batch.length;
     }
 
     return response.status(200).json({ message: `عملیات موفق. ${totalProcessed} رکورد پردازش شد.` });
   
   } catch (error) {
-    await client.query('ROLLBACK').catch(rollbackError => {
+    // FIX: Cast client to 'any' to bypass a potential type definition issue with VercelPoolClient. The underlying pg client supports the .query method.
+    await (client as any).query('ROLLBACK').catch(rollbackError => {
         console.error('Failed to rollback transaction:', rollbackError);
     });
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import type { MenuItem } from '../types';
 // Fix: Removed `UserGroupIcon` as it's not exported from Icons.tsx.
 import { ChevronDownIcon, ChevronUpIcon, CircleIcon, HomeIcon, DocumentTextIcon, BriefcaseIcon, ShieldCheckIcon, LockClosedIcon, UsersIcon } from './icons/Icons';
@@ -117,6 +117,55 @@ const SidebarMenuItem: React.FC<{
   );
 };
 
+const AnimatedDigit: React.FC<{ digit: string; hasChanged: boolean }> = memo(({ digit, hasChanged }) => {
+  return (
+    <span className={`inline-block ${hasChanged ? 'digit-animate' : ''}`}>
+      {digit}
+    </span>
+  );
+});
+
+const Clock: React.FC = () => {
+  const [time, setTime] = useState(new Date());
+  const previousTimeRef = useRef('');
+
+  useEffect(() => {
+    const timerId = setInterval(() => {
+      previousTimeRef.current = new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+      setTime(new Date());
+    }, 1000);
+    return () => clearInterval(timerId);
+  }, []);
+
+  const toPersianDigits = (s: string) => s.replace(/[0-9]/g, (w) => '۰۱۲۳۴۵۶۷۸۹'[parseInt(w, 10)]);
+
+  const rawFormattedTime = time.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+  const formattedTime = toPersianDigits(rawFormattedTime);
+  const previousFormattedTime = toPersianDigits(previousTimeRef.current);
+  
+  const rawFormattedDate = new Intl.DateTimeFormat('fa-IR', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    weekday: 'long',
+  }).format(time).replace('،', '');
+  const formattedDate = toPersianDigits(rawFormattedDate);
+
+  return (
+    <div className="p-6 border-t border-slate-700 text-center">
+      <div className="text-4xl font-mono font-bold tracking-widest" dir="ltr">
+        {formattedTime.split('').map((char, index) => {
+            const hasChanged = formattedTime[index] !== previousFormattedTime[index];
+            return char === ':' ? 
+                <span key={index} className="px-1">:</span> : 
+                <AnimatedDigit key={`${index}-${char}`} digit={char} hasChanged={hasChanged} />;
+        })}
+      </div>
+      <p className="text-sm text-gray-400 mt-2">{formattedDate}</p>
+    </div>
+  );
+};
+
 
 const Sidebar: React.FC<{ setActivePage: React.Dispatch<React.SetStateAction<React.ComponentType>> }> = ({ setActivePage }) => {
   const [activeItem, setActiveItem] = useState<string>('personnel-list');
@@ -125,13 +174,7 @@ const Sidebar: React.FC<{ setActivePage: React.Dispatch<React.SetStateAction<Rea
       recruitment: false,
       security: true
   });
-  const [time, setTime] = useState(new Date());
-
-  useEffect(() => {
-    const timerId = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(timerId);
-  }, []);
-
+  
   const handleSetActiveItem = useCallback((id: string, page: React.ComponentType) => {
     setActiveItem(id);
     setActivePage(() => page);
@@ -141,20 +184,6 @@ const Sidebar: React.FC<{ setActivePage: React.Dispatch<React.SetStateAction<Rea
   const toggleItem = (id: string) => {
     setOpenItems(prev => ({...prev, [id]: !prev[id]}));
   };
-
-  const toPersianDigits = (s: string) => s.replace(/[0-9]/g, (w) => '۰۱۲۳۴۵۶۷۸۹'[parseInt(w, 10)]);
-
-  const rawFormattedTime = time.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-  const formattedTime = toPersianDigits(rawFormattedTime);
-
-  const rawFormattedDate = new Intl.DateTimeFormat('fa-IR', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    weekday: 'long',
-  }).format(time).replace('،', '');
-  const formattedDate = toPersianDigits(rawFormattedDate);
-
 
   return (
     <aside className="w-72 bg-slate-800 text-white flex flex-col shadow-2xl">
@@ -173,10 +202,7 @@ const Sidebar: React.FC<{ setActivePage: React.Dispatch<React.SetStateAction<Rea
           />
         ))}
       </nav>
-      <div className="p-6 border-t border-slate-700 text-center">
-        <p className="text-3xl font-mono tracking-widest">{formattedTime}</p>
-        <p className="text-sm text-gray-400 mt-1">{formattedDate}</p>
-      </div>
+      <Clock />
     </aside>
   );
 };

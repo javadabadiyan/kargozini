@@ -8,6 +8,13 @@ const GUARDS = [
   'شیفت C | روح‌الله فخرآبادی',
 ];
 
+const PERSIAN_MONTHS = ['فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور', 'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند'];
+const YEARS = Array.from({ length: 1490 - 1402 }, (_, i) => 1403 + i);
+const DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
+const HOURS = Array.from({ length: 24 }, (_, i) => i);
+const MINUTES = Array.from({ length: 60 }, (_, i) => i);
+
+
 const LogCommutePage: React.FC = () => {
   const [commutingMembers, setCommutingMembers] = useState<CommutingMember[]>([]);
   const [todaysLogs, setTodaysLogs] = useState<CommuteLog[]>([]);
@@ -22,10 +29,33 @@ const LogCommutePage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<{ type: 'info' | 'success' | 'error'; message: string } | null>(null);
   
-  const toPersianDigits = (s: string | null | undefined): string => {
+  const [logDate, setLogDate] = useState({ year: '', month: '', day: '' });
+  const [entryTime, setEntryTime] = useState({ hour: '', minute: '' });
+  const [exitTime, setExitTime] = useState({ hour: '', minute: '' });
+
+  const toPersianDigits = (s: string | number | null | undefined): string => {
     if (s === null || s === undefined) return '';
     return String(s).replace(/[0-9]/g, (w) => '۰۱۲۳۴۵۶۷۸۹'[parseInt(w, 10)]);
   };
+
+  const getTodayPersian = () => {
+    const today = new Date();
+    const formatter = new Intl.DateTimeFormat('fa-IR-u-nu-latn', {
+      year: 'numeric',
+      month: 'numeric',
+      day: 'numeric',
+    });
+    const parts = formatter.formatToParts(today);
+    const year = parts.find(p => p.type === 'year')?.value || '';
+    const month = parts.find(p => p.type === 'month')?.value || '';
+    const day = parts.find(p => p.type === 'day')?.value || '';
+    return { year, month, day };
+  };
+
+  useEffect(() => {
+    setLogDate(getTodayPersian());
+  }, []);
+
 
   const fetchCommutingMembers = useCallback(async () => {
     try {
@@ -75,12 +105,43 @@ const LogCommutePage: React.FC = () => {
     setIsSearchFocused(false);
   };
 
+  const getTimestampFromState = (timeState: { hour: string; minute: string }): string | null => {
+      const { year, month, day } = logDate;
+      const { hour, minute } = timeState;
+
+      if (!year || !month || !day || !hour || !minute) return null;
+
+      const pYear = parseInt(year);
+      const pMonth = parseInt(month);
+      const pDay = parseInt(day);
+
+      // Approximate Gregorian conversion
+      const gYear = pYear + 621;
+
+      // Create date in UTC to avoid timezone issues
+      const dateObj = new Date(Date.UTC(gYear, pMonth - 1, pDay, parseInt(hour), parseInt(minute)));
+      
+      // Adjust for Iran timezone offset (+3:30)
+      dateObj.setUTCMinutes(dateObj.getUTCMinutes() - 210);
+
+      return dateObj.toISOString();
+  };
+
   const handleLogCommute = async (action: 'entry' | 'exit') => {
     if (!selectedGuard || !selectedMember) {
       setStatus({ type: 'error', message: 'لطفاً نگهبان و پرسنل را انتخاب کنید.' });
       return;
     }
     
+    const timeToUse = action === 'entry' ? entryTime : exitTime;
+    const timestampOverride = getTimestampFromState(timeToUse);
+    const isManualEntry = timeToUse.hour && timeToUse.minute;
+
+    if(isManualEntry && !timestampOverride) {
+      setStatus({ type: 'error', message: 'لطفاً تاریخ و زمان را به طور کامل وارد کنید.'});
+      return;
+    }
+
     setStatus({ type: 'info', message: `در حال ثبت ${action === 'entry' ? 'ورود' : 'خروج'}...` });
     try {
       const response = await fetch('/api/commute-logs', {
@@ -89,7 +150,8 @@ const LogCommutePage: React.FC = () => {
         body: JSON.stringify({ 
             personnelCode: selectedMember.personnel_code,
             guardName: selectedGuard,
-            action 
+            action,
+            timestampOverride
         }),
       });
       const data = await response.json();
@@ -99,6 +161,8 @@ const LogCommutePage: React.FC = () => {
       setStatus({ type: 'success', message: `تردد با موفقیت ثبت شد.`});
       setSelectedMember(null);
       setSearchTerm('');
+      setEntryTime({ hour: '', minute: ''});
+      setExitTime({ hour: '', minute: ''});
       fetchTodaysLogs(); // Refresh logs
     } catch (err) {
       setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطای ناشناخته' });
@@ -128,28 +192,32 @@ const LogCommutePage: React.FC = () => {
         <div className={`p-4 text-sm rounded-lg ${statusColor[status.type]}`}>{status.message}</div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-end">
+      <div className="space-y-6">
         <div>
-          <label htmlFor="guard-select" className="block text-sm font-medium text-gray-700 mb-1">انتخاب نگهبان</label>
-          <select 
-            id="guard-select"
-            value={selectedGuard}
-            onChange={e => setSelectedGuard(e.target.value)}
-            className="w-full px-3 py-2 text-gray-700 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="" disabled>شیفت کاری خود را انتخاب کنید</option>
-            {GUARDS.map(g => <option key={g} value={g}>{g}</option>)}
-          </select>
+          <label className="block text-sm font-medium text-gray-700 mb-2">انتخاب نگهبان</label>
+          <div className="flex flex-wrap gap-3">
+            {GUARDS.map(guard => (
+              <label key={guard} className={`flex items-center px-4 py-2 rounded-lg border cursor-pointer transition-colors ${selectedGuard === guard ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}>
+                <input
+                  type="radio"
+                  name="guard"
+                  value={guard}
+                  checked={selectedGuard === guard}
+                  onChange={e => setSelectedGuard(e.target.value)}
+                  className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300 ml-2"
+                />
+                {guard}
+              </label>
+            ))}
+          </div>
         </div>
         
-        <div className="relative lg:col-span-2">
+        <div className="relative">
           <label htmlFor="personnel-search" className="block text-sm font-medium text-gray-700 mb-1">جستجوی پرسنل</label>
           <div className="relative">
             <UserIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input 
-              type="text"
-              id="personnel-search"
-              placeholder="نام یا کد پرسنلی را وارد کنید..."
+              type="text" id="personnel-search" placeholder="نام یا کد پرسنلی را وارد کنید..."
               value={searchTerm}
               onChange={e => { setSearchTerm(e.target.value); setSelectedMember(null); }}
               onFocus={() => setIsSearchFocused(true)}
@@ -168,6 +236,50 @@ const LogCommutePage: React.FC = () => {
             </ul>
           )}
         </div>
+
+        <div className="p-4 border border-gray-200 rounded-lg bg-slate-50 space-y-4">
+          <h4 className="font-semibold text-gray-700">ثبت دستی تاریخ و زمان (اختیاری)</h4>
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+            {/* Date */}
+            <div className="lg:col-span-3 grid grid-cols-3 gap-2">
+                <select value={logDate.day} onChange={e => setLogDate(p => ({...p, day: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md">
+                  <option value="" disabled>روز</option>
+                  {DAYS.map(d => <option key={d} value={d}>{toPersianDigits(d)}</option>)}
+                </select>
+                <select value={logDate.month} onChange={e => setLogDate(p => ({...p, month: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md">
+                   <option value="" disabled>ماه</option>
+                  {PERSIAN_MONTHS.map((m, i) => <option key={m} value={i+1}>{m}</option>)}
+                </select>
+                <select value={logDate.year} onChange={e => setLogDate(p => ({...p, year: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md">
+                   <option value="" disabled>سال</option>
+                  {YEARS.map(y => <option key={y} value={y}>{toPersianDigits(y)}</option>)}
+                </select>
+            </div>
+            {/* Entry Time */}
+            <div className="lg:col-span-2 grid grid-cols-2 gap-2">
+                <select value={entryTime.hour} onChange={e => setEntryTime(p => ({...p, hour: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md" aria-label="ساعت ورود">
+                   <option value="">ساعت ورود</option>
+                   {HOURS.map(h => <option key={h} value={h}>{toPersianDigits(String(h).padStart(2, '0'))}</option>)}
+                </select>
+                <select value={entryTime.minute} onChange={e => setEntryTime(p => ({...p, minute: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md" aria-label="دقیقه ورود">
+                   <option value="">دقیقه ورود</option>
+                   {MINUTES.map(m => <option key={m} value={m}>{toPersianDigits(String(m).padStart(2, '0'))}</option>)}
+                </select>
+            </div>
+             {/* Exit Time */}
+             <div className="lg:col-span-2 grid grid-cols-2 gap-2">
+                <select value={exitTime.hour} onChange={e => setExitTime(p => ({...p, hour: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md" aria-label="ساعت خروج">
+                   <option value="">ساعت خروج</option>
+                   {HOURS.map(h => <option key={h} value={h}>{toPersianDigits(String(h).padStart(2, '0'))}</option>)}
+                </select>
+                <select value={exitTime.minute} onChange={e => setExitTime(p => ({...p, minute: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md" aria-label="دقیقه خروج">
+                   <option value="">دقیقه خروج</option>
+                   {MINUTES.map(m => <option key={m} value={m}>{toPersianDigits(String(m).padStart(2, '0'))}</option>)}
+                </select>
+            </div>
+          </div>
+        </div>
+
       </div>
       
       <div className="flex items-center justify-center gap-4 pt-4 border-t border-gray-100">
