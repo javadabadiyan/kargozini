@@ -1,30 +1,37 @@
-import { sql } from '@vercel/postgres';
+import { createPool } from '@vercel/postgres';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 export default async function handler(
   request: VercelRequest,
   response: VercelResponse,
 ) {
+  if (!process.env.STORAGE_URL) {
+    return response.status(500).json({
+        error: 'متغیر اتصال به پایگاه داده (STORAGE_URL) تنظیم نشده است.',
+        details: 'لطفاً تنظیمات پروژه خود را در Vercel بررسی کنید و از اتصال صحیح پایگاه داده اطمینان حاصل کنید.'
+    });
+  }
+  
+  const pool = createPool({
+    connectionString: process.env.STORAGE_URL,
+  });
+
   try {
     const page = parseInt(request.query.page as string) || 1;
-    const pageSize = parseInt(request.query.pageSize as string) || 20; // Set a default page size
+    const pageSize = parseInt(request.query.pageSize as string) || 20;
     const searchTerm = (request.query.searchTerm as string) || '';
     const offset = (page - 1) * pageSize;
-
-    // Use '%' for wildcard matching in SQL ILIKE for case-insensitive search
     const searchQuery = `%${searchTerm}%`;
     
-    // Fix: The `sql` tag from `@vercel/postgres` returns a Promise and its results cannot be composed.
-    // The query logic has been rewritten to conditionally build the entire query.
     let countResult;
     let dataResult;
 
     if (searchTerm) {
-        countResult = await sql`
+        countResult = await pool.sql`
             SELECT COUNT(*) FROM personnel
             WHERE first_name ILIKE ${searchQuery} OR last_name ILIKE ${searchQuery} OR personnel_code ILIKE ${searchQuery} OR national_id ILIKE ${searchQuery};
         `;
-        dataResult = await sql`
+        dataResult = await pool.sql`
             SELECT 
                 id, personnel_code, first_name, last_name, father_name, national_id, id_number,
                 birth_date, birth_place, issue_date, issue_place, marital_status, military_status,
@@ -36,8 +43,8 @@ export default async function handler(
             LIMIT ${pageSize} OFFSET ${offset};
         `;
     } else {
-        countResult = await sql`SELECT COUNT(*) FROM personnel;`;
-        dataResult = await sql`
+        countResult = await pool.sql`SELECT COUNT(*) FROM personnel;`;
+        dataResult = await pool.sql`
             SELECT 
                 id, personnel_code, first_name, last_name, father_name, national_id, id_number,
                 birth_date, birth_place, issue_date, issue_place, marital_status, military_status,

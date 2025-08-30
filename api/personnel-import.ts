@@ -1,4 +1,4 @@
-import { db } from '@vercel/postgres';
+import { createPool } from '@vercel/postgres';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import type { Personnel } from '../types';
 
@@ -13,6 +13,13 @@ export default async function handler(
   if (request.method !== 'POST') {
     return response.status(405).json({ error: 'Method Not Allowed' });
   }
+  
+  if (!process.env.STORAGE_URL) {
+    return response.status(500).json({
+        error: 'متغیر اتصال به پایگاه داده (STORAGE_URL) تنظیم نشده است.',
+        details: 'لطفاً تنظیمات پروژه خود را در Vercel بررسی کنید و از اتصال صحیح پایگاه داده اطمینان حاصل کنید.'
+    });
+  }
 
   const allPersonnel = request.body as NewPersonnel[];
 
@@ -26,7 +33,11 @@ export default async function handler(
     return response.status(200).json({ message: 'هیچ رکورد معتبری برای ورود یافت نشد. لطفاً از وجود ستون‌های کد پرسنلی، نام و نام خانوادگی اطمینان حاصل کنید.' });
   }
   
-  const client = await db.connect();
+  const pool = createPool({
+    connectionString: process.env.STORAGE_URL,
+  });
+  const client = await pool.connect();
+
   try {
     const columns = [
       'personnel_code', 'first_name', 'last_name', 'father_name', 'national_id', 'id_number',
@@ -47,12 +58,11 @@ export default async function handler(
         const batch = validPersonnelList.slice(i, i + BATCH_SIZE);
         if (batch.length === 0) continue;
 
-        // A new transaction for each batch
         await client.query('BEGIN');
 
         const values: (string | null)[] = [];
         const valuePlaceholders: string[] = [];
-        let paramIndex = 1; // Reset parameter index for each batch query
+        let paramIndex = 1;
 
         for (const p of batch) {
           const recordPlaceholders: string[] = [];
@@ -77,7 +87,6 @@ export default async function handler(
     return response.status(200).json({ message: `عملیات موفق. ${totalProcessed} رکورد پردازش شد.` });
   
   } catch (error) {
-    // Attempt to rollback if a transaction was in progress
     await client.query('ROLLBACK').catch(rollbackError => {
         console.error('Failed to rollback transaction:', rollbackError);
     });

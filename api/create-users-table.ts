@@ -1,14 +1,24 @@
-import { sql } from '@vercel/postgres';
+import { createPool } from '@vercel/postgres';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 export default async function handler(
   _request: VercelRequest,
   response: VercelResponse,
 ) {
+  if (!process.env.STORAGE_URL) {
+    return response.status(500).json({
+        error: 'متغیر اتصال به پایگاه داده (STORAGE_URL) تنظیم نشده است.',
+        details: 'لطفاً تنظیمات پروژه خود را در Vercel بررسی کنید و از اتصال صحیح پایگاه داده اطمینان حاصل کنید.'
+    });
+  }
+  
+  const pool = createPool({
+    connectionString: process.env.STORAGE_URL,
+  });
+
   const messages: string[] = [];
   try {
-    // Note: "position" is a reserved SQL keyword, so it's enclosed in double quotes.
-    await sql`
+    await pool.sql`
       CREATE TABLE IF NOT EXISTS personnel (
         id SERIAL PRIMARY KEY,
         personnel_code VARCHAR(50) UNIQUE NOT NULL,
@@ -38,7 +48,7 @@ export default async function handler(
 
     let extensionCreated = false;
     try {
-        await sql`CREATE EXTENSION IF NOT EXISTS pg_trgm;`;
+        await pool.sql`CREATE EXTENSION IF NOT EXISTS pg_trgm;`;
         messages.push('افزونه "pg_trgm" برای جستجوی سریع با موفقیت فعال شد.');
         extensionCreated = true;
     } catch (extError) {
@@ -48,8 +58,8 @@ export default async function handler(
     
     if (extensionCreated) {
         try {
-            await sql`CREATE INDEX IF NOT EXISTS personnel_first_name_trgm_idx ON personnel USING gin (first_name gin_trgm_ops);`;
-            await sql`CREATE INDEX IF NOT EXISTS personnel_last_name_trgm_idx ON personnel USING gin (last_name gin_trgm_ops);`;
+            await pool.sql`CREATE INDEX IF NOT EXISTS personnel_first_name_trgm_idx ON personnel USING gin (first_name gin_trgm_ops);`;
+            await pool.sql`CREATE INDEX IF NOT EXISTS personnel_last_name_trgm_idx ON personnel USING gin (last_name gin_trgm_ops);`;
             messages.push('ایندکس‌های جستجوی سریع (GIN) با موفقیت ایجاد شدند.');
         } catch (ginIndexError) {
             console.warn('Could not create GIN indexes:', ginIndexError);
@@ -58,7 +68,7 @@ export default async function handler(
     }
     
     try {
-        await sql`CREATE INDEX IF NOT EXISTS personnel_last_first_name_idx ON personnel (last_name, first_name);`;
+        await pool.sql`CREATE INDEX IF NOT EXISTS personnel_last_first_name_idx ON personnel (last_name, first_name);`;
         messages.push('ایندکس مرتب‌سازی برای افزایش سرعت با موفقیت ایجاد شد.');
     } catch (sortIndexError) {
         console.warn('Could not create sorting index:', sortIndexError);
