@@ -5,6 +5,7 @@ import { ChevronDownIcon, ChevronUpIcon, CircleIcon, HomeIcon, DocumentTextIcon,
 import DependentsInfoPage from './pages/DependentsInfoPage';
 import PlaceholderPage from './pages/PlaceholderPage';
 import PersonnelListPage from './pages/PersonnelListPage';
+import CommutingMembersPage from './pages/CommutingMembersPage';
 
 // Define placeholder pages as stable, named components to prevent re-creation on every render.
 const DashboardPage = () => <PlaceholderPage title="داشبورد" />;
@@ -14,7 +15,6 @@ const DisciplinaryCommitteePage = () => <PlaceholderPage title="کمیته تش�
 const PerformanceReviewPage = () => <PlaceholderPage title="ارزیابی عملکرد" />;
 const JobGroupPage = () => <PlaceholderPage title="گروه شغلی پرسنل" />;
 const BonusManagementPage = () => <PlaceholderPage title="مدیریت کارانه" />;
-const CommutingMembersPage = () => <PlaceholderPage title="کارمندان عضو تردد" />;
 const LogCommutePage = () => <PlaceholderPage title="ثبت تردد" />;
 const CommuteReportPage = () => <PlaceholderPage title="گزارش گیری تردد" />;
 const UserManagementPage = () => <PlaceholderPage title="مدیریت کاربران" />;

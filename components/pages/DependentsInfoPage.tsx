@@ -32,6 +32,12 @@ const DependentsInfoPage: React.FC = () => {
   const [importStatus, setImportStatus] = useState<{ type: 'info' | 'success' | 'error'; message: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const toPersianDigits = (s: string | null | undefined): string => {
+    if (s === null || s === undefined) return '';
+    const str = String(s);
+    return str.replace(/[0-9]/g, (w) => '۰۱۲۳۴۵۶۷۸۹'[parseInt(w, 10)]);
+  };
+
   useEffect(() => {
     const fetchPersonnel = async () => {
       try {
@@ -157,12 +163,6 @@ const DependentsInfoPage: React.FC = () => {
     reader.readAsArrayBuffer(file);
   };
 
-  const toPersianDigits = (s: string | null | undefined): string => {
-    if (s === null || s === undefined) return '';
-    const str = String(s);
-    return str.replace(/[0-9]/g, (w) => '۰۱۲۳۴۵۶۷۸۹'[parseInt(w, 10)]);
-  };
-
   const handleExport = async () => {
     setImportStatus({type: 'info', message: 'در حال آماده‌سازی فایل اکسل...'});
     try {
@@ -271,7 +271,7 @@ const DependentsInfoPage: React.FC = () => {
                             <UserIcon className="w-12 h-12 text-blue-500" />
                             <div>
                                 <h3 className="text-xl font-bold text-gray-800">{selectedPersonnel.first_name} {selectedPersonnel.last_name}</h3>
-                                <p className="text-sm text-gray-600">کد پرسنلی: <span className="font-mono">{selectedPersonnel.personnel_code}</span></p>
+                                <p className="text-sm text-gray-600">کد پرسنلی: <span className="font-mono">{toPersianDigits(selectedPersonnel.personnel_code)}</span></p>
                             </div>
                         </div>
                     </div>
@@ -293,7 +293,7 @@ const DependentsInfoPage: React.FC = () => {
                                   {dependents.map(d => (
                                       <tr key={d.id}>
                                           {EXPORT_HEADERS.slice(1).map(header => (
-                                              <td key={header} className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">{String(d[DEPENDENT_HEADER_MAP[header]] ?? '')}</td>
+                                              <td key={header} className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">{toPersianDigits(String(d[DEPENDENT_HEADER_MAP[header]] ?? ''))}</td>
                                           ))}
                                       </tr>
                                   ))}

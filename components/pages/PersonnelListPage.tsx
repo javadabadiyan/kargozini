@@ -76,6 +76,12 @@ const PersonnelListPage: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
 
+  const toPersianDigits = (s: string | null | undefined): string => {
+    if (s === null || s === undefined) return '';
+    const str = String(s);
+    return str.replace(/[0-9]/g, (w) => '۰۱۲۳۴۵۶۷۸۹'[parseInt(w, 10)]);
+  };
+
   const fetchPersonnel = useCallback(async (page: number, search: string) => {
     try {
       setLoading(true);
@@ -182,12 +188,6 @@ const PersonnelListPage: React.FC = () => {
       }
     };
     reader.readAsArrayBuffer(file);
-  };
-
-  const toPersianDigits = (s: string | null | undefined): string => {
-    if (s === null || s === undefined) return '';
-    const str = String(s);
-    return str.replace(/[0-9]/g, (w) => '۰۱۲۳۴۵۶۷۸۹'[parseInt(w, 10)]);
   };
 
   const handleExport = async () => {
@@ -352,7 +352,7 @@ const PersonnelListPage: React.FC = () => {
                 {EXPORT_HEADERS.map(header => {
                     const key = HEADER_MAP[header];
                     return (
-                        <td key={key} className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">{String(p[key] ?? '')}</td>
+                        <td key={key} className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">{toPersianDigits(String(p[key] ?? ''))}</td>
                     );
                 })}
                 <td className="px-4 py-3 whitespace-nowrap text-sm text-center">
@@ -389,7 +389,7 @@ const PersonnelListPage: React.FC = () => {
             قبلی
           </button>
           <span className="text-sm text-gray-600">
-            صفحه {currentPage} از {totalPages}
+            صفحه {toPersianDigits(String(currentPage))} از {toPersianDigits(String(totalPages))}
           </span>
           <button
             onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}

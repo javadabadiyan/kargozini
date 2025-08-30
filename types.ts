@@ -43,3 +43,11 @@ export interface Dependent {
   birth_date: string;
   gender: string;
 }
+
+export interface CommutingMember {
+  id: number;
+  full_name: string;
+  personnel_code: string;
+  department: string;
+  position: string;
+}

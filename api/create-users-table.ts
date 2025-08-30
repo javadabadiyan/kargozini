@@ -68,6 +68,18 @@ export default async function handler(
     await client.sql`CREATE INDEX IF NOT EXISTS dependents_personnel_code_idx ON dependents (personnel_code);`;
     messages.push('ایندکس برای جستجوی سریع بستگان ایجاد شد.');
 
+    // Create commuting_members table
+    await client.sql`
+      CREATE TABLE IF NOT EXISTS commuting_members (
+        id SERIAL PRIMARY KEY,
+        personnel_code VARCHAR(50) UNIQUE NOT NULL,
+        full_name VARCHAR(200) NOT NULL,
+        department VARCHAR(100),
+        "position" VARCHAR(255)
+      );
+    `;
+    messages.push('جدول "commuting_members" با موفقیت ایجاد یا تایید شد.');
+
 
     // Create extensions and indexes for personnel table
     try {
