@@ -9,7 +9,8 @@ const GUARDS = [
 ];
 
 const PERSIAN_MONTHS = ['فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور', 'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند'];
-const YEARS = Array.from({ length: 1490 - 1402 }, (_, i) => 1403 + i);
+// Adjusted the start year to 1402 to make the range inclusive for the current year.
+const YEARS = Array.from({ length: 10 }, (_, i) => 1402 + i);
 const DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const MINUTES = Array.from({ length: 60 }, (_, i) => i);
@@ -30,8 +31,9 @@ const LogCommutePage: React.FC = () => {
   const [status, setStatus] = useState<{ type: 'info' | 'success' | 'error'; message: string } | null>(null);
   
   const [logDate, setLogDate] = useState({ year: '', month: '', day: '' });
-  const [entryTime, setEntryTime] = useState({ hour: '', minute: '' });
-  const [exitTime, setExitTime] = useState({ hour: '', minute: '' });
+  // FIX: Replaced separate entry and exit time states with a single manualTime state.
+  // This simplifies the UI and logic, preventing user confusion.
+  const [manualTime, setManualTime] = useState({ hour: '', minute: '' });
 
   const toPersianDigits = (s: string | number | null | undefined): string => {
     if (s === null || s === undefined) return '';
@@ -133,9 +135,9 @@ const LogCommutePage: React.FC = () => {
       return;
     }
     
-    const timeToUse = action === 'entry' ? entryTime : exitTime;
-    const timestampOverride = getTimestampFromState(timeToUse);
-    const isManualEntry = timeToUse.hour && timeToUse.minute;
+    // FIX: Use the unified manualTime state for both entry and exit actions.
+    const timestampOverride = getTimestampFromState(manualTime);
+    const isManualEntry = manualTime.hour && manualTime.minute;
 
     if(isManualEntry && !timestampOverride) {
       setStatus({ type: 'error', message: 'لطفاً تاریخ و زمان را به طور کامل وارد کنید.'});
@@ -161,8 +163,8 @@ const LogCommutePage: React.FC = () => {
       setStatus({ type: 'success', message: `تردد با موفقیت ثبت شد.`});
       setSelectedMember(null);
       setSearchTerm('');
-      setEntryTime({ hour: '', minute: ''});
-      setExitTime({ hour: '', minute: ''});
+      // FIX: Reset the unified manualTime state on successful log.
+      setManualTime({ hour: '', minute: ''});
       fetchTodaysLogs(); // Refresh logs
     } catch (err) {
       setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطای ناشناخته' });
@@ -239,43 +241,42 @@ const LogCommutePage: React.FC = () => {
 
         <div className="p-4 border border-gray-200 rounded-lg bg-slate-50 space-y-4">
           <h4 className="font-semibold text-gray-700">ثبت دستی تاریخ و زمان (اختیاری)</h4>
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+          <p className="text-xs text-gray-500">
+            برای ثبت تردد در زمان فعلی، این بخش را خالی بگذارید. در غیر این صورت، تاریخ و زمان مورد نظر را انتخاب کنید. این زمان برای هر دو دکمه ورود و خروج اعمال خواهد شد.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
             {/* Date */}
-            <div className="lg:col-span-3 grid grid-cols-3 gap-2">
-                <select value={logDate.day} onChange={e => setLogDate(p => ({...p, day: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">تاریخ</label>
+              <div className="grid grid-cols-3 gap-2">
+                <select value={logDate.day} onChange={e => setLogDate(p => ({...p, day: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md text-sm" aria-label="Day">
                   <option value="" disabled>روز</option>
                   {DAYS.map(d => <option key={d} value={d}>{toPersianDigits(d)}</option>)}
                 </select>
-                <select value={logDate.month} onChange={e => setLogDate(p => ({...p, month: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md">
+                <select value={logDate.month} onChange={e => setLogDate(p => ({...p, month: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md text-sm" aria-label="Month">
                    <option value="" disabled>ماه</option>
                   {PERSIAN_MONTHS.map((m, i) => <option key={m} value={i+1}>{m}</option>)}
                 </select>
-                <select value={logDate.year} onChange={e => setLogDate(p => ({...p, year: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md">
+                <select value={logDate.year} onChange={e => setLogDate(p => ({...p, year: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md text-sm" aria-label="Year">
                    <option value="" disabled>سال</option>
                   {YEARS.map(y => <option key={y} value={y}>{toPersianDigits(y)}</option>)}
                 </select>
+              </div>
             </div>
-            {/* Entry Time */}
-            <div className="lg:col-span-2 grid grid-cols-2 gap-2">
-                <select value={entryTime.hour} onChange={e => setEntryTime(p => ({...p, hour: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md" aria-label="ساعت ورود">
-                   <option value="">ساعت ورود</option>
-                   {HOURS.map(h => <option key={h} value={h}>{toPersianDigits(String(h).padStart(2, '0'))}</option>)}
-                </select>
-                <select value={entryTime.minute} onChange={e => setEntryTime(p => ({...p, minute: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md" aria-label="دقیقه ورود">
-                   <option value="">دقیقه ورود</option>
-                   {MINUTES.map(m => <option key={m} value={m}>{toPersianDigits(String(m).padStart(2, '0'))}</option>)}
-                </select>
-            </div>
-             {/* Exit Time */}
-             <div className="lg:col-span-2 grid grid-cols-2 gap-2">
-                <select value={exitTime.hour} onChange={e => setExitTime(p => ({...p, hour: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md" aria-label="ساعت خروج">
-                   <option value="">ساعت خروج</option>
-                   {HOURS.map(h => <option key={h} value={h}>{toPersianDigits(String(h).padStart(2, '0'))}</option>)}
-                </select>
-                <select value={exitTime.minute} onChange={e => setExitTime(p => ({...p, minute: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md" aria-label="دقیقه خروج">
-                   <option value="">دقیقه خروج</option>
-                   {MINUTES.map(m => <option key={m} value={m}>{toPersianDigits(String(m).padStart(2, '0'))}</option>)}
-                </select>
+            {/* Time */}
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">زمان</label>
+              <div className="grid grid-cols-2 gap-2">
+                  {/* FIX: Simplified to one set of time selectors for both entry and exit */}
+                  <select value={manualTime.hour} onChange={e => setManualTime(p => ({...p, hour: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md text-sm" aria-label="ساعت">
+                     <option value="">ساعت</option>
+                     {HOURS.map(h => <option key={h} value={h}>{toPersianDigits(String(h).padStart(2, '0'))}</option>)}
+                  </select>
+                  <select value={manualTime.minute} onChange={e => setManualTime(p => ({...p, minute: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md text-sm" aria-label="دقیقه">
+                     <option value="">دقیقه</option>
+                     {MINUTES.map(m => <option key={m} value={m}>{toPersianDigits(String(m).padStart(2, '0'))}</option>)}
+                  </select>
+              </div>
             </div>
           </div>
         </div>
