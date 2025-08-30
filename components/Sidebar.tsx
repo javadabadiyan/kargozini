@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import type { MenuItem } from '../types';
 // Fix: Removed `UserGroupIcon` as it's not exported from Icons.tsx.
@@ -143,13 +142,18 @@ const Sidebar: React.FC<{ setActivePage: React.Dispatch<React.SetStateAction<Rea
     setOpenItems(prev => ({...prev, [id]: !prev[id]}));
   };
 
-  const formattedTime = time.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, numberingSystem: 'arab' });
-  const formattedDate = new Intl.DateTimeFormat('fa-IR-u-nu-arab', {
+  const toPersianDigits = (s: string) => s.replace(/[0-9]/g, (w) => '۰۱۲۳۴۵۶۷۸۹'[parseInt(w, 10)]);
+
+  const rawFormattedTime = time.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+  const formattedTime = toPersianDigits(rawFormattedTime);
+
+  const rawFormattedDate = new Intl.DateTimeFormat('fa-IR', {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
     weekday: 'long',
   }).format(time).replace('،', '');
+  const formattedDate = toPersianDigits(rawFormattedDate);
 
 
   return (

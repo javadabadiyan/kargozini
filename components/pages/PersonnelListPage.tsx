@@ -184,6 +184,12 @@ const PersonnelListPage: React.FC = () => {
     reader.readAsArrayBuffer(file);
   };
 
+  const toPersianDigits = (s: string | null | undefined): string => {
+    if (s === null || s === undefined) return '';
+    const str = String(s);
+    return str.replace(/[0-9]/g, (w) => '۰۱۲۳۴۵۶۷۸۹'[parseInt(w, 10)]);
+  };
+
   const handleExport = async () => {
     // Note: This exports all personnel, not just the current page.
     // This could be slow if there are many records.
@@ -195,7 +201,7 @@ const PersonnelListPage: React.FC = () => {
             const row: { [key: string]: any } = {};
             for(const header of EXPORT_HEADERS){
                 const key = HEADER_MAP[header];
-                row[header] = p[key];
+                row[header] = toPersianDigits(p[key]);
             }
             return row;
         });

@@ -157,6 +157,12 @@ const DependentsInfoPage: React.FC = () => {
     reader.readAsArrayBuffer(file);
   };
 
+  const toPersianDigits = (s: string | null | undefined): string => {
+    if (s === null || s === undefined) return '';
+    const str = String(s);
+    return str.replace(/[0-9]/g, (w) => '۰۱۲۳۴۵۶۷۸۹'[parseInt(w, 10)]);
+  };
+
   const handleExport = async () => {
     setImportStatus({type: 'info', message: 'در حال آماده‌سازی فایل اکسل...'});
     try {
@@ -168,7 +174,7 @@ const DependentsInfoPage: React.FC = () => {
             const row: { [key: string]: any } = {};
             for(const header of EXPORT_HEADERS){
                 const key = DEPENDENT_HEADER_MAP[header];
-                row[header] = d[key];
+                row[header] = toPersianDigits(d[key]);
             }
             return row;
         });
