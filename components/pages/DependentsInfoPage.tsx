@@ -15,7 +15,8 @@ const DependentsInfoPage: React.FC = () => {
       try {
         setLoading(true);
         setError(null);
-        const response = await fetch('/api/personnel');
+        // Fetch all personnel records to enable comprehensive client-side searching
+        const response = await fetch('/api/personnel?pageSize=100000');
 
         if (!response.ok) {
           const errorText = await response.text();
@@ -44,10 +45,15 @@ const DependentsInfoPage: React.FC = () => {
     fetchPersonnel();
   }, []);
 
-  const filteredPersonnel = useMemo(() =>
-    personnelList.filter(p =>
-      `${p.first_name} ${p.last_name}`.toLowerCase().includes(searchTerm.toLowerCase())
-    ), [personnelList, searchTerm]);
+  const filteredPersonnel = useMemo(() => {
+    const lowercasedTerm = searchTerm.toLowerCase();
+    if (!lowercasedTerm) return personnelList;
+    return personnelList.filter(p =>
+      `${p.first_name} ${p.last_name}`.toLowerCase().includes(lowercasedTerm) ||
+      p.personnel_code.toLowerCase().includes(lowercasedTerm) ||
+      (p.national_id && p.national_id.toLowerCase().includes(lowercasedTerm))
+    );
+  }, [personnelList, searchTerm]);
 
   const handleSelectPersonnel = (personnel: Personnel) => {
     setSelectedPersonnel(personnel);
@@ -62,14 +68,14 @@ const DependentsInfoPage: React.FC = () => {
         <div className="md:col-span-1">
           <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
             <label htmlFor="search-personnel" className="block text-sm font-medium text-gray-700 mb-2">
-              جستجو بر اساس نام پرسنل
+              جستجوی پرسنل
             </label>
             <div className="relative">
               <input 
                 type="text" 
                 id="search-personnel" 
                 className="w-full pr-10 pl-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                placeholder="نام پرسنل را وارد کنید..."
+                placeholder="نام، کد پرسنلی، کد ملی..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
               />
