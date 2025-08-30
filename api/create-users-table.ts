@@ -5,9 +5,9 @@ export default async function handler(
   _request: VercelRequest,
   response: VercelResponse,
 ) {
+  const messages: string[] = [];
   try {
     // Note: "position" is a reserved SQL keyword, so it's enclosed in double quotes.
-    // The UNIQUE constraint on personnel_code is important for the import logic (ON CONFLICT).
     await sql`
       CREATE TABLE IF NOT EXISTS personnel (
         id SERIAL PRIMARY KEY,
@@ -34,22 +34,41 @@ export default async function handler(
         status VARCHAR(50)
       );
     `;
+    messages.push('جدول "personnel" با موفقیت ایجاد یا تایید شد.');
 
-    // Enable the pg_trgm extension for efficient text searching (ILIKE)
-    await sql`CREATE EXTENSION IF NOT EXISTS pg_trgm;`;
-
-    // Create GIN indexes for fast ILIKE searching on name fields.
-    // This is the key fix for preventing timeouts on the personnel list page.
-    await sql`CREATE INDEX IF NOT EXISTS personnel_first_name_trgm_idx ON personnel USING gin (first_name gin_trgm_ops);`;
-    await sql`CREATE INDEX IF NOT EXISTS personnel_last_name_trgm_idx ON personnel USING gin (last_name gin_trgm_ops);`;
+    let extensionCreated = false;
+    try {
+        await sql`CREATE EXTENSION IF NOT EXISTS pg_trgm;`;
+        messages.push('افزونه "pg_trgm" برای جستجوی سریع با موفقیت فعال شد.');
+        extensionCreated = true;
+    } catch (extError) {
+        console.warn('Could not create pg_trgm extension:', extError);
+        messages.push('هشدار: امکان فعال‌سازی افزونه "pg_trgm" وجود نداشت. این ممکن است به دلیل سطح دسترسی پایگاه داده باشد. جستجو در لیست پرسنل ممکن است کند باشد.');
+    }
     
-    // Create a standard index for sorting to improve performance of ORDER BY
-    await sql`CREATE INDEX IF NOT EXISTS personnel_last_first_name_idx ON personnel (last_name, first_name);`;
+    if (extensionCreated) {
+        try {
+            await sql`CREATE INDEX IF NOT EXISTS personnel_first_name_trgm_idx ON personnel USING gin (first_name gin_trgm_ops);`;
+            await sql`CREATE INDEX IF NOT EXISTS personnel_last_name_trgm_idx ON personnel USING gin (last_name gin_trgm_ops);`;
+            messages.push('ایندکس‌های جستجوی سریع (GIN) با موفقیت ایجاد شدند.');
+        } catch (ginIndexError) {
+            console.warn('Could not create GIN indexes:', ginIndexError);
+            messages.push('هشدار: امکان ایجاد ایندکس‌های GIN برای جستجوی سریع وجود نداشت.');
+        }
+    }
+    
+    try {
+        await sql`CREATE INDEX IF NOT EXISTS personnel_last_first_name_idx ON personnel (last_name, first_name);`;
+        messages.push('ایندکس مرتب‌سازی برای افزایش سرعت با موفقیت ایجاد شد.');
+    } catch (sortIndexError) {
+        console.warn('Could not create sorting index:', sortIndexError);
+        messages.push('هشدار: امکان ایجاد ایندکس مرتب‌سازی وجود نداشت.');
+    }
 
-    return response.status(200).json({ message: 'جدول و ایندکس‌های بهینه‌سازی با موفقیت ایجاد یا تایید شدند.' });
+    return response.status(200).json({ message: 'عملیات راه‌اندازی پایگاه داده انجام شد.', details: messages });
   } catch (error) {
-    console.error('Database table/index creation failed:', error);
+    console.error('Database table creation failed catastrophically:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-    return response.status(500).json({ error: 'ایجاد جدول یا ایندکس در پایگاه داده با خطا مواجه شد.', details: errorMessage });
+    return response.status(500).json({ error: 'ایجاد جدول اصلی "personnel" در پایگاه داده با خطا مواجه شد.', details: errorMessage });
   }
 }
