@@ -167,7 +167,7 @@ const Clock: React.FC = () => {
 };
 
 
-const Sidebar: React.FC<{ setActivePage: React.Dispatch<React.SetStateAction<React.ComponentType>> }> = ({ setActivePage }) => {
+export const Sidebar: React.FC<{ setActivePage: React.Dispatch<React.SetStateAction<React.ComponentType>> }> = ({ setActivePage }) => {
   const [activeItem, setActiveItem] = useState<string>('personnel-list');
   const [openItems, setOpenItems] = useState<Record<string, boolean>>({
       personnel: true,
@@ -206,5 +206,3 @@ const Sidebar: React.FC<{ setActivePage: React.Dispatch<React.SetStateAction<Rea
     </aside>
   );
 };
-
-export default Sidebar;

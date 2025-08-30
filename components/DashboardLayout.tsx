@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import Sidebar from './Sidebar';
+import { Sidebar } from './Sidebar';
 import Header from './Header';
 import PersonnelListPage from './pages/PersonnelListPage';
 
