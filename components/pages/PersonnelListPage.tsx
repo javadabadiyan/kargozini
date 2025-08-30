@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import type { Personnel } from '../../types';
 import EditPersonnelModal from '../EditPersonnelModal';
@@ -34,6 +33,14 @@ const HEADER_MAP: { [key: string]: keyof Omit<Personnel, 'id'> } = {
 const EXPORT_HEADERS = Object.keys(HEADER_MAP);
 const TABLE_HEADERS = [...EXPORT_HEADERS, 'عملیات'];
 const PAGE_SIZE = 20;
+
+const DEFAULT_PERSONNEL: Omit<Personnel, 'id'> = {
+  personnel_code: '', first_name: '', last_name: '', father_name: '', national_id: '',
+  id_number: '', birth_date: '', birth_place: '', issue_date: '', issue_place: '',
+  marital_status: '', military_status: '', job_title: '', position: '', employment_type: '',
+  department: '', service_location: '', hire_date: '', education_level: '', field_of_study: '',
+  status: '',
+};
 
 // A custom hook for debouncing input
 const useDebounce = <T,>(value: T, delay: number): T => {
@@ -217,23 +224,38 @@ const PersonnelListPage: React.FC = () => {
     setIsEditModalOpen(true);
   };
 
+  const handleOpenAddModal = () => {
+    setEditingPersonnel({ ...DEFAULT_PERSONNEL, id: 0 }); // Use id: 0 to signify a new record
+    setIsEditModalOpen(true);
+  };
+
   const handleCloseModal = () => {
     setIsEditModalOpen(false);
     setEditingPersonnel(null);
   };
 
   const handleSave = async (updatedPersonnel: Personnel) => {
-    setImportStatus({ type: 'info', message: 'در حال ذخیره تغییرات...' });
+    const isNew = updatedPersonnel.id === 0;
+    const endpoint = isNew ? '/api/personnel-add' : '/api/personnel-update';
+    const method = isNew ? 'POST' : 'PUT';
+
+    setImportStatus({ type: 'info', message: 'در حال ذخیره اطلاعات...' });
     try {
-      const response = await fetch('/api/personnel-update', {
-        method: 'PUT',
+      // For new personnel, remove the placeholder id before sending
+      const payload = { ...updatedPersonnel };
+      if (isNew) {
+        delete (payload as any).id;
+      }
+
+      const response = await fetch(endpoint, {
+        method: method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedPersonnel),
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
         const errorText = await response.text();
-        let errorMsg = 'خطا در ذخیره تغییرات';
+        let errorMsg = 'خطا در ذخیره اطلاعات';
         try {
             const errorData = JSON.parse(errorText);
             errorMsg = errorData.error || errorData.details || errorMsg;
@@ -244,11 +266,21 @@ const PersonnelListPage: React.FC = () => {
       }
 
       const savedData = await response.json();
-      setPersonnelList(prevList =>
-        prevList.map(p => (p.id === savedData.personnel.id ? savedData.personnel : p))
-      );
+      
+      if (isNew) {
+        setImportStatus({ type: 'success', message: 'پرسنل جدید با موفقیت اضافه شد.' });
+        if (debouncedSearchTerm) setSearchTerm('');
+        setCurrentPage(1); 
+        if (!debouncedSearchTerm) {
+            await fetchPersonnel(1, '');
+        }
+      } else {
+        setPersonnelList(prevList =>
+          prevList.map(p => (p.id === savedData.personnel.id ? savedData.personnel : p))
+        );
+        setImportStatus({ type: 'success', message: 'اطلاعات با موفقیت به‌روزرسانی شد.' });
+      }
       handleCloseModal();
-      setImportStatus({ type: 'success', message: 'اطلاعات با موفقیت به‌روزرسانی شد.' });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'یک خطای ناشناخته رخ داد.';
       setImportStatus({ type: 'error', message });
@@ -256,6 +288,7 @@ const PersonnelListPage: React.FC = () => {
       setTimeout(() => setImportStatus(null), 5000);
     }
   };
+
 
   const statusColor = {
     info: 'bg-blue-100 text-blue-800',
@@ -268,24 +301,25 @@ const PersonnelListPage: React.FC = () => {
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6 border-b-2 border-gray-100 pb-4">
         <h2 className="text-2xl font-bold text-gray-800">لیست کامل پرسنل</h2>
 
-        <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
-            <div className="relative flex-grow md:flex-grow-0 w-full sm:w-auto md:w-64">
-                <input
-                    type="text"
-                    placeholder="جستجو (نام، کد پرسنلی، کد ملی...)"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pr-10 pl-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-                    aria-label="جستجوی پرسنل"
-                />
-                <SearchIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            </div>
-            <div className="flex items-center gap-2">
-                <button onClick={handleDownloadSample} className="text-sm text-blue-600 hover:underline">دانلود فایل نمونه</button>
-                <input type="file" accept=".xlsx, .xls" ref={fileInputRef} onChange={handleFileImport} className="hidden" id="excel-import" />
-                <label htmlFor="excel-import" className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 cursor-pointer transition-colors">ورود از اکسل</label>
-                <button onClick={handleExport} disabled={personnelList.length === 0} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 transition-colors">خروجی اکسل</button>
-            </div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 w-full md:w-auto">
+          <div className="relative flex-grow md:flex-grow-0 w-full sm:w-auto md:w-64">
+              <input
+                  type="text"
+                  placeholder="جستجو (نام، کد پرسنلی، کد ملی...)"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pr-10 pl-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                  aria-label="جستجوی پرسنل"
+              />
+              <SearchIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+              <button onClick={handleOpenAddModal} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">افزودن پرسنل</button>
+              <button onClick={handleDownloadSample} className="text-sm text-blue-600 hover:underline">دانلود نمونه</button>
+              <input type="file" accept=".xlsx, .xls" ref={fileInputRef} onChange={handleFileImport} className="hidden" id="excel-import" />
+              <label htmlFor="excel-import" className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 cursor-pointer transition-colors">ورود از اکسل</label>
+              <button onClick={handleExport} disabled={personnelList.length === 0} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 transition-colors">خروجی اکسل</button>
+          </div>
         </div>
       </div>
 

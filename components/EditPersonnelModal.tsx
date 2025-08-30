@@ -10,6 +10,8 @@ interface EditPersonnelModalProps {
 const EditPersonnelModal: React.FC<EditPersonnelModalProps> = ({ personnel, onClose, onSave }) => {
   const [formData, setFormData] = useState<Personnel>(personnel);
   const [isSaving, setIsSaving] = useState(false);
+  
+  const isNew = personnel.id === 0;
 
   useEffect(() => {
     setFormData(personnel);
@@ -70,7 +72,7 @@ const EditPersonnelModal: React.FC<EditPersonnelModalProps> = ({ personnel, onCl
       >
         <div className="flex justify-between items-center p-4 border-b">
           <h3 id="modal-title" className="text-xl font-semibold text-gray-800">
-            ویرایش اطلاعات {personnel.first_name} {personnel.last_name}
+            {isNew ? 'افزودن پرسنل جدید' : `ویرایش اطلاعات ${personnel.first_name} ${personnel.last_name}`}
           </h3>
           <button 
             onClick={onClose} 
@@ -96,6 +98,7 @@ const EditPersonnelModal: React.FC<EditPersonnelModalProps> = ({ personnel, onCl
                     value={String(formData[field.key] ?? '')}
                     onChange={handleChange}
                     className={inputClass}
+                    readOnly={field.key === 'personnel_code' && !isNew} // Make personnel_code readonly on edit
                   />
                 </div>
               ))}
@@ -116,7 +119,7 @@ const EditPersonnelModal: React.FC<EditPersonnelModalProps> = ({ personnel, onCl
               className="mr-3 px-6 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-300"
               disabled={isSaving}
             >
-              {isSaving ? 'در حال ذخیره...' : 'ذخیره تغییرات'}
+              {isSaving ? 'در حال ذخیره...' : (isNew ? 'افزودن پرسنل' : 'ذخیره تغییرات')}
             </button>
           </div>
         </form>
