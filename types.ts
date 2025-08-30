@@ -51,3 +51,12 @@ export interface CommutingMember {
   department: string;
   position: string;
 }
+
+export interface CommuteLog {
+  id: number;
+  personnel_code: string;
+  full_name?: string; // from JOIN
+  guard_name: string;
+  entry_time: string; // ISO string from DB
+  exit_time: string | null; // ISO string from DB or null
+}

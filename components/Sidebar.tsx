@@ -6,6 +6,7 @@ import DependentsInfoPage from './pages/DependentsInfoPage';
 import PlaceholderPage from './pages/PlaceholderPage';
 import PersonnelListPage from './pages/PersonnelListPage';
 import CommutingMembersPage from './pages/CommutingMembersPage';
+import LogCommutePage from './pages/LogCommutePage';
 
 // Define placeholder pages as stable, named components to prevent re-creation on every render.
 const DashboardPage = () => <PlaceholderPage title="داشبورد" />;
@@ -15,7 +16,6 @@ const DisciplinaryCommitteePage = () => <PlaceholderPage title="کمیته تش�
 const PerformanceReviewPage = () => <PlaceholderPage title="ارزیابی عملکرد" />;
 const JobGroupPage = () => <PlaceholderPage title="گروه شغلی پرسنل" />;
 const BonusManagementPage = () => <PlaceholderPage title="مدیریت کارانه" />;
-const LogCommutePage = () => <PlaceholderPage title="ثبت تردد" />;
 const CommuteReportPage = () => <PlaceholderPage title="گزارش گیری تردد" />;
 const UserManagementPage = () => <PlaceholderPage title="مدیریت کاربران" />;
 
@@ -123,7 +123,7 @@ const Sidebar: React.FC<{ setActivePage: React.Dispatch<React.SetStateAction<Rea
   const [openItems, setOpenItems] = useState<Record<string, boolean>>({
       personnel: true,
       recruitment: false,
-      security: false
+      security: true
   });
   const [time, setTime] = useState(new Date());
 

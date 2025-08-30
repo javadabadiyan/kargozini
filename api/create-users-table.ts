@@ -80,6 +80,41 @@ export default async function handler(
     `;
     messages.push('جدول "commuting_members" با موفقیت ایجاد یا تایید شد.');
 
+    // Create commute_logs table
+    await client.sql`
+      CREATE TABLE IF NOT EXISTS commute_logs (
+        id SERIAL PRIMARY KEY,
+        personnel_code VARCHAR(50) NOT NULL,
+        guard_name VARCHAR(255) NOT NULL,
+        entry_time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        exit_time TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `;
+    messages.push('جدول "commute_logs" با موفقیت ایجاد یا تایید شد.');
+    
+    // Create trigger function for updated_at
+    await client.query(`
+        CREATE OR REPLACE FUNCTION update_updated_at_column()
+        RETURNS TRIGGER AS $$
+        BEGIN
+           NEW.updated_at = NOW();
+           RETURN NEW;
+        END;
+        $$ language 'plpgsql';
+    `);
+
+    // Create trigger for commute_logs
+    await client.query(`
+        DROP TRIGGER IF EXISTS update_commute_logs_updated_at ON commute_logs;
+        CREATE TRIGGER update_commute_logs_updated_at
+        BEFORE UPDATE ON commute_logs
+        FOR EACH ROW
+        EXECUTE FUNCTION update_updated_at_column();
+    `);
+    messages.push('تریگر به‌روزرسانی خودکار برای جدول "commute_logs" ایجاد شد.');
+
 
     // Create extensions and indexes for personnel table
     try {
