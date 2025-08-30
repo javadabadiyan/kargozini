@@ -83,7 +83,7 @@ const LogCommutePage: React.FC = () => {
     
     setStatus({ type: 'info', message: `در حال ثبت ${action === 'entry' ? 'ورود' : 'خروج'}...` });
     try {
-      const response = await fetch('/api/commute-log', {
+      const response = await fetch('/api/commute-logs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 

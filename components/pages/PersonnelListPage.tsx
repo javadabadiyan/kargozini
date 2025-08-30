@@ -242,7 +242,7 @@ const PersonnelListPage: React.FC = () => {
 
   const handleSave = async (updatedPersonnel: Personnel) => {
     const isNew = updatedPersonnel.id === 0;
-    const endpoint = isNew ? '/api/personnel-add' : '/api/personnel-update';
+    const endpoint = '/api/personnel';
     const method = isNew ? 'POST' : 'PUT';
 
     setImportStatus({ type: 'info', message: 'در حال ذخیره اطلاعات...' });

@@ -1,26 +1,9 @@
-import { createPool } from '@vercel/postgres';
+import { createPool, VercelPool } from '@vercel/postgres';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-export default async function handler(
-  request: VercelRequest,
-  response: VercelResponse,
-) {
-  if (request.method !== 'GET') {
-    return response.status(405).json({ error: 'Method Not Allowed' });
-  }
-    
-  if (!process.env.POSTGRES_URL) {
-    return response.status(500).json({
-        error: 'متغیر اتصال به پایگاه داده (POSTGRES_URL) تنظیم نشده است.',
-    });
-  }
-  
-  const pool = createPool({
-    connectionString: process.env.POSTGRES_URL,
-  });
-
+// --- GET Handler ---
+async function handleGet(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
   try {
-    // Fetches logs where the entry time was within the current day (in the server's timezone)
     const result = await pool.sql`
         SELECT 
             cl.id, 
@@ -36,7 +19,7 @@ export default async function handler(
     `;
     return response.status(200).json({ logs: result.rows });
   } catch (error) {
-    console.error('Database query for commute_logs failed:', error);
+    console.error('Database GET for commute_logs failed:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     
     if (errorMessage.includes('relation "commute_logs" does not exist')) {
@@ -45,7 +28,82 @@ export default async function handler(
             details: 'لطفاً با مراجعه به آدرس /api/create-users-table از ایجاد جدول اطمینان حاصل کنید.' 
         });
     }
-
     return response.status(500).json({ error: 'Failed to fetch commute logs data.', details: errorMessage });
+  }
+}
+
+// --- POST Handler (Log Commute) ---
+async function handlePost(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+  const { personnelCode, guardName, action } = request.body;
+
+  if (!personnelCode || !guardName || !action || !['entry', 'exit'].includes(action)) {
+    return response.status(400).json({ error: 'اطلاعات ارسالی ناقص یا نامعتبر است.' });
+  }
+  
+  try {
+    const { rows: openLogs } = await pool.sql`
+        SELECT id FROM commute_logs 
+        WHERE 
+            personnel_code = ${personnelCode} AND 
+            exit_time IS NULL AND 
+            entry_time >= date_trunc('day', NOW());
+    `;
+    const openLog = openLogs[0];
+
+    if (action === 'entry') {
+        if (openLog) {
+            return response.status(409).json({ error: 'برای این پرسنل یک ورود باز در امروز ثبت شده است. ابتدا باید خروج ثبت شود.' });
+        }
+        const { rows: newLog } = await pool.sql`
+            INSERT INTO commute_logs (personnel_code, guard_name) 
+            VALUES (${personnelCode}, ${guardName}) 
+            RETURNING *;
+        `;
+        return response.status(201).json({ message: 'ورود با موفقیت ثبت شد.', log: newLog[0] });
+    }
+    
+    if (action === 'exit') {
+        if (!openLog) {
+            return response.status(404).json({ error: 'هیچ ورود بازی برای این پرسنل در امروز یافت نشد تا خروج ثبت شود.' });
+        }
+        const { rows: updatedLog } = await pool.sql`
+            UPDATE commute_logs 
+            SET exit_time = NOW() 
+            WHERE id = ${openLog.id}
+            RETURNING *;
+        `;
+        return response.status(200).json({ message: 'خروج با موفقیت ثبت شد.', log: updatedLog[0] });
+    }
+    
+    // Fallback for safety, though logic above should cover all cases.
+    return response.status(400).json({ error: 'عملیات نامعتبر است.' });
+
+  } catch (error) {
+    console.error('Database POST for commute_logs failed:', error);
+    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+    return response.status(500).json({ error: 'عملیات پایگاه داده با شکست مواجه شد.', details: errorMessage });
+  }
+}
+
+// --- Main Handler ---
+export default async function handler(request: VercelRequest, response: VercelResponse) {
+  if (!process.env.POSTGRES_URL) {
+    return response.status(500).json({
+        error: 'متغیر اتصال به پایگاه داده (POSTGRES_URL) تنظیم نشده است.',
+    });
+  }
+  
+  const pool = createPool({
+    connectionString: process.env.POSTGRES_URL,
+  });
+
+  switch (request.method) {
+    case 'GET':
+      return await handleGet(request, response, pool);
+    case 'POST':
+      return await handlePost(request, response, pool);
+    default:
+      response.setHeader('Allow', ['GET', 'POST']);
+      return response.status(405).json({ error: `Method ${request.method} Not Allowed` });
   }
 }

@@ -115,7 +115,7 @@ const CommutingMembersPage: React.FC = () => {
 
   const handleSaveNewMember = async (member: Omit<CommutingMember, 'id'>) => {
     try {
-      const response = await fetch('/api/commuting-members-add', {
+      const response = await fetch('/api/commuting-members', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(member),
