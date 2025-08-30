@@ -1,23 +1,50 @@
-import { createPool, VercelPool } from '@vercel/postgres';
+import { createPool, VercelPool, VercelPoolClient } from '@vercel/postgres';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import type { CommuteLog } from '../types';
+
+const PAGE_SIZE = 20;
 
 // --- GET Handler ---
 async function handleGet(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
   try {
-    const result = await pool.sql`
-        SELECT 
-            cl.id, 
-            cl.personnel_code, 
-            cm.full_name, 
-            cl.guard_name, 
-            cl.entry_time, 
-            cl.exit_time 
+    const page = parseInt(request.query.page as string) || 1;
+    const offset = (page - 1) * PAGE_SIZE;
+
+    const searchDate = request.query.searchDate as string; // Expects YYYY-MM-DD
+    const searchTerm = (request.query.searchTerm as string) || '';
+    const searchQuery = `%${searchTerm}%`;
+
+    const dateFilter = searchDate 
+      ? `cl.entry_time >= '${searchDate} 00:00:00' AND cl.entry_time <= '${searchDate} 23:59:59'`
+      : `cl.entry_time >= date_trunc('day', NOW()) AND cl.entry_time < date_trunc('day', NOW()) + interval '1 day'`;
+
+    let whereClauses = [dateFilter];
+    if (searchTerm) {
+      whereClauses.push(`(cm.full_name ILIKE '${searchQuery}' OR cl.personnel_code ILIKE '${searchQuery}')`);
+    }
+    
+    const whereCondition = whereClauses.join(' AND ');
+
+    const countResult = await (pool as any).query(`
+        SELECT COUNT(cl.id) 
         FROM commute_logs cl
         LEFT JOIN commuting_members cm ON cl.personnel_code = cm.personnel_code
-        WHERE cl.entry_time >= date_trunc('day', NOW()) AND cl.entry_time < date_trunc('day', NOW()) + interval '1 day'
-        ORDER BY cl.entry_time DESC;
-    `;
-    return response.status(200).json({ logs: result.rows });
+        WHERE ${whereCondition};
+    `);
+    const totalCount = parseInt(countResult.rows[0].count, 10);
+    
+    const dataResult = await (pool as any).query(`
+        SELECT 
+            cl.id, cl.personnel_code, cm.full_name, cl.guard_name, 
+            cl.entry_time, cl.exit_time 
+        FROM commute_logs cl
+        LEFT JOIN commuting_members cm ON cl.personnel_code = cm.personnel_code
+        WHERE ${whereCondition}
+        ORDER BY cl.entry_time DESC
+        LIMIT ${PAGE_SIZE} OFFSET ${offset};
+    `);
+    
+    return response.status(200).json({ logs: dataResult.rows, totalCount });
   } catch (error) {
     console.error('Database GET for commute_logs failed:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
@@ -32,8 +59,9 @@ async function handleGet(request: VercelRequest, response: VercelResponse, pool:
   }
 }
 
+
 // --- POST Handler (Log Commute) ---
-async function handlePost(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+async function handleSinglePost(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
   const { personnelCode, guardName, action, timestampOverride } = request.body;
 
   if (!personnelCode || !guardName || !action || !['entry', 'exit'].includes(action)) {
@@ -88,6 +116,50 @@ async function handlePost(request: VercelRequest, response: VercelResponse, pool
   }
 }
 
+type BulkLog = Omit<CommuteLog, 'id' | 'full_name'>;
+
+async function handleBulkPost(allLogs: BulkLog[], response: VercelResponse, client: VercelPoolClient) {
+    const validList = allLogs.filter(log => log.personnel_code && log.guard_name && log.entry_time);
+
+    if (validList.length === 0) {
+        return response.status(400).json({ error: 'هیچ رکورد معتبری برای ورود یافت نشد. کد پرسنلی، نام نگهبان و زمان ورود الزامی هستند.'});
+    }
+
+    try {
+        await (client as any).query('BEGIN');
+
+        const values: (string | null)[] = [];
+        const valuePlaceholders: string[] = [];
+        let paramIndex = 1;
+
+        for (const log of validList) {
+            values.push(log.personnel_code, log.guard_name, log.entry_time, log.exit_time || null);
+            valuePlaceholders.push(`($${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++})`);
+        }
+        
+        const query = `
+            INSERT INTO commute_logs (personnel_code, guard_name, entry_time, exit_time)
+            VALUES ${valuePlaceholders.join(', ')}
+            ON CONFLICT (personnel_code, entry_time) 
+            DO UPDATE SET 
+                exit_time = EXCLUDED.exit_time, 
+                guard_name = EXCLUDED.guard_name;
+        `;
+
+        await (client as any).query(query, values);
+        await (client as any).query('COMMIT');
+
+        return response.status(200).json({ message: `عملیات موفق. ${validList.length} رکورد پردازش شد.`});
+
+    } catch(error) {
+        await (client as any).query('ROLLBACK').catch((rbError: any) => console.error('Rollback failed:', rbError));
+        console.error('Database bulk POST for commute_logs failed:', error);
+        const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+        return response.status(500).json({ error: 'عملیات پایگاه داده با شکست مواجه شد.', details: errorMessage });
+    }
+}
+
+
 // --- Main Handler ---
 export default async function handler(request: VercelRequest, response: VercelResponse) {
   if (!process.env.POSTGRES_URL) {
@@ -100,13 +172,22 @@ export default async function handler(request: VercelRequest, response: VercelRe
     connectionString: process.env.POSTGRES_URL,
   });
 
-  switch (request.method) {
-    case 'GET':
-      return await handleGet(request, response, pool);
-    case 'POST':
-      return await handlePost(request, response, pool);
-    default:
-      response.setHeader('Allow', ['GET', 'POST']);
-      return response.status(405).json({ error: `Method ${request.method} Not Allowed` });
+  if (request.method === 'POST') {
+      const client = await pool.connect();
+      try {
+          if (Array.isArray(request.body)) {
+              return await handleBulkPost(request.body, response, client);
+          }
+          return await handleSinglePost(request, response, pool);
+      } finally {
+          client.release();
+      }
   }
+
+  if (request.method === 'GET') {
+      return await handleGet(request, response, pool);
+  }
+
+  response.setHeader('Allow', ['GET', 'POST']);
+  return response.status(405).json({ error: `Method ${request.method} Not Allowed` });
 }

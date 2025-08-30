@@ -89,7 +89,8 @@ export default async function handler(
         entry_time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         exit_time TIMESTAMPTZ,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        CONSTRAINT unique_commute_log UNIQUE (personnel_code, entry_time)
       );
     `;
     messages.push('جدول "commute_logs" با موفقیت ایجاد یا تایید شد.');
