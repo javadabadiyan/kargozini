@@ -2,7 +2,7 @@ import React from 'react';
 
 export interface MenuItem {
   id: string;
-  label: string;
+  label:string;
   icon: React.ComponentType<{ className?: string }>;
   children?: MenuItem[];
   page?: React.ComponentType;
@@ -31,4 +31,15 @@ export interface Personnel {
   education_level: string;
   field_of_study: string;
   status: string;
+}
+
+export interface Dependent {
+  id: number;
+  personnel_code: string;
+  relation_type: string;
+  first_name: string;
+  last_name: string;
+  national_id: string;
+  birth_date: string;
+  gender: string;
 }
