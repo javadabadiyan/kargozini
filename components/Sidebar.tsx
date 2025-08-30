@@ -153,7 +153,7 @@ const Clock: React.FC = () => {
 
   return (
     <div className="p-6 border-t border-slate-700 text-center">
-      <div className="text-4xl font-mono font-bold tracking-widest" dir="ltr">
+      <div className="text-4xl font-bold tracking-wider" dir="ltr">
         {formattedTime.split('').map((char, index) => {
             const hasChanged = formattedTime[index] !== previousFormattedTime[index];
             return char === ':' ? 
