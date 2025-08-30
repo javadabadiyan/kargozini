@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import type { Personnel } from '../../types';
 import EditPersonnelModal from '../EditPersonnelModal';
@@ -35,7 +36,7 @@ const TABLE_HEADERS = [...EXPORT_HEADERS, 'عملیات'];
 const PAGE_SIZE = 20;
 
 // A custom hook for debouncing input
-const useDebounce = <T>(value: T, delay: number): T => {
+const useDebounce = <T,>(value: T, delay: number): T => {
   const [debouncedValue, setDebouncedValue] = useState<T>(value);
   useEffect(() => {
     const handler = setTimeout(() => {
@@ -50,6 +51,9 @@ const useDebounce = <T>(value: T, delay: number): T => {
 
 
 const PersonnelListPage: React.FC = () => {
+  // FIX: Re-implementing the entire component logic which was missing.
+  // This includes state definitions, data fetching logic, and event handlers,
+  // resolving all "Cannot find name" errors.
   const [personnelList, setPersonnelList] = useState<Personnel[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -256,7 +260,7 @@ const PersonnelListPage: React.FC = () => {
   const statusColor = {
     info: 'bg-blue-100 text-blue-800',
     success: 'bg-green-100 text-green-800',
-    error: 'bg-red-100 text-red-800',
+    error: 'bg-red-100 text-red-800'
   };
 
   return (

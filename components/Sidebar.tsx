@@ -27,7 +27,7 @@ const menuItems: MenuItem[] = [
     children: [
       { id: 'personnel-list', label: 'لیست پرسنل', icon: CircleIcon, page: PersonnelListPage },
       { id: 'dependents-info', label: 'اطلاعات بستگان', icon: CircleIcon, page: DependentsInfoPage },
-      { id: 'document-upload', label: 'بارگذاری مدارک', icon: DocumentTextIcon, page: DocumentUploadPage },
+      { id: 'document-upload', label: 'بارگذاری مدارک', icon: DocumentTextIcon, page: DocumentUploadPage }
     ]
   },
   { 
@@ -37,7 +37,7 @@ const menuItems: MenuItem[] = [
       { id: 'disciplinary-committee', label: 'کمیته تشویق و انضباطی', icon: CircleIcon, page: DisciplinaryCommitteePage },
       { id: 'performance-review', label: 'ارزیابی عملکرد', icon: CircleIcon, page: PerformanceReviewPage },
       { id: 'job-group', label: 'گروه شغلی پرسنل', icon: CircleIcon, page: JobGroupPage },
-      { id: 'bonus-management', label: 'مدیریت کارانه', icon: CircleIcon, page: BonusManagementPage },
+      { id: 'bonus-management', label: 'مدیریت کارانه', icon: CircleIcon, page: BonusManagementPage }
     ]
   },
   {
@@ -45,10 +45,10 @@ const menuItems: MenuItem[] = [
     children: [
       { id: 'commuting-members', label: 'کارمندان عضو تردد', icon: CircleIcon, page: CommutingMembersPage },
       { id: 'log-commute', label: 'ثبت تردد', icon: CircleIcon, page: LogCommutePage },
-      { id: 'commute-report', label: 'گزارش گیری تردد', icon: CircleIcon, page: CommuteReportPage },
+      { id: 'commute-report', label: 'گزارش گیری تردد', icon: CircleIcon, page: CommuteReportPage }
     ]
   },
-  { id: 'user-management', label: 'مدیریت کاربران', icon: LockClosedIcon, page: UserManagementPage },
+  { id: 'user-management', label: 'مدیریت کاربران', icon: LockClosedIcon, page: UserManagementPage }
 ];
 
 
@@ -124,7 +124,7 @@ const Sidebar: React.FC<{ setActivePage: React.Dispatch<React.SetStateAction<Rea
   const [openItems, setOpenItems] = useState<Record<string, boolean>>({
       personnel: true,
       recruitment: false,
-      security: false,
+      security: false
   });
   const [time, setTime] = useState(new Date());
 
