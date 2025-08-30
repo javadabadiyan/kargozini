@@ -2,20 +2,20 @@
 // This is a plain Node.js serverless function.
 export default function handler(req: any, res: any) {
   try {
-    const storageUrl = process.env.STORAGE_URL;
+    const postgresUrl = process.env.POSTGRES_URL;
 
-    if (storageUrl) {
-      const urlPreview = `${storageUrl.substring(0, 25)}...`;
+    if (postgresUrl) {
+      const urlPreview = `${postgresUrl.substring(0, 25)}...`;
       res.status(200).json({ 
           status: 'موفق', 
-          message: 'متغیر محیطی STORAGE_URL با موفقیت خوانده شد.',
+          message: 'متغیر محیطی POSTGRES_URL با موفقیت خوانده شد.',
           urlPreview: urlPreview 
       });
     } else {
       res.status(500).json({ 
           status: 'خطا',
-          error: 'متغیر اتصال به پایگاه داده (STORAGE_URL) در سرور یافت نشد.', 
-          details: 'این یک خطای قطعی در تنظیمات پروژه Vercel است. متغیرهای محیطی به درستی به برنامه تزریق نمی‌شوند. لطفاً پروژه را در Vercel حذف و دوباره ایجاد کنید.'
+          error: 'متغیر اتصال به پایگاه داده (POSTGRES_URL) در سرور یافت نشد.', 
+          details: 'متغیر POSTGRES_URL در تنظیمات پروژه Vercel یافت نشد. لطفاً از اتصال صحیح پایگاه داده Vercel Postgres به پروژه اطمینان حاصل کنید.'
       });
     }
   } catch (error) {

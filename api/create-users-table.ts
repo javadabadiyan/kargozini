@@ -5,15 +5,15 @@ export default async function handler(
   _request: VercelRequest,
   response: VercelResponse,
 ) {
-  if (!process.env.STORAGE_URL) {
+  if (!process.env.POSTGRES_URL) {
     return response.status(500).json({
-        error: 'متغیر اتصال به پایگاه داده (STORAGE_URL) تنظیم نشده است.',
+        error: 'متغیر اتصال به پایگاه داده (POSTGRES_URL) تنظیم نشده است.',
         details: 'لطفاً تنظیمات پروژه خود را در Vercel بررسی کنید و از اتصال صحیح پایگاه داده اطمینان حاصل کنید.'
     });
   }
   
   const pool = createPool({
-    connectionString: process.env.STORAGE_URL,
+    connectionString: process.env.POSTGRES_URL,
   });
 
   const messages: string[] = [];

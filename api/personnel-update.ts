@@ -10,9 +10,9 @@ export default async function handler(
     return response.status(405).json({ error: 'Method Not Allowed' });
   }
   
-  if (!process.env.STORAGE_URL) {
+  if (!process.env.POSTGRES_URL) {
     return response.status(500).json({
-        error: 'متغیر اتصال به پایگاه داده (STORAGE_URL) تنظیم نشده است.',
+        error: 'متغیر اتصال به پایگاه داده (POSTGRES_URL) تنظیم نشده است.',
         details: 'لطفاً تنظیمات پروژه خود را در Vercel بررسی کنید و از اتصال صحیح پایگاه داده اطمینان حاصل کنید.'
     });
   }
@@ -24,7 +24,7 @@ export default async function handler(
   }
   
   const pool = createPool({
-    connectionString: process.env.STORAGE_URL,
+    connectionString: process.env.POSTGRES_URL,
   });
 
   try {
