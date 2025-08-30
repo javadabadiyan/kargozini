@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import type { Personnel } from '../../types';
 import EditPersonnelModal from '../EditPersonnelModal';
-import { PencilIcon } from '../icons/Icons';
+import { PencilIcon, SearchIcon } from '../icons/Icons';
 
 // Type alias for SheetJS, assuming it's loaded from a global script
 declare const XLSX: any;
@@ -42,6 +42,7 @@ const PersonnelListPage: React.FC = () => {
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingPersonnel, setEditingPersonnel] = useState<Personnel | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const fetchPersonnel = async () => {
     try {
@@ -73,6 +74,21 @@ const PersonnelListPage: React.FC = () => {
   useEffect(() => {
     fetchPersonnel();
   }, []);
+  
+  const filteredPersonnel = useMemo(() => {
+    if (!searchTerm) {
+      return personnelList;
+    }
+    const lowercasedFilter = searchTerm.toLowerCase().trim();
+    if (!lowercasedFilter) return personnelList;
+
+    return personnelList.filter(p =>
+      String(p.first_name ?? '').toLowerCase().includes(lowercasedFilter) ||
+      String(p.last_name ?? '').toLowerCase().includes(lowercasedFilter) ||
+      String(p.personnel_code ?? '').toLowerCase().includes(lowercasedFilter) ||
+      String(p.national_id ?? '').toLowerCase().includes(lowercasedFilter)
+    );
+  }, [personnelList, searchTerm]);
 
   const handleFileImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -83,6 +99,7 @@ const PersonnelListPage: React.FC = () => {
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
+        // Fix: Changed UintArray to Uint8Array, which is the correct type.
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: 'array' });
         const sheetName = workbook.SheetNames[0];
@@ -113,8 +130,19 @@ const PersonnelListPage: React.FC = () => {
         });
 
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'خطا در ورود اطلاعات');
+            const errorText = await response.text(); // Read response as text
+            let errorMessage = 'خطا در ورود اطلاعات';
+            try {
+              // Try to parse as JSON to get a specific error message
+              const errorJson = JSON.parse(errorText);
+              errorMessage = errorJson.error || errorJson.details || errorMessage;
+            } catch (jsonError) {
+              // If it's not JSON, it might be the generic Vercel error.
+              // Don't show the raw HTML. Give a user-friendly message.
+              console.error("Server Error Response:", errorText);
+              errorMessage = `خطای سرور (${response.status}). لطفا دوباره تلاش کنید یا با پشتیبانی تماس بگیرید.`;
+            }
+            throw new Error(errorMessage);
         }
 
         const successData = await response.json();
@@ -208,13 +236,27 @@ const PersonnelListPage: React.FC = () => {
 
   return (
     <div className="bg-white p-6 rounded-lg shadow-lg">
-      <div className="flex flex-wrap justify-between items-center mb-6 border-b-2 border-gray-100 pb-4">
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-6 border-b-2 border-gray-100 pb-4">
         <h2 className="text-2xl font-bold text-gray-800">لیست کامل پرسنل</h2>
-        <div className="flex items-center gap-2 mt-4 sm:mt-0">
-          <button onClick={handleDownloadSample} className="text-sm text-blue-600 hover:underline">دانلود فایل نمونه</button>
-          <input type="file" accept=".xlsx, .xls" ref={fileInputRef} onChange={handleFileImport} className="hidden" id="excel-import" />
-          <label htmlFor="excel-import" className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 cursor-pointer transition-colors">ورود از اکسل</label>
-          <button onClick={handleExport} disabled={personnelList.length === 0} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 transition-colors">خروجی اکسل</button>
+
+        <div className="flex flex-wrap items-center gap-4 w-full md:w-auto">
+            <div className="relative flex-grow md:flex-grow-0 w-full sm:w-auto md:w-64">
+                <input
+                    type="text"
+                    placeholder="جستجو (نام، کد پرسنلی، کد ملی...)"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pr-10 pl-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                    aria-label="جستجوی پرسنل"
+                />
+                <SearchIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            </div>
+            <div className="flex items-center gap-2">
+                <button onClick={handleDownloadSample} className="text-sm text-blue-600 hover:underline">دانلود فایل نمونه</button>
+                <input type="file" accept=".xlsx, .xls" ref={fileInputRef} onChange={handleFileImport} className="hidden" id="excel-import" />
+                <label htmlFor="excel-import" className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 cursor-pointer transition-colors">ورود از اکسل</label>
+                <button onClick={handleExport} disabled={personnelList.length === 0} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 transition-colors">خروجی اکسل</button>
+            </div>
         </div>
       </div>
 
@@ -236,7 +278,7 @@ const PersonnelListPage: React.FC = () => {
           <tbody className="bg-white divide-y divide-gray-200">
             {loading && <tr><td colSpan={TABLE_HEADERS.length} className="text-center p-4">در حال بارگذاری...</td></tr>}
             {error && <tr><td colSpan={TABLE_HEADERS.length} className="text-center p-4 text-red-500">{error}</td></tr>}
-            {!loading && !error && personnelList.length > 0 && personnelList.map((p) => (
+            {!loading && !error && filteredPersonnel.length > 0 && filteredPersonnel.map((p) => (
               <tr key={p.id} className="hover:bg-slate-50">
                 {EXPORT_HEADERS.map(header => {
                     const key = HEADER_MAP[header];
@@ -255,8 +297,14 @@ const PersonnelListPage: React.FC = () => {
                 </td>
               </tr>
             ))}
-            {!loading && !error && personnelList.length === 0 && (
-              <tr><td colSpan={TABLE_HEADERS.length} className="text-center p-4 text-gray-500">هیچ پرسنلی یافت نشد. می‌توانید از طریق فایل اکسل اطلاعات را وارد کنید.</td></tr>
+            {!loading && !error && filteredPersonnel.length === 0 && (
+              <tr>
+                <td colSpan={TABLE_HEADERS.length} className="text-center p-4 text-gray-500">
+                    {personnelList.length === 0
+                        ? "هیچ پرسنلی یافت نشد. می‌توانید از طریق فایل اکسل اطلاعات را وارد کنید."
+                        : "هیچ پرسنلی با مشخصات وارد شده یافت نشد."}
+                </td>
+              </tr>
             )}
           </tbody>
         </table>

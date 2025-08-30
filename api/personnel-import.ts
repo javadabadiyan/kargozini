@@ -17,67 +17,65 @@ export default async function handler(
     return response.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  const personnelList = request.body as NewPersonnel[];
+  const allPersonnel = request.body as NewPersonnel[];
 
-  if (!Array.isArray(personnelList) || personnelList.length === 0) {
-    return response.status(400).json({ error: 'لیست پرسنل نامعتبر یا خالی است.' });
+  if (!Array.isArray(allPersonnel)) {
+    return response.status(400).json({ error: 'لیست پرسنل نامعتبر است.' });
   }
 
+  // Filter out records with missing essential data before processing
+  const validPersonnelList = allPersonnel.filter(p => p.personnel_code && p.first_name && p.last_name);
+
+  if (validPersonnelList.length === 0) {
+    return response.status(200).json({ message: 'هیچ رکورد معتبری برای ورود یافت نشد. لطفاً از وجود ستون‌های کد پرسنلی، نام و نام خانوادگی اطمینان حاصل کنید.' });
+  }
+  
   const client = await db.connect();
   try {
-    await client.sql`BEGIN`;
-
-    for (const p of personnelList) {
-      if (!p.personnel_code || !p.first_name || !p.last_name) {
-           console.warn('Skipping record due to missing required fields (personnel_code, first_name, last_name):', p);
-           continue; // Skip this record
-      }
-      
-      await client.sql`
-        INSERT INTO personnel (
-          personnel_code, first_name, last_name, father_name, national_id, id_number,
-          birth_date, birth_place, issue_date, issue_place, marital_status, military_status,
-          job_title, "position", employment_type, department, service_location, hire_date,
-          education_level, field_of_study, status
-        ) VALUES (
-          ${p.personnel_code || null}, ${p.first_name || null}, ${p.last_name || null}, ${p.father_name || null}, ${p.national_id || null}, ${p.id_number || null},
-          ${p.birth_date || null}, ${p.birth_place || null}, ${p.issue_date || null}, ${p.issue_place || null}, ${p.marital_status || null}, ${p.military_status || null},
-          ${p.job_title || null}, ${p.position || null}, ${p.employment_type || null}, ${p.department || null}, ${p.service_location || null}, ${p.hire_date || null},
-          ${p.education_level || null}, ${p.field_of_study || null}, ${p.status || null}
-        )
-        ON CONFLICT (personnel_code) DO UPDATE SET
-          first_name = EXCLUDED.first_name,
-          last_name = EXCLUDED.last_name,
-          father_name = EXCLUDED.father_name,
-          national_id = EXCLUDED.national_id,
-          id_number = EXCLUDED.id_number,
-          birth_date = EXCLUDED.birth_date,
-          birth_place = EXCLUDED.birth_place,
-          issue_date = EXCLUDED.issue_date,
-          issue_place = EXCLUDED.issue_place,
-          marital_status = EXCLUDED.marital_status,
-          military_status = EXCLUDED.military_status,
-          job_title = EXCLUDED.job_title,
-          "position" = EXCLUDED."position",
-          employment_type = EXCLUDED.employment_type,
-          department = EXCLUDED.department,
-          service_location = EXCLUDED.service_location,
-          hire_date = EXCLUDED.hire_date,
-          education_level = EXCLUDED.education_level,
-          field_of_study = EXCLUDED.field_of_study,
-          status = EXCLUDED.status;
-      `;
-    }
+    const columns = [
+      'personnel_code', 'first_name', 'last_name', 'father_name', 'national_id', 'id_number',
+      'birth_date', 'birth_place', 'issue_date', 'issue_place', 'marital_status', 'military_status',
+      'job_title', 'position', 'employment_type', 'department', 'service_location', 'hire_date',
+      'education_level', 'field_of_study', 'status'
+    ];
     
-    await client.sql`COMMIT`;
+    // Create a string of column names, quoting "position" as it's a reserved keyword.
+    const columnNames = columns.map(c => c === 'position' ? `"${c}"` : c).join(', ');
 
-    return response.status(200).json({ message: `اطلاعات با موفقیت پردازش شد. رکوردهای جدید اضافه و رکوردهای موجود به‌روزرسانی شدند.` });
+    const values: (string | null)[] = [];
+    const valuePlaceholders: string[] = [];
+    let paramIndex = 1;
+
+    for (const p of validPersonnelList) {
+      const recordPlaceholders: string[] = [];
+      for (const col of columns) {
+        values.push(p[col as keyof NewPersonnel] ?? null);
+        recordPlaceholders.push(`$${paramIndex++}`);
+      }
+      valuePlaceholders.push(`(${recordPlaceholders.join(', ')})`);
+    }
+
+    // Create the SET clause for the ON CONFLICT part, updating all columns except the conflict key.
+    const updateSet = columns
+      .filter(c => c !== 'personnel_code')
+      .map(c => `${c === 'position' ? `"${c}"` : c} = EXCLUDED.${c === 'position' ? `"${c}"` : c}`)
+      .join(', ');
+
+    const query = `
+      INSERT INTO personnel (${columnNames})
+      VALUES ${valuePlaceholders.join(', ')}
+      ON CONFLICT (personnel_code) DO UPDATE SET ${updateSet};
+    `;
+    
+    // Use client.query for dynamically constructed queries with parameter arrays.
+    await client.query(query, values);
+
+    return response.status(200).json({ message: `عملیات موفق. ${validPersonnelList.length} رکورد پردازش شد.` });
+  
   } catch (error) {
-    await client.sql`ROLLBACK`;
-    console.error('Database transaction failed:', error);
-
+    console.error('Database bulk insert/update failed:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-    return response.status(500).json({ error: 'تراکنش پایگاه داده با شکست مواجه شد.', details: errorMessage });
+    return response.status(500).json({ error: 'عملیات پایگاه داده با شکست مواجه شد.', details: errorMessage });
   } finally {
     client.release();
   }
