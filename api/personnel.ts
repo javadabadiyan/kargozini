@@ -1,4 +1,4 @@
-import { createPool, VercelPool } from '@vercel/postgres';
+import { createPool, VercelPool, VercelPoolClient } from '@vercel/postgres';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import type { Personnel } from '../types';
 
@@ -64,9 +64,8 @@ async function handleGet(request: VercelRequest, response: VercelResponse, pool:
   }
 }
 
-// --- POST Handler (Add) ---
-async function handlePost(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
-  const p = request.body as NewPersonnel;
+// --- POST Handler (Single Add) ---
+async function handleSinglePost(p: NewPersonnel, response: VercelResponse, pool: VercelPool) {
   if (!p || !p.personnel_code || !p.first_name || !p.last_name) {
     return response.status(400).json({ error: 'کد پرسنلی، نام و نام خانوادگی الزامی هستند.' });
   }
@@ -96,6 +95,74 @@ async function handlePost(request: VercelRequest, response: VercelResponse, pool
         return response.status(409).json({ error: 'کد ملی وارد شده تکراری است.', details: 'یک پرسنل دیگر با این کد ملی وجود دارد.' });
     }
     return response.status(500).json({ error: 'خطا در افزودن اطلاعات به پایگاه داده.', details: errorMessage });
+  }
+}
+
+// --- POST Handler (Bulk Import) ---
+async function handleBulkPost(allPersonnel: NewPersonnel[], response: VercelResponse, client: VercelPoolClient) {
+  const BATCH_SIZE = 500;
+  const validPersonnelList = allPersonnel.filter(p => p.personnel_code && p.first_name && p.last_name);
+
+  if (validPersonnelList.length === 0) {
+    return response.status(200).json({ message: 'هیچ رکورد معتبری برای ورود یافت نشد. لطفاً از وجود ستون‌های کد پرسنلی، نام و نام خانوادگی اطمینان حاصل کنید.' });
+  }
+  
+  try {
+    const columns = [
+      'personnel_code', 'first_name', 'last_name', 'father_name', 'national_id', 'id_number',
+      'birth_date', 'birth_place', 'issue_date', 'issue_place', 'marital_status', 'military_status',
+      'job_title', 'position', 'employment_type', 'department', 'service_location', 'hire_date',
+      'education_level', 'field_of_study', 'status'
+    ];
+    
+    const columnNames = columns.map(c => c === 'position' ? `"${c}"` : c).join(', ');
+    
+    const updateSet = columns
+      .filter(c => c !== 'personnel_code')
+      .map(c => `${c === 'position' ? `"${c}"` : c} = EXCLUDED.${c === 'position' ? `"${c}"` : c}`)
+      .join(', ');
+
+    let totalProcessed = 0;
+    for (let i = 0; i < validPersonnelList.length; i += BATCH_SIZE) {
+        const batch = validPersonnelList.slice(i, i + BATCH_SIZE);
+        if (batch.length === 0) continue;
+
+        await client.query('BEGIN');
+
+        const values: (string | null)[] = [];
+        const valuePlaceholders: string[] = [];
+        let paramIndex = 1;
+
+        for (const p of batch) {
+          const recordPlaceholders: string[] = [];
+          for (const col of columns) {
+            values.push(p[col as keyof NewPersonnel] ?? null);
+            recordPlaceholders.push(`$${paramIndex++}`);
+          }
+          valuePlaceholders.push(`(${recordPlaceholders.join(', ')})`);
+        }
+
+        const query = `
+          INSERT INTO personnel (${columnNames})
+          VALUES ${valuePlaceholders.join(', ')}
+          ON CONFLICT (personnel_code) DO UPDATE SET ${updateSet};
+        `;
+        
+        await client.query(query, values);
+        await client.query('COMMIT');
+        totalProcessed += batch.length;
+    }
+
+    return response.status(200).json({ message: `عملیات موفق. ${totalProcessed} رکورد پردازش شد.` });
+  
+  } catch (error) {
+    await client.query('ROLLBACK').catch(rollbackError => {
+        console.error('Failed to rollback transaction:', rollbackError);
+    });
+
+    console.error('Database bulk insert/update failed:', error);
+    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+    return response.status(500).json({ error: 'عملیات پایگاه داده با شکست مواجه شد.', details: errorMessage });
   }
 }
 
@@ -151,8 +218,19 @@ export default async function handler(request: VercelRequest, response: VercelRe
   switch (request.method) {
     case 'GET':
       return await handleGet(request, response, pool);
-    case 'POST':
-      return await handlePost(request, response, pool);
+    case 'POST': {
+      const body = request.body;
+      if (Array.isArray(body)) {
+        const client = await pool.connect();
+        try {
+            return await handleBulkPost(body, response, client);
+        } finally {
+            client.release();
+        }
+      } else {
+        return await handleSinglePost(body, response, pool);
+      }
+    }
     case 'PUT':
       return await handlePut(request, response, pool);
     default:

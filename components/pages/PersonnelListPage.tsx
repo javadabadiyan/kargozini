@@ -156,7 +156,7 @@ const PersonnelListPage: React.FC = () => {
 
         setImportStatus({ type: 'info', message: 'در حال ارسال اطلاعات به سرور...' });
 
-        const response = await fetch('/api/personnel-import', {
+        const response = await fetch('/api/personnel', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(mappedData),

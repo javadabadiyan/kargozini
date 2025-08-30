@@ -129,7 +129,7 @@ const DependentsInfoPage: React.FC = () => {
           return newRow;
         });
 
-        const response = await fetch('/api/dependents-import', {
+        const response = await fetch('/api/dependents', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(mappedData),
