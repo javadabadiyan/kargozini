@@ -12,39 +12,54 @@ async function handleGet(request: VercelRequest, response: VercelResponse, pool:
 
     const searchDate = request.query.searchDate as string; // Expects YYYY-MM-DD
     const searchTerm = (request.query.searchTerm as string) || '';
-    const searchQuery = `%${searchTerm}%`;
+    
+    const params: any[] = [];
+    let paramIndex = 1;
 
-    const dateFilter = searchDate 
-      ? `cl.entry_time >= '${searchDate} 00:00:00' AND cl.entry_time <= '${searchDate} 23:59:59'`
-      : `cl.entry_time >= date_trunc('day', NOW()) AND cl.entry_time < date_trunc('day', NOW()) + interval '1 day'`;
-
-    let whereClauses = [dateFilter];
-    if (searchTerm) {
-      whereClauses.push(`(cm.full_name ILIKE '${searchQuery}' OR cl.personnel_code ILIKE '${searchQuery}')`);
+    let dateFilterClause = '';
+    if (searchDate) {
+        // Use Asia/Tehran timezone to correctly define the day's boundaries
+        dateFilterClause = `cl.entry_time >= ($${paramIndex++}::date AT TIME ZONE 'Asia/Tehran') AND cl.entry_time < ($${paramIndex++}::date + INTERVAL '1 day' AT TIME ZONE 'Asia/Tehran')`;
+        params.push(searchDate, searchDate);
+    } else {
+        // Default to the current day in Asia/Tehran timezone
+        dateFilterClause = `cl.entry_time >= (date_trunc('day', NOW() AT TIME ZONE 'Asia/Tehran')) AND cl.entry_time < (date_trunc('day', NOW() AT TIME ZONE 'Asia/Tehran') + INTERVAL '1 day')`;
     }
-    
-    const whereCondition = whereClauses.join(' AND ');
 
-    const countResult = await (pool as any).query(`
-        SELECT COUNT(cl.id) 
+    let searchTermClause = '';
+    if (searchTerm) {
+      searchTermClause = `AND (cm.full_name ILIKE $${paramIndex++} OR cl.personnel_code ILIKE $${paramIndex++})`;
+      params.push(`%${searchTerm}%`, `%${searchTerm}%`);
+    }
+
+    const baseQuery = `
         FROM commute_logs cl
         LEFT JOIN commuting_members cm ON cl.personnel_code = cm.personnel_code
-        WHERE ${whereCondition};
-    `);
-    const totalCount = parseInt(countResult.rows[0].count, 10);
-    
-    const dataResult = await (pool as any).query(`
-        SELECT 
-            cl.id, cl.personnel_code, cm.full_name, cl.guard_name, 
-            cl.entry_time, cl.exit_time 
-        FROM commute_logs cl
-        LEFT JOIN commuting_members cm ON cl.personnel_code = cm.personnel_code
-        WHERE ${whereCondition}
-        ORDER BY cl.entry_time DESC
-        LIMIT ${PAGE_SIZE} OFFSET ${offset};
-    `);
-    
-    return response.status(200).json({ logs: dataResult.rows, totalCount });
+        WHERE ${dateFilterClause} ${searchTermClause}
+    `;
+
+    const countQuery = `SELECT COUNT(cl.id) ${baseQuery}`;
+    // The pool from createPool doesn't directly support parameterized queries in this manner,
+    // so we use the client's query method which does.
+    const client = await pool.connect();
+    try {
+        const countResult = await client.query(countQuery, params);
+        const totalCount = parseInt(countResult.rows[0].count, 10);
+        
+        const dataParams = [...params, PAGE_SIZE, offset];
+        const dataQuery = `
+            SELECT cl.id, cl.personnel_code, cm.full_name, cl.guard_name, cl.entry_time, cl.exit_time 
+            ${baseQuery}
+            ORDER BY cl.entry_time DESC
+            LIMIT $${params.length + 1} OFFSET $${params.length + 2};
+        `;
+        const dataResult = await client.query(dataQuery, dataParams);
+        
+        return response.status(200).json({ logs: dataResult.rows, totalCount });
+    } finally {
+        client.release();
+    }
+
   } catch (error) {
     console.error('Database GET for commute_logs failed:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
@@ -71,14 +86,14 @@ async function handleSinglePost(request: VercelRequest, response: VercelResponse
   const effectiveTime = timestampOverride ? new Date(timestampOverride).toISOString() : 'NOW()';
 
   try {
-    // Find an open log for the specific day of the effectiveTime
+    // Find an open log for the specific day of the effectiveTime, considering Tehran's timezone
     const { rows: openLogs } = await pool.sql`
         SELECT id FROM commute_logs 
         WHERE 
             personnel_code = ${personnelCode} AND 
             exit_time IS NULL AND 
-            entry_time >= date_trunc('day', ${effectiveTime}::timestamptz) AND
-            entry_time < date_trunc('day', ${effectiveTime}::timestamptz) + interval '1 day';
+            entry_time >= date_trunc('day', ${effectiveTime}::timestamptz AT TIME ZONE 'Asia/Tehran') AND
+            entry_time < date_trunc('day', ${effectiveTime}::timestamptz AT TIME ZONE 'Asia/Tehran') + interval '1 day';
     `;
     const openLog = openLogs[0];
 
