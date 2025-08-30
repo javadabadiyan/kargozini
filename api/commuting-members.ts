@@ -62,7 +62,6 @@ async function handleBulkPost(allMembers: NewCommutingMember[], response: Vercel
   }
   
   try {
-    // FIX: Cast client to 'any' to bypass a potential type definition issue with VercelPoolClient. The underlying pg client supports the .query method.
     await (client as any).query('BEGIN');
 
     const columns = ['personnel_code', 'full_name', 'department', 'position'];
@@ -92,16 +91,13 @@ async function handleBulkPost(allMembers: NewCommutingMember[], response: Vercel
       ON CONFLICT (personnel_code) DO UPDATE SET ${updateSet};
     `;
     
-    // FIX: Cast client to 'any' to bypass a potential type definition issue with VercelPoolClient. The underlying pg client supports the .query method.
     await (client as any).query(query, values);
-    // FIX: Cast client to 'any' to bypass a potential type definition issue with VercelPoolClient. The underlying pg client supports the .query method.
     await (client as any).query('COMMIT');
 
     return response.status(200).json({ message: `عملیات موفق. ${validList.length} رکورد پردازش شد.` });
   
   } catch (error) {
-    // FIX: Cast client to 'any' to bypass a potential type definition issue with VercelPoolClient. The underlying pg client supports the .query method.
-    await (client as any).query('ROLLBACK').catch(console.error);
+    await (client as any).query('ROLLBACK').catch((rbError: any) => console.error('Rollback failed:', rbError));
     console.error('Database bulk insert/update for commuting members failed:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     return response.status(500).json({ error: 'عملیات پایگاه داده با شکست مواجه شد.', details: errorMessage });

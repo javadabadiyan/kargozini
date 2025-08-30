@@ -14,7 +14,7 @@ async function handleGet(request: VercelRequest, response: VercelResponse, pool:
             cl.exit_time 
         FROM commute_logs cl
         LEFT JOIN commuting_members cm ON cl.personnel_code = cm.personnel_code
-        WHERE cl.entry_time >= date_trunc('day', NOW())
+        WHERE cl.entry_time >= date_trunc('day', NOW()) AND cl.entry_time < date_trunc('day', NOW()) + interval '1 day'
         ORDER BY cl.entry_time DESC;
     `;
     return response.status(200).json({ logs: result.rows });
@@ -40,16 +40,17 @@ async function handlePost(request: VercelRequest, response: VercelResponse, pool
     return response.status(400).json({ error: 'اطلاعات ارسالی ناقص یا نامعتبر است.' });
   }
   
-  const effectiveTime = timestampOverride ? new Date(timestampOverride) : new Date();
+  const effectiveTime = timestampOverride ? new Date(timestampOverride).toISOString() : 'NOW()';
 
   try {
+    // Find an open log for the specific day of the effectiveTime
     const { rows: openLogs } = await pool.sql`
         SELECT id FROM commute_logs 
         WHERE 
             personnel_code = ${personnelCode} AND 
             exit_time IS NULL AND 
-            entry_time >= date_trunc('day', ${effectiveTime.toISOString()}::timestamptz) AND
-            entry_time < date_trunc('day', ${effectiveTime.toISOString()}::timestamptz) + interval '1 day';
+            entry_time >= date_trunc('day', ${effectiveTime}::timestamptz) AND
+            entry_time < date_trunc('day', ${effectiveTime}::timestamptz) + interval '1 day';
     `;
     const openLog = openLogs[0];
 
@@ -59,7 +60,7 @@ async function handlePost(request: VercelRequest, response: VercelResponse, pool
         }
         const { rows: newLog } = await pool.sql`
             INSERT INTO commute_logs (personnel_code, guard_name, entry_time) 
-            VALUES (${personnelCode}, ${guardName}, ${effectiveTime.toISOString()}) 
+            VALUES (${personnelCode}, ${guardName}, ${effectiveTime}) 
             RETURNING *;
         `;
         return response.status(201).json({ message: 'ورود با موفقیت ثبت شد.', log: newLog[0] });
@@ -71,14 +72,13 @@ async function handlePost(request: VercelRequest, response: VercelResponse, pool
         }
         const { rows: updatedLog } = await pool.sql`
             UPDATE commute_logs 
-            SET exit_time = ${effectiveTime.toISOString()}
+            SET exit_time = ${effectiveTime}
             WHERE id = ${openLog.id}
             RETURNING *;
         `;
         return response.status(200).json({ message: 'خروج با موفقیت ثبت شد.', log: updatedLog[0] });
     }
     
-    // Fallback for safety, though logic above should cover all cases.
     return response.status(400).json({ error: 'عملیات نامعتبر است.' });
 
   } catch (error) {

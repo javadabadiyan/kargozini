@@ -19,7 +19,6 @@ export default async function handler(
 
   const messages: string[] = [];
   try {
-    // FIX: Cast client to 'any' to bypass a potential type definition issue with VercelPoolClient. The underlying pg client supports the .query method.
     await (client as any).query('BEGIN');
 
     // Create personnel table
@@ -96,7 +95,6 @@ export default async function handler(
     messages.push('جدول "commute_logs" با موفقیت ایجاد یا تایید شد.');
     
     // Create trigger function for updated_at
-    // FIX: Cast client to 'any' to bypass a potential type definition issue with VercelPoolClient. The underlying pg client supports the .query method.
     await (client as any).query(`
         CREATE OR REPLACE FUNCTION update_updated_at_column()
         RETURNS TRIGGER AS $$
@@ -108,7 +106,6 @@ export default async function handler(
     `);
 
     // Create trigger for commute_logs
-    // FIX: Cast client to 'any' to bypass a potential type definition issue with VercelPoolClient. The underlying pg client supports the .query method.
     await (client as any).query(`
         DROP TRIGGER IF EXISTS update_commute_logs_updated_at ON commute_logs;
         CREATE TRIGGER update_commute_logs_updated_at
@@ -134,13 +131,11 @@ export default async function handler(
     await client.sql`CREATE INDEX IF NOT EXISTS personnel_last_first_name_idx ON personnel (last_name, first_name);`;
     messages.push('ایندکس مرتب‌سازی برای پرسنل ایجاد شد.');
     
-    // FIX: Cast client to 'any' to bypass a potential type definition issue with VercelPoolClient. The underlying pg client supports the .query method.
     await (client as any).query('COMMIT');
     return response.status(200).json({ message: 'عملیات راه‌اندازی پایگاه داده با موفقیت انجام شد.', details: messages });
   
   } catch (error) {
-    // FIX: Cast client to 'any' to bypass a potential type definition issue with VercelPoolClient. The underlying pg client supports the .query method.
-    await (client as any).query('ROLLBACK');
+    await (client as any).query('ROLLBACK').catch((rbError: any) => console.error('Rollback failed:', rbError));
     console.error('Database setup failed:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     return response.status(500).json({ error: 'ایجاد جداول در پایگاه داده با خطا مواجه شد.', details: errorMessage });
