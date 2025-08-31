@@ -15,6 +15,53 @@ const DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const MINUTES = Array.from({ length: 60 }, (_, i) => i);
 
+// Standard and reliable algorithm for Jalali to Gregorian conversion.
+const jalaliToGregorian = (jy: number, jm: number, jd: number): [number, number, number] => {
+    const breaks = [-61, 9, 38, 199, 426, 686, 756, 818, 1111, 1181, 1210, 1635, 2060, 2097, 2192, 2262, 2324, 2394, 2456, 3178];
+    const bl = breaks.length;
+    const jy_ = jy + 621;
+    let jm_ = jm - 1;
+    let jd_ = jd - 1;
+    let j_day_no = 365 * jy_ + Math.floor((jy_ + 3) / 4) - Math.floor((jy_ + 99) / 100) + Math.floor((jy_ + 399) / 400) - 80 + jd_;
+    let i;
+
+    for (i = 0; i < bl; i += 1) {
+        const jm = breaks[i];
+        if (jy_ < jm) break;
+        j_day_no += 1;
+    }
+
+    if (jm_ < 6) {
+        j_day_no += jm_ * 31;
+    } else {
+        j_day_no += (jm_ - 6) * 30 + 186;
+    }
+
+    let gy = 400 * Math.floor(j_day_no / 146097);
+    j_day_no %= 146097;
+
+    if (j_day_no > 36524) {
+        j_day_no -= 1;
+        gy += 100 * Math.floor(j_day_no / 36524);
+        j_day_no %= 36524;
+        if (j_day_no >= 365) j_day_no += 1;
+    }
+
+    gy += 4 * Math.floor(j_day_no / 1461);
+    j_day_no %= 1461;
+
+    if (j_day_no > 365) {
+        gy += Math.floor((j_day_no - 1) / 365);
+        j_day_no = (j_day_no - 1) % 365;
+    }
+
+    let gd = j_day_no + 1;
+    const sal_a = [0, 31, (gy % 4 === 0 && gy % 100 !== 0) || gy % 400 === 0 ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    let gm;
+    for (gm = 0; gm < 13 && gd > sal_a[gm]; gm += 1) gd -= sal_a[gm];
+    return [gy, gm, gd];
+};
+
 
 const LogCommutePage: React.FC = () => {
   const [commutingMembers, setCommutingMembers] = useState<CommutingMember[]>([]);
@@ -46,6 +93,7 @@ const LogCommutePage: React.FC = () => {
   const getTodayPersian = () => {
     const today = new Date();
     const formatter = new Intl.DateTimeFormat('fa-IR-u-nu-latn', {
+      timeZone: 'Asia/Tehran',
       year: 'numeric',
       month: 'numeric',
       day: 'numeric',
@@ -133,36 +181,44 @@ const LogCommutePage: React.FC = () => {
     setSearchTerm(member.full_name);
     setIsSearchFocused(false);
   };
-
+  
   const getTimestampFromState = (timeState: { hour: string; minute: string }): string | null => {
-      const { year, month, day } = logDate;
-      const { hour, minute } = timeState;
+    const { year, month, day } = logDate;
+    const { hour, minute } = timeState;
 
-      if (!year || !month || !day || !hour || !minute) return null;
+    if (!year || !month || !day || !hour || !minute) return null;
 
-      // This is a simplified conversion and might have issues with Jalali leap years.
-      // For a production app, a robust library like `jalali-moment` is recommended.
-      const pYear = parseInt(year);
-      const pMonth = parseInt(month);
-      const pDay = parseInt(day);
-      
-      let gYear = pYear + 621;
-      // This is a rough approximation for converting day of year
-      const daysInPersianMonths = [31, 31, 31, 31, 31, 31, 30, 30, 30, 30, 30, 29];
-      let dayOfYear = daysInPersianMonths.slice(0, pMonth - 1).reduce((a, b) => a + b, 0) + pDay;
+    try {
+        const pYear = parseInt(year);
+        const pMonth = parseInt(month);
+        const pDay = parseInt(day);
 
-      // Rough check for leap year affecting the start date
-      if ( (pYear + 1) % 4 === 0 && dayOfYear > 365) dayOfYear = 365;
-      if ( (pYear) % 4 !== 0 && dayOfYear > 365) dayOfYear = 365;
+        const [gYear, gMonth, gDay] = jalaliToGregorian(pYear, pMonth, pDay);
+        
+        const gMonthStr = String(gMonth).padStart(2, '0');
+        const gDayStr = String(gDay).padStart(2, '0');
+        const hourStr = String(hour).padStart(2, '0');
+        const minuteStr = String(minute).padStart(2, '0');
 
-      const dateObj = new Date(gYear, 0, dayOfYear + 79); // 79 is approximation for Nowruz
-      dateObj.setUTCHours(parseInt(hour), parseInt(minute), 0, 0);
+        // Construct an ISO 8601 string with the Iran timezone offset (+03:30)
+        // This ensures the time is correctly interpreted as local Iranian time.
+        const localIsoString = `${gYear}-${gMonthStr}-${gDayStr}T${hourStr}:${minuteStr}:00+03:30`;
+        
+        const dateObj = new Date(localIsoString);
+        if (isNaN(dateObj.getTime())) {
+            // Handle invalid date creation
+            console.error("Invalid date created:", localIsoString);
+            return null;
+        }
 
-      // Adjust for Iran timezone offset (+3:30) to get correct UTC time for server
-      dateObj.setUTCMinutes(dateObj.getUTCMinutes() - 210);
-
-      return dateObj.toISOString();
+        // .toISOString() will return the equivalent time in UTC (Z-normalized), which is what the database expects.
+        return dateObj.toISOString();
+    } catch (e) {
+        console.error("Error converting date:", e);
+        return null;
+    }
   };
+
 
   const handleLogCommute = async (action: 'entry' | 'exit') => {
     if (!selectedGuard || !selectedMember) {
@@ -175,7 +231,7 @@ const LogCommutePage: React.FC = () => {
     const isManualEntry = timeToUse.hour && timeToUse.minute;
 
     if(isManualEntry && !timestampOverride) {
-      setStatus({ type: 'error', message: 'لطفاً تاریخ و زمان را به طور کامل وارد کنید.'});
+      setStatus({ type: 'error', message: 'لطفاً تاریخ و زمان را به طور کامل و صحیح وارد کنید.'});
       return;
     }
 
