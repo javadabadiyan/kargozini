@@ -6,12 +6,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>سیستم جامع کارگزینی</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Vazirmatn', 'sans-serif'],
+            },
+          },
+        },
+      }
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn-font@v33.0.3/Vazirmatn-font-face.css">
     <style>
-      body {
-        font-family: 'Vazirmatn', sans-serif;
-      }
       @keyframes tick {
         0% {
           opacity: 0;

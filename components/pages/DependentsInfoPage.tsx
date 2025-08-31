@@ -272,7 +272,7 @@ const DependentsInfoPage: React.FC = () => {
                             <UserIcon className="w-12 h-12 text-blue-500" />
                             <div>
                                 <h3 className="text-xl font-bold text-gray-800">{selectedPersonnel.first_name} {selectedPersonnel.last_name}</h3>
-                                <p className="text-sm text-gray-600">کد پرسنلی: <span className="font-mono">{toPersianDigits(selectedPersonnel.personnel_code)}</span></p>
+                                <p className="text-sm text-gray-600">کد پرسنلی: <span className="font-sans">{toPersianDigits(selectedPersonnel.personnel_code)}</span></p>
                             </div>
                         </div>
                     </div>
