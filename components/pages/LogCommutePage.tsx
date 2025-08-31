@@ -193,27 +193,36 @@ const LogCommutePage: React.FC = () => {
             return newSet;
         });
     };
-    
-    const getTimestampOverride = (time: { hour: string, minute: string }) => {
-        if (!logDate.year || !logDate.month || !logDate.day || !time.hour || !time.minute) {
-            return new Date().toISOString();
-        }
-        
-        const jalaliString = `${logDate.year}/${logDate.month}/${logDate.day} ${time.hour}:${time.minute}`;
-        const momentDate = moment(jalaliString, 'jYYYY/jM/jD HH:mm');
-    
-        if (!momentDate.isValid()) {
-            throw new Error(`تاریخ یا زمان وارد شده نامعتبر است: ${toPersianDigits(jalaliString)}`);
-        }
-    
-        return momentDate.toDate().toISOString();
-    };
-
 
     const handleSubmit = async () => {
         if (selectedPersonnel.size === 0) {
-            setStatus({ type: 'error', message: 'لطفاً حداقل یک پرسنل را انتخاب کنید.' }); return;
+            setStatus({ type: 'error', message: 'لطفاً حداقل یک پرسنل را انتخاب کنید.' });
+            return;
         }
+
+        let timestampOverride;
+        try {
+            const timeToUse = actionType === 'entry' ? entryTime : exitTime;
+            const { year, month, day } = logDate;
+            const { hour, minute } = timeToUse;
+
+            if (!year || !month || !day || !hour || !minute) {
+                throw new Error("تاریخ یا زمان به درستی تنظیم نشده است. لطفاً تمام فیلدها را پر کنید.");
+            }
+
+            const jalaliString = `${year}/${month}/${day} ${hour}:${minute}`;
+            const momentDate = moment(jalaliString, 'jYYYY/jM/jD HH:mm');
+
+            if (!momentDate.isValid()) {
+                throw new Error(`تاریخ یا زمان وارد شده نامعتبر است: ${toPersianDigits(jalaliString)}`);
+            }
+            timestampOverride = momentDate.toDate().toISOString();
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'خطای ناشناخته در پردازش زمان.';
+            setStatus({ type: 'error', message });
+            return; // Stop execution
+        }
+        
         const actionText = actionType === 'entry' ? 'ورود' : 'خروج';
         setStatus({ type: 'info', message: `در حال ثبت ${actionText}...` });
         
@@ -225,11 +234,11 @@ const LogCommutePage: React.FC = () => {
                     personnelCodes: Array.from(selectedPersonnel), 
                     guardName: selectedGuard, 
                     action: actionType, 
-                    timestampOverride: getTimestampOverride(actionType === 'entry' ? entryTime : exitTime) 
+                    timestampOverride: timestampOverride
                 })
             });
             const data = await response.json();
-            if (!response.ok) throw new Error(data.error || data.details);
+            if (!response.ok) throw new Error(data.error || data.details || 'خطای سرور');
             setStatus({ type: 'success', message: data.message });
             setSelectedPersonnel(new Set());
             fetchLogs();
