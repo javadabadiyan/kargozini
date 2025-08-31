@@ -16,7 +16,6 @@ const GUARDS = [
 
 const PERSIAN_MONTHS = ['فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور', 'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند'];
 const YEARS = Array.from({ length: 10 }, (_, i) => 1403 + i);
-const DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const MINUTES = Array.from({ length: 60 }, (_, i) => i);
 
@@ -73,6 +72,49 @@ const LogCommutePage: React.FC = () => {
         setEntryTime({ hour: currentHour, minute: currentMinute });
         setExitTime({ hour: currentHour, minute: currentMinute });
     }, [getTodayPersian]);
+
+    // Dynamic days for log date picker
+    const logDaysInMonth = useMemo(() => {
+        if (!logDate.year || !logDate.month) return Array.from({ length: 31 }, (_, i) => i + 1);
+        const m = moment(`${logDate.year}/${logDate.month}/1`, 'jYYYY/jM/jD');
+        if (!m.isValid()) return Array.from({ length: 31 }, (_, i) => i + 1);
+        return Array.from({ length: m.jDaysInMonth() }, (_, i) => i + 1);
+    }, [logDate.year, logDate.month]);
+
+    // Dynamic days for view date picker
+    const viewDaysInMonth = useMemo(() => {
+        if (!viewDate.year || !viewDate.month) return Array.from({ length: 31 }, (_, i) => i + 1);
+        const m = moment(`${viewDate.year}/${viewDate.month}/1`, 'jYYYY/jM/jD');
+        if (!m.isValid()) return Array.from({ length: 31 }, (_, i) => i + 1);
+        return Array.from({ length: m.jDaysInMonth() }, (_, i) => i + 1);
+    }, [viewDate.year, viewDate.month]);
+    
+    // Effect to adjust the day if it becomes invalid for logDate
+    useEffect(() => {
+        if (logDate.year && logDate.month && logDate.day) {
+            const m = moment(`${logDate.year}/${logDate.month}/1`, 'jYYYY/jM/jD');
+            if (m.isValid()) {
+                const daysInMonth = m.jDaysInMonth();
+                if (parseInt(logDate.day, 10) > daysInMonth) {
+                    setLogDate(prev => ({ ...prev, day: String(daysInMonth) }));
+                }
+            }
+        }
+    }, [logDate.year, logDate.month, logDate.day]);
+
+    // Effect to adjust the day if it becomes invalid for viewDate
+    useEffect(() => {
+        if (viewDate.year && viewDate.month && viewDate.day) {
+            const m = moment(`${viewDate.year}/${viewDate.month}/1`, 'jYYYY/jM/jD');
+            if (m.isValid()) {
+                const daysInMonth = m.jDaysInMonth();
+                if (parseInt(viewDate.day, 10) > daysInMonth) {
+                    setViewDate(prev => ({ ...prev, day: String(daysInMonth) }));
+                }
+            }
+        }
+    }, [viewDate.year, viewDate.month, viewDate.day]);
+
 
     const fetchCommutingMembers = useCallback(async () => {
         try {
@@ -348,78 +390,11 @@ const LogCommutePage: React.FC = () => {
     return (
     <>
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <div className="lg:col-span-5 bg-white p-6 rounded-lg shadow-lg space-y-6">
-          <h2 className="text-xl font-bold text-gray-800">ثبت تردد</h2>
-          {status && <div className={`p-3 text-sm rounded-lg ${statusColor[status.type]}`}>{status.message}</div>}
-          
-          <div className="space-y-4">
-             <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">نوع عملیات</label>
-                <div className="grid grid-cols-2 gap-1 p-1 bg-slate-200 rounded-lg">
-                    <button type="button" onClick={() => setActionType('entry')} className={`px-4 py-2 text-sm font-semibold rounded-md transition-colors ${actionType === 'entry' ? 'bg-white text-blue-600 shadow' : 'text-gray-600'}`}>ثبت ورود</button>
-                    <button type="button" onClick={() => setActionType('exit')} className={`px-4 py-2 text-sm font-semibold rounded-md transition-colors ${actionType === 'exit' ? 'bg-white text-blue-600 shadow' : 'text-gray-600'}`}>ثبت خروج</button>
-                </div>
-            </div>
-             <div className="border rounded-lg p-4 space-y-3 bg-slate-50">
-              <h3 className="font-semibold">ثبت تاریخ و زمان</h3>
-               <div className="grid grid-cols-3 gap-2">
-                <select value={logDate.day} onChange={e => setLogDate(p => ({...p, day: e.target.value}))} className="w-full p-2 border rounded-md font-sans">{DAYS.map(d => <option key={d} value={d}>{toPersianDigits(d)}</option>)}</select>
-                <select value={logDate.month} onChange={e => setLogDate(p => ({...p, month: e.target.value}))} className="w-full p-2 border rounded-md font-sans">{PERSIAN_MONTHS.map((m, i) => <option key={m} value={i+1}>{m}</option>)}</select>
-                <select value={logDate.year} onChange={e => setLogDate(p => ({...p, year: e.target.value}))} className="w-full p-2 border rounded-md font-sans">{YEARS.map(y => <option key={y} value={y}>{toPersianDigits(y)}</option>)}</select>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className={actionType === 'exit' ? 'opacity-50' : ''}>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">ساعت ورود</label>
-                      <div className="grid grid-cols-2 gap-2"><select value={entryTime.hour} onChange={e => setEntryTime(p => ({...p, hour: e.target.value}))} disabled={actionType === 'exit'} className="w-full p-2 border rounded-md font-sans">{HOURS.map(h => <option key={h} value={h}>{toPersianDigits(String(h).padStart(2,'0'))}</option>)}</select><select value={entryTime.minute} onChange={e => setEntryTime(p => ({...p, minute: e.target.value}))} disabled={actionType === 'exit'} className="w-full p-2 border rounded-md font-sans">{MINUTES.map(m => <option key={m} value={m}>{toPersianDigits(String(m).padStart(2,'0'))}</option>)}</select></div>
-                  </div>
-                  <div className={actionType === 'entry' ? 'opacity-50' : ''}>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">ساعت خروج</label>
-                      <div className="grid grid-cols-2 gap-2"><select value={exitTime.hour} onChange={e => setExitTime(p => ({...p, hour: e.target.value}))} disabled={actionType === 'entry'} className="w-full p-2 border rounded-md font-sans">{HOURS.map(h => <option key={h} value={h}>{toPersianDigits(String(h).padStart(2,'0'))}</option>)}</select><select value={exitTime.minute} onChange={e => setExitTime(p => ({...p, minute: e.target.value}))} disabled={actionType === 'entry'} className="w-full p-2 border rounded-md font-sans">{MINUTES.map(m => <option key={m} value={m}>{toPersianDigits(String(m).padStart(2,'0'))}</option>)}</select></div>
-                  </div>
-              </div>
-            </div>
-             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">شیفت کاری</label>
-              <div className="grid grid-cols-1 gap-2">
-                {GUARDS.map(guard => (<label key={guard} className={`flex items-center p-3 rounded-lg border cursor-pointer ${selectedGuard === guard ? 'bg-blue-100 border-blue-500' : 'bg-slate-50'}`}><input type="radio" name="guard" value={guard} checked={selectedGuard === guard} onChange={e => setSelectedGuard(e.target.value)} className="w-4 h-4 text-blue-600"/> <span className="mr-3 text-sm">{guard}</span></label>))}
-              </div>
-            </div>
-            <div className="border rounded-lg">
-                <div className="p-4 border-b">
-                     <h3 className="font-semibold">انتخاب پرسنل ({toPersianDigits(selectedPersonnel.size)} نفر)</h3>
-                     <input type="text" placeholder="جستجوی پرسنل..." value={personnelSearch} onChange={e => setPersonnelSearch(e.target.value)} className="w-full mt-2 p-2 border rounded-md"/>
-                </div>
-                <div className="max-h-80 overflow-y-auto p-2">
-                    {groupedMembers.map(([unit, members]) => {
-                        const allInUnitSelected = members.length > 0 && members.every(m => selectedPersonnel.has(m.personnel_code));
-                        const someInUnitSelected = !allInUnitSelected && members.some(m => selectedPersonnel.has(m.personnel_code));
-                        return (
-                            <div key={unit} className="mb-2">
-                                <button onClick={() => setOpenUnits(prev => { const newSet = new Set(prev); if (newSet.has(unit)) newSet.delete(unit); else newSet.add(unit); return newSet; })} className="w-full flex justify-between items-center p-2 bg-gray-100 rounded-md">
-                                    <div className="flex items-center">
-                                      <input type="checkbox" checked={allInUnitSelected} ref={el => { if (el) { el.indeterminate = someInUnitSelected; } }} onChange={() => handleUnitSelectionToggle(members)} className="ml-2 w-4 h-4" onClick={e => e.stopPropagation()}/>
-                                      <span className="font-semibold text-sm">{unit}</span>
-                                    </div>
-                                    <ChevronDownIcon className={`w-4 h-4 transition-transform ${openUnits.has(unit) ? 'rotate-180' : ''}`} />
-                                </button>
-                                {openUnits.has(unit) && <div className="pr-4 mt-1 space-y-1">
-                                    {members.map(member => (<label key={member.personnel_code} className="flex items-center p-2 rounded-md hover:bg-slate-50 cursor-pointer"><input type="checkbox" checked={selectedPersonnel.has(member.personnel_code)} onChange={() => handlePersonnelToggle(member.personnel_code)} className="ml-2 w-4 h-4"/> <div className="flex flex-col"><span className="text-sm">{member.full_name}</span> <span className="text-xs text-gray-500 font-sans">کد: {toPersianDigits(member.personnel_code)}</span></div></label>))}
-                                </div>}
-                            </div>
-                        )
-                    })}
-                </div>
-            </div>
-            <button onClick={handleSubmit} disabled={selectedPersonnel.size === 0} className="w-full py-3 text-lg font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-gray-400">
-                {actionType === 'entry' ? 'ثبت ورود' : 'ثبت خروج'} برای {toPersianDigits(selectedPersonnel.size)} نفر
-            </button>
-          </div>
-        </div>
         <div className="lg:col-span-7 bg-white p-6 rounded-lg shadow-lg">
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-4">
              <h2 className="text-xl font-bold text-gray-800">ترددهای ثبت شده در تاریخ</h2>
              <div className="grid grid-cols-3 gap-2">
-                <select value={viewDate.day} onChange={e => setViewDate(p => ({...p, day: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md bg-slate-50 font-sans">{DAYS.map(d => <option key={d} value={d}>{toPersianDigits(d)}</option>)}</select>
+                <select value={viewDate.day} onChange={e => setViewDate(p => ({...p, day: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md bg-slate-50 font-sans">{viewDaysInMonth.map(d => <option key={d} value={d}>{toPersianDigits(d)}</option>)}</select>
                 <select value={viewDate.month} onChange={e => setViewDate(p => ({...p, month: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md bg-slate-50 font-sans">{PERSIAN_MONTHS.map((m, i) => <option key={m} value={i+1}>{m}</option>)}</select>
                 <select value={viewDate.year} onChange={e => setViewDate(p => ({...p, year: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md bg-slate-50 font-sans">{YEARS.map(y => <option key={y} value={y}>{toPersianDigits(y)}</option>)}</select>
              </div>
@@ -479,6 +454,73 @@ const LogCommutePage: React.FC = () => {
                  ))}
               </tbody>
             </table>
+          </div>
+        </div>
+        <div className="lg:col-span-5 bg-white p-6 rounded-lg shadow-lg space-y-6">
+          <h2 className="text-xl font-bold text-gray-800">ثبت تردد</h2>
+          {status && <div className={`p-3 text-sm rounded-lg ${statusColor[status.type]}`}>{status.message}</div>}
+          
+          <div className="space-y-4">
+             <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">نوع عملیات</label>
+                <div className="grid grid-cols-2 gap-1 p-1 bg-slate-200 rounded-lg">
+                    <button type="button" onClick={() => setActionType('entry')} className={`px-4 py-2 text-sm font-semibold rounded-md transition-colors ${actionType === 'entry' ? 'bg-white text-blue-600 shadow' : 'text-gray-600'}`}>ثبت ورود</button>
+                    <button type="button" onClick={() => setActionType('exit')} className={`px-4 py-2 text-sm font-semibold rounded-md transition-colors ${actionType === 'exit' ? 'bg-white text-blue-600 shadow' : 'text-gray-600'}`}>ثبت خروج</button>
+                </div>
+            </div>
+             <div className="border rounded-lg p-4 space-y-3 bg-slate-50">
+              <h3 className="font-semibold">ثبت تاریخ و زمان</h3>
+               <div className="grid grid-cols-3 gap-2">
+                <select value={logDate.day} onChange={e => setLogDate(p => ({...p, day: e.target.value}))} className="w-full p-2 border rounded-md font-sans">{logDaysInMonth.map(d => <option key={d} value={d}>{toPersianDigits(d)}</option>)}</select>
+                <select value={logDate.month} onChange={e => setLogDate(p => ({...p, month: e.target.value}))} className="w-full p-2 border rounded-md font-sans">{PERSIAN_MONTHS.map((m, i) => <option key={m} value={i+1}>{m}</option>)}</select>
+                <select value={logDate.year} onChange={e => setLogDate(p => ({...p, year: e.target.value}))} className="w-full p-2 border rounded-md font-sans">{YEARS.map(y => <option key={y} value={y}>{toPersianDigits(y)}</option>)}</select>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className={actionType === 'exit' ? 'opacity-50' : ''}>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">ساعت ورود</label>
+                      <div className="grid grid-cols-2 gap-2"><select value={entryTime.hour} onChange={e => setEntryTime(p => ({...p, hour: e.target.value}))} disabled={actionType === 'exit'} className="w-full p-2 border rounded-md font-sans">{HOURS.map(h => <option key={h} value={h}>{toPersianDigits(String(h).padStart(2,'0'))}</option>)}</select><select value={entryTime.minute} onChange={e => setEntryTime(p => ({...p, minute: e.target.value}))} disabled={actionType === 'exit'} className="w-full p-2 border rounded-md font-sans">{MINUTES.map(m => <option key={m} value={m}>{toPersianDigits(String(m).padStart(2,'0'))}</option>)}</select></div>
+                  </div>
+                  <div className={actionType === 'entry' ? 'opacity-50' : ''}>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">ساعت خروج</label>
+                      <div className="grid grid-cols-2 gap-2"><select value={exitTime.hour} onChange={e => setExitTime(p => ({...p, hour: e.target.value}))} disabled={actionType === 'entry'} className="w-full p-2 border rounded-md font-sans">{HOURS.map(h => <option key={h} value={h}>{toPersianDigits(String(h).padStart(2,'0'))}</option>)}</select><select value={exitTime.minute} onChange={e => setExitTime(p => ({...p, minute: e.target.value}))} disabled={actionType === 'entry'} className="w-full p-2 border rounded-md font-sans">{MINUTES.map(m => <option key={m} value={m}>{toPersianDigits(String(m).padStart(2,'0'))}</option>)}</select></div>
+                  </div>
+              </div>
+            </div>
+             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">شیفت کاری</label>
+              <div className="grid grid-cols-1 gap-2">
+                {GUARDS.map(guard => (<label key={guard} className={`flex items-center p-3 rounded-lg border cursor-pointer ${selectedGuard === guard ? 'bg-blue-100 border-blue-500' : 'bg-slate-50'}`}><input type="radio" name="guard" value={guard} checked={selectedGuard === guard} onChange={e => setSelectedGuard(e.target.value)} className="w-4 h-4 text-blue-600"/> <span className="mr-3 text-sm">{guard}</span></label>))}
+              </div>
+            </div>
+            <div className="border rounded-lg">
+                <div className="p-4 border-b">
+                     <h3 className="font-semibold">انتخاب پرسنل ({toPersianDigits(selectedPersonnel.size)} نفر)</h3>
+                     <input type="text" placeholder="جستجوی پرسنل..." value={personnelSearch} onChange={e => setPersonnelSearch(e.target.value)} className="w-full mt-2 p-2 border rounded-md"/>
+                </div>
+                <div className="max-h-80 overflow-y-auto p-2">
+                    {groupedMembers.map(([unit, members]) => {
+                        const allInUnitSelected = members.length > 0 && members.every(m => selectedPersonnel.has(m.personnel_code));
+                        const someInUnitSelected = !allInUnitSelected && members.some(m => selectedPersonnel.has(m.personnel_code));
+                        return (
+                            <div key={unit} className="mb-2">
+                                <button onClick={() => setOpenUnits(prev => { const newSet = new Set(prev); if (newSet.has(unit)) newSet.delete(unit); else newSet.add(unit); return newSet; })} className="w-full flex justify-between items-center p-2 bg-gray-100 rounded-md">
+                                    <div className="flex items-center">
+                                      <input type="checkbox" checked={allInUnitSelected} ref={el => { if (el) { el.indeterminate = someInUnitSelected; } }} onChange={() => handleUnitSelectionToggle(members)} className="ml-2 w-4 h-4" onClick={e => e.stopPropagation()}/>
+                                      <span className="font-semibold text-sm">{unit}</span>
+                                    </div>
+                                    <ChevronDownIcon className={`w-4 h-4 transition-transform ${openUnits.has(unit) ? 'rotate-180' : ''}`} />
+                                </button>
+                                {openUnits.has(unit) && <div className="pr-4 mt-1 space-y-1">
+                                    {members.map(member => (<label key={member.personnel_code} className="flex items-center p-2 rounded-md hover:bg-slate-50 cursor-pointer"><input type="checkbox" checked={selectedPersonnel.has(member.personnel_code)} onChange={() => handlePersonnelToggle(member.personnel_code)} className="ml-2 w-4 h-4"/> <div className="flex flex-col"><span className="text-sm">{member.full_name}</span> <span className="text-xs text-gray-500 font-sans">کد: {toPersianDigits(member.personnel_code)}</span></div></label>))}
+                                </div>}
+                            </div>
+                        )
+                    })}
+                </div>
+            </div>
+            <button onClick={handleSubmit} disabled={selectedPersonnel.size === 0} className="w-full py-3 text-lg font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-gray-400">
+                {actionType === 'entry' ? 'ثبت ورود' : 'ثبت خروج'} برای {toPersianDigits(selectedPersonnel.size)} نفر
+            </button>
           </div>
         </div>
       </div>
