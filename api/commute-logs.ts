@@ -4,6 +4,18 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 // --- GET Handler ---
 async function handleGet(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
   try {
+    // Get today's date in 'Asia/Tehran' timezone to use as a default
+    const todayInTehran = new Intl.DateTimeFormat('en-CA', { // 'en-CA' format is YYYY-MM-DD
+      timeZone: 'Asia/Tehran',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(new Date());
+
+    const searchDate = (request.query.date as string) || todayInTehran;
+
+    // This query correctly converts the stored UTC timestamp to a date in the 'Asia/Tehran' timezone
+    // before comparing it with the provided date string.
     const result = await pool.sql`
         SELECT 
             cl.id, 
@@ -14,7 +26,7 @@ async function handleGet(request: VercelRequest, response: VercelResponse, pool:
             cl.exit_time 
         FROM commute_logs cl
         LEFT JOIN commuting_members cm ON cl.personnel_code = cm.personnel_code
-        WHERE cl.entry_time >= date_trunc('day', NOW()) AND cl.entry_time < date_trunc('day', NOW()) + interval '1 day'
+        WHERE DATE(cl.entry_time AT TIME ZONE 'Asia/Tehran') = ${searchDate}
         ORDER BY cl.entry_time DESC;
     `;
     return response.status(200).json({ logs: result.rows });

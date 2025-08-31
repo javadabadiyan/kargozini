@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import type { CommutingMember, CommuteLog } from '../../types';
-import { SearchIcon, UserIcon, PencilIcon, TrashIcon } from '../icons/Icons';
+import { SearchIcon, UserIcon, PencilIcon, TrashIcon, RefreshIcon } from '../icons/Icons';
 import EditCommuteLogModal from '../EditCommuteLogModal';
 
 const GUARDS = [
@@ -79,8 +79,19 @@ const LogCommutePage: React.FC = () => {
   const fetchTodaysLogs = useCallback(async () => {
     try {
       setLoadingLogs(true);
-      const response = await fetch('/api/commute-logs');
-      if (!response.ok) throw new Error('خطا در دریافت ترددهای امروز');
+      setError(null);
+      // Send the user's local date to the API to handle timezones correctly
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      const dateString = `${year}-${month}-${day}`;
+
+      const response = await fetch(`/api/commute-logs?date=${dateString}`);
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'خطا در دریافت ترددهای امروز');
+      }
       const data = await response.json();
       setTodaysLogs(data.logs || []);
     } catch (err) {
@@ -408,7 +419,17 @@ const LogCommutePage: React.FC = () => {
       </div>
 
       <div>
-        <h3 className="text-xl font-bold text-gray-700 mb-4 mt-8">لیست تردد امروز</h3>
+        <div className="flex items-center justify-between mb-4 mt-8">
+            <h3 className="text-xl font-bold text-gray-700">لیست تردد امروز</h3>
+            <button
+                onClick={fetchTodaysLogs}
+                disabled={loadingLogs}
+                className="p-2 text-gray-500 bg-white rounded-full hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors disabled:opacity-50 border"
+                aria-label="بروزرسانی لیست تردد"
+            >
+                <RefreshIcon className={`w-5 h-5 ${loadingLogs ? 'animate-spin' : ''}`} />
+            </button>
+        </div>
         <div className="overflow-x-auto border rounded-lg">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
