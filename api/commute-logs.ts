@@ -2,13 +2,14 @@ import { createPool, VercelPool, VercelPoolClient } from '@vercel/postgres';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import type { CommuteLog } from '../types';
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 
 // --- GET Handler ---
 async function handleGet(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
   try {
     const page = parseInt(request.query.page as string) || 1;
-    const offset = (page - 1) * PAGE_SIZE;
+    const pageSize = parseInt(request.query.pageSize as string) || PAGE_SIZE;
+    const offset = (page - 1) * pageSize;
 
     const searchDate = request.query.searchDate as string; // Expects YYYY-MM-DD
     const searchTerm = (request.query.searchTerm as string) || '';
@@ -44,7 +45,7 @@ async function handleGet(request: VercelRequest, response: VercelResponse, pool:
         const countResult = await client.query(countQuery, params);
         const totalCount = parseInt(countResult.rows[0].count, 10);
         
-        const dataParams = [...params, PAGE_SIZE, offset];
+        const dataParams = [...params, pageSize, offset];
         const dataQuery = `
             SELECT cl.id, cl.personnel_code, cm.full_name, cl.guard_name, cl.entry_time, cl.exit_time 
             ${baseQuery}
@@ -75,72 +76,85 @@ async function handleGet(request: VercelRequest, response: VercelResponse, pool:
 
 // --- POST Handler (Log Commute) ---
 async function handleSinglePost(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
-  const { personnelCode, guardName, action, timestampOverride, logId } = request.body;
+  const { personnelCode, personnelCodes, guardName, action, timestampOverride, logId } = request.body;
 
   if (!guardName || !action || !['entry', 'exit'].includes(action)) {
     return response.status(400).json({ error: 'اطلاعات ارسالی ناقص یا نامعتبر است.' });
   }
   
-  const effectiveTime = timestampOverride ? new Date(timestampOverride).toISOString() : 'NOW()';
+  const effectiveTime = timestampOverride ? `'${new Date(timestampOverride).toISOString()}'` : 'NOW()';
 
+  const client = await pool.connect();
   try {
     if (action === 'entry') {
-        if (!personnelCode) return response.status(400).json({ error: 'کد پرسنلی برای ثبت ورود الزامی است.' });
+        const codesToProcess = personnelCodes || (personnelCode ? [personnelCode] : []);
+        if (codesToProcess.length === 0) {
+            return response.status(400).json({ error: 'کد پرسنلی برای ثبت ورود الزامی است.' });
+        }
+
+        await client.query('BEGIN');
         
-        // Find if there's an open log for this person today
-        const { rows: openLogs } = await pool.sql`
-            SELECT id FROM commute_logs 
+        // Check for open logs in a single query
+        const openLogsResult = await client.query(`
+            SELECT personnel_code FROM commute_logs 
             WHERE 
-                personnel_code = ${personnelCode} AND 
+                personnel_code = ANY($1) AND 
                 exit_time IS NULL AND 
                 entry_time >= date_trunc('day', ${effectiveTime}::timestamptz AT TIME ZONE 'Asia/Tehran') AND
                 entry_time < date_trunc('day', ${effectiveTime}::timestamptz AT TIME ZONE 'Asia/Tehran') + interval '1 day';
-        `;
-        if (openLogs[0]) {
-            return response.status(409).json({ error: 'برای این پرسنل یک ورود باز در این روز ثبت شده است. ابتدا باید خروج ثبت شود.' });
-        }
+        `, [codesToProcess]);
 
-        const { rows: newLog } = await pool.sql`
-            INSERT INTO commute_logs (personnel_code, guard_name, entry_time) 
-            VALUES (${personnelCode}, ${guardName}, ${effectiveTime}) 
-            RETURNING *;
-        `;
-        return response.status(201).json({ message: 'ورود با موفقیت ثبت شد.', log: newLog[0] });
+        if (openLogsResult.rows.length > 0) {
+            await client.query('ROLLBACK');
+            const duplicateCodes = openLogsResult.rows.map(r => r.personnel_code).join(', ');
+            return response.status(409).json({ error: `برای پرسنل با کدهای (${duplicateCodes}) یک ورود باز در این روز ثبت شده است.` });
+        }
+        
+        // Bulk insert using a single query
+        const values = codesToProcess.map(code => `('${code}', '${guardName.replace(/'/g, "''")}', ${effectiveTime})`).join(', ');
+        await client.query(`INSERT INTO commute_logs (personnel_code, guard_name, entry_time) VALUES ${values};`);
+
+        await client.query('COMMIT');
+        return response.status(201).json({ message: `ورود برای ${codesToProcess.length} نفر با موفقیت ثبت شد.` });
     }
     
     if (action === 'exit') {
         let openLogId = logId;
         if (!openLogId) {
              if (!personnelCode) return response.status(400).json({ error: 'کد پرسنلی برای ثبت خروج الزامی است.' });
-             const { rows: openLogs } = await pool.sql`
+             const { rows: openLogs } = await client.query(`
                 SELECT id FROM commute_logs 
                 WHERE 
-                    personnel_code = ${personnelCode} AND 
+                    personnel_code = $1 AND 
                     exit_time IS NULL AND 
                     entry_time >= date_trunc('day', ${effectiveTime}::timestamptz AT TIME ZONE 'Asia/Tehran') AND
-                    entry_time < date_trunc('day', ${effectiveTime}::timestamptz AT TIME ZONE 'Asia/Tehran') + interval '1 day';
-            `;
+                    entry_time < date_trunc('day', ${effectiveTime}::timestamptz AT TIME ZONE 'Asia/Tehran') + interval '1 day'
+                ORDER BY entry_time DESC LIMIT 1;
+            `, [personnelCode]);
             if (!openLogs[0]) {
                 return response.status(404).json({ error: 'هیچ ورود بازی برای این پرسنل در این روز یافت نشد تا خروج ثبت شود.' });
             }
             openLogId = openLogs[0].id;
         }
 
-        const { rows: updatedLog } = await pool.sql`
+        const { rows: updatedLog } = await client.query(`
             UPDATE commute_logs 
-            SET exit_time = ${effectiveTime}, guard_name = ${guardName}
-            WHERE id = ${openLogId}
+            SET exit_time = ${effectiveTime}, guard_name = $1
+            WHERE id = $2
             RETURNING *;
-        `;
+        `, [guardName, openLogId]);
         return response.status(200).json({ message: 'خروج با موفقیت ثبت شد.', log: updatedLog[0] });
     }
     
     return response.status(400).json({ error: 'عملیات نامعتبر است.' });
 
   } catch (error) {
+    if (client) await client.query('ROLLBACK').catch(rbError => console.error('Rollback failed:', rbError));
     console.error('Database POST for commute_logs failed:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     return response.status(500).json({ error: 'عملیات پایگاه داده با شکست مواجه شد.', details: errorMessage });
+  } finally {
+      if(client) client.release();
   }
 }
 
