@@ -108,8 +108,9 @@ const LogCommutePage: React.FC = () => {
   const dateToIsoString = (dateParts: {year: string, month: string, day: string}) => {
     if(!dateParts.year || !dateParts.month || !dateParts.day) return '';
     const { gy, gm, gd } = jalaliToGregorian(dateParts.year, dateParts.month, dateParts.day);
-    const date = new Date(gy, gm - 1, gd);
-    return date.toISOString().split('T')[0];
+    const monthStr = String(gm).padStart(2, '0');
+    const dayStr = String(gd).padStart(2, '0');
+    return `${gy}-${monthStr}-${dayStr}`;
   }
 
   useEffect(() => {
