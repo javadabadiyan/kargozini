@@ -24,48 +24,47 @@ const toPersianDigits = (s: string | number | null | undefined): string => {
     return String(s).replace(/[0-9]/g, (w) => '۰۱۲۳۴۵۶۷۸۹'[parseInt(w, 10)]);
 };
 
+// A more robust and standard Jalali to Gregorian conversion function
 const jalaliToGregorian = (jy: number, jm: number, jd: number): Date => {
-  var sal_a, gy, gm, gd, j_day_no;
-  var g_days_in_month = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-  var j_days_in_month = [0, 31, 31, 31, 31, 31, 31, 30, 30, 30, 30, 29];
+  const GREGORIAN_EPOCH = 1721425.5;
+  const JALALI_EPOCH = 1948320.5;
 
-  jy = jy - 979;
-  jm = jm - 1;
-  jd = jd - 1;
+  const a = jy - (jy >= 0 ? 474 : 473);
+  const b = a % 2820;
+  const jdn = JALALI_EPOCH - 1 + 1029983 * Math.floor(a / 2820) + 365 * b +
+      Math.floor((b + 38) * 31 / 120) + (Math.floor(b / 2820) + 1) * 682 -
+      Math.floor(b / 2820) * 365 + (jm <= 6 ? (jm - 1) * 31 : (jm - 7) * 30 + 186) + jd;
 
-  j_day_no = 365 * jy + parseInt(String(jy / 33)) * 8 + parseInt(String(((jy % 33) + 3) / 4));
-  for (var i = 0; i < jm; ++i) j_day_no += j_days_in_month[i+1];
-  j_day_no += jd;
-
-  var g_day_no = j_day_no + 79;
-
-  gy = 1600 + 400 * parseInt(String(g_day_no / 146097)); 
-  g_day_no = g_day_no % 146097;
-
-  var leap = true;
-  if (g_day_no >= 36525) {
-    g_day_no--;
-    gy += 100 * parseInt(String(g_day_no / 36524));
-    g_day_no = g_day_no % 36524;
-    if (g_day_no >= 365) g_day_no++;
-    else leap = false;
+  const wjd = Math.floor(jdn - 0.5) + 0.5;
+  const depoch = wjd - GREGORIAN_EPOCH;
+  const quadricent = Math.floor(depoch / 146097);
+  const dqc = depoch % 146097;
+  const cent = Math.floor(dqc / 36524);
+  const dcent = dqc % 36524;
+  const quad = Math.floor(dcent / 1461);
+  const dquad = dcent % 1461;
+  const yindex = Math.floor(dquad / 365);
+  let year = (quadricent * 400) + (cent * 100) + (quad * 4) + yindex;
+  if (!((cent === 4) || (yindex === 4))) {
+      year++;
   }
-  gy += 4 * parseInt(String(g_day_no / 1461));
-  g_day_no %= 1461;
-  if (g_day_no >= 366) {
-    leap = false;
-    g_day_no--;
-    gy += parseInt(String(g_day_no / 365));
-    g_day_no = g_day_no % 365;
+  const yearday = wjd - (new Date(year, 0, 1).getTime() / 86400000 + 2440587.5);
+  const isLeap = (year % 4 === 0) && (!((year % 100 === 0) && (year % 400 !== 0)));
+  const month_days = [0, 31, (isLeap ? 29 : 28), 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+  let month = 0;
+  let day = 0;
+  let mday = 0;
+  for (let i = 1; i <= 12; i++) {
+      mday = month_days[i];
+      if (yearday <= mday) {
+          month = i;
+          day = Math.floor(yearday);
+          break;
+      }
+      yearday -= mday;
   }
-  
-  if (leap && ((gy % 4) == 0) && (((gy % 100) != 0) || ((gy % 400) == 0))) g_days_in_month[2] = 29;
-
-  for (i = 0; g_day_no >= g_days_in_month[i+1]; i++) g_day_no -= g_days_in_month[i+1];
-  gm = i + 1;
-  gd = g_day_no + 1;
-
-  return new Date(gy, gm - 1, gd);
+  return new Date(year, month - 1, day);
 };
 
 const LogCommutePage: React.FC = () => {
@@ -394,6 +393,72 @@ const LogCommutePage: React.FC = () => {
     return (
     <>
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        <div className="lg:col-span-7 bg-white p-6 rounded-lg shadow-lg">
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-4">
+             <h2 className="text-xl font-bold text-gray-800">ترددهای ثبت شده در تاریخ</h2>
+             <div className="grid grid-cols-3 gap-2">
+                <select value={viewDate.day} onChange={e => setViewDate(p => ({...p, day: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md bg-slate-50 font-sans">{DAYS.map(d => <option key={d} value={d}>{toPersianDigits(d)}</option>)}</select>
+                <select value={viewDate.month} onChange={e => setViewDate(p => ({...p, month: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md bg-slate-50 font-sans">{PERSIAN_MONTHS.map((m, i) => <option key={m} value={i+1}>{m}</option>)}</select>
+                <select value={viewDate.year} onChange={e => setViewDate(p => ({...p, year: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md bg-slate-50 font-sans">{YEARS.map(y => <option key={y} value={y}>{toPersianDigits(y)}</option>)}</select>
+             </div>
+          </div>
+          <div className="relative mb-4">
+            <input type="text" placeholder="جستجو در نتایج..." value={logSearchTerm} onChange={e => setLogSearchTerm(e.target.value)} className="w-full pr-10 pl-4 py-2 border rounded-lg"/>
+            <SearchIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          </div>
+          <div className="flex flex-wrap gap-2 mb-4">
+              <button onClick={handleDownloadSample} className="px-3 py-1.5 text-xs bg-gray-100 rounded-md hover:bg-gray-200">دانلود نمونه</button>
+              <input type="file" accept=".xlsx, .xls" ref={fileInputRef} onChange={handleFileImport} className="hidden" id="excel-import-logs"/>
+              <label htmlFor="excel-import-logs" className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-md cursor-pointer hover:bg-green-700">ورود از اکسل</label>
+              <button onClick={handleExport} className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700">خروجی اکسل</button>
+          </div>
+          <div className="overflow-x-auto border rounded-lg">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">پرسنل</th>
+                  <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">تاریخ</th>
+                  <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">شیفت / نوع</th>
+                  <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">ورود</th>
+                  <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">خروج</th>
+                  <th className="px-4 py-3 text-center text-xs font-bold text-gray-600 uppercase">عملیات</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {loadingLogs ? <tr><td colSpan={6} className="text-center p-4">در حال بارگذاری...</td></tr> :
+                 filteredLogs.length === 0 ? <tr><td colSpan={6} className="text-center p-4 text-gray-500">هیچ ترددی برای این روز ثبت نشده است.</td></tr> :
+                 filteredLogs.map(log => (
+                    <tr key={log.id} className="hover:bg-slate-50">
+                      <td className="px-4 py-3 whitespace-nowrap"><div className="text-sm font-medium text-gray-900">{log.full_name}</div><div className="text-xs text-gray-500 font-sans">کد: {toPersianDigits(log.personnel_code)}</div></td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 font-sans">{formatDate(log.entry_time)}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                        {log.log_type === 'short_leave' ? (
+                            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                                بین ساعتی
+                            </span>
+                        ) : (
+                            log.guard_name
+                        )}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 font-sans tabular-nums">{formatTime(log.entry_time)}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 font-sans tabular-nums">{formatTime(log.exit_time)}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm">
+                        <div className="flex items-center justify-center gap-1">
+                          {log.log_type === 'main' && (
+                            <>
+                              <button onClick={() => handleAddShortLeaveClick(log)} className="p-2 text-green-600 hover:bg-green-100 rounded-md" title="تردد بین ساعتی"><PlusCircleIcon className="w-5 h-5" /></button>
+                              <button onClick={() => handleEditClick(log)} className="p-2 text-blue-600 hover:bg-blue-100 rounded-md" title="ویرایش"><PencilIcon className="w-5 h-5" /></button>
+                            </>
+                          )}
+                          <button onClick={() => handleDeleteLog(log.id)} className="p-2 text-red-600 hover:bg-red-100 rounded-md" title="حذف"><TrashIcon className="w-5 h-5" /></button>
+                        </div>
+                      </td>
+                    </tr>
+                 ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
         <div className="lg:col-span-5 bg-white p-6 rounded-lg shadow-lg space-y-6">
           <h2 className="text-xl font-bold text-gray-800">ثبت تردد</h2>
           {status && <div className={`p-3 text-sm rounded-lg ${statusColor[status.type]}`}>{status.message}</div>}
@@ -459,72 +524,6 @@ const LogCommutePage: React.FC = () => {
             <button onClick={handleSubmit} disabled={selectedPersonnel.size === 0} className="w-full py-3 text-lg font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-gray-400">
                 {actionType === 'entry' ? 'ثبت ورود' : 'ثبت خروج'} برای {toPersianDigits(selectedPersonnel.size)} نفر
             </button>
-          </div>
-        </div>
-        <div className="lg:col-span-7 bg-white p-6 rounded-lg shadow-lg">
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-4">
-             <h2 className="text-xl font-bold text-gray-800">ترددهای ثبت شده در تاریخ</h2>
-             <div className="grid grid-cols-3 gap-2">
-                <select value={viewDate.day} onChange={e => setViewDate(p => ({...p, day: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md bg-slate-50 font-sans">{DAYS.map(d => <option key={d} value={d}>{toPersianDigits(d)}</option>)}</select>
-                <select value={viewDate.month} onChange={e => setViewDate(p => ({...p, month: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md bg-slate-50 font-sans">{PERSIAN_MONTHS.map((m, i) => <option key={m} value={i+1}>{m}</option>)}</select>
-                <select value={viewDate.year} onChange={e => setViewDate(p => ({...p, year: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md bg-slate-50 font-sans">{YEARS.map(y => <option key={y} value={y}>{toPersianDigits(y)}</option>)}</select>
-             </div>
-          </div>
-          <div className="relative mb-4">
-            <input type="text" placeholder="جستجو در نتایج..." value={logSearchTerm} onChange={e => setLogSearchTerm(e.target.value)} className="w-full pr-10 pl-4 py-2 border rounded-lg"/>
-            <SearchIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-          </div>
-          <div className="flex flex-wrap gap-2 mb-4">
-              <button onClick={handleDownloadSample} className="px-3 py-1.5 text-xs bg-gray-100 rounded-md hover:bg-gray-200">دانلود نمونه</button>
-              <input type="file" accept=".xlsx, .xls" ref={fileInputRef} onChange={handleFileImport} className="hidden" id="excel-import-logs"/>
-              <label htmlFor="excel-import-logs" className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-md cursor-pointer hover:bg-green-700">ورود از اکسل</label>
-              <button onClick={handleExport} className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700">خروجی اکسل</button>
-          </div>
-          <div className="overflow-x-auto border rounded-lg">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">پرسنل</th>
-                  <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">تاریخ</th>
-                  <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">شیفت / نوع</th>
-                  <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">ورود</th>
-                  <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">خروج</th>
-                  <th className="px-4 py-3 text-center text-xs font-bold text-gray-600 uppercase">عملیات</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {loadingLogs ? <tr><td colSpan={6} className="text-center p-4">در حال بارگذاری...</td></tr> :
-                 filteredLogs.length === 0 ? <tr><td colSpan={6} className="text-center p-4 text-gray-500">هیچ ترددی برای این روز ثبت نشده است.</td></tr> :
-                 filteredLogs.map(log => (
-                    <tr key={log.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-3 whitespace-nowrap"><div className="text-sm font-medium text-gray-900">{log.full_name}</div><div className="text-xs text-gray-500 font-sans">کد: {toPersianDigits(log.personnel_code)}</div></td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 font-sans">{formatDate(log.entry_time)}</td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
-                        {log.log_type === 'short_leave' ? (
-                            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
-                                بین ساعتی
-                            </span>
-                        ) : (
-                            log.guard_name
-                        )}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 font-sans tabular-nums">{formatTime(log.entry_time)}</td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 font-sans tabular-nums">{formatTime(log.exit_time)}</td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm">
-                        <div className="flex items-center justify-center gap-1">
-                          {log.log_type === 'main' && (
-                            <>
-                              <button onClick={() => handleAddShortLeaveClick(log)} className="p-2 text-green-600 hover:bg-green-100 rounded-md" title="تردد بین ساعتی"><PlusCircleIcon className="w-5 h-5" /></button>
-                              <button onClick={() => handleEditClick(log)} className="p-2 text-blue-600 hover:bg-blue-100 rounded-md" title="ویرایش"><PencilIcon className="w-5 h-5" /></button>
-                            </>
-                          )}
-                          <button onClick={() => handleDeleteLog(log.id)} className="p-2 text-red-600 hover:bg-red-100 rounded-md" title="حذف"><TrashIcon className="w-5 h-5" /></button>
-                        </div>
-                      </td>
-                    </tr>
-                 ))}
-              </tbody>
-            </table>
           </div>
         </div>
       </div>
