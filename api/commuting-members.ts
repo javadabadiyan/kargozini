@@ -104,6 +104,60 @@ async function handleBulkPost(allMembers: NewCommutingMember[], response: Vercel
   }
 }
 
+// --- PUT Handler (Update) ---
+async function handlePut(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+  const member = request.body as CommutingMember;
+  if (!member || !member.id || !member.personnel_code || !member.full_name) {
+    return response.status(400).json({ error: 'اطلاعات ارسالی برای ویرایش ناقص است.' });
+  }
+  try {
+    const { rows } = await pool.sql`
+      UPDATE commuting_members SET
+        full_name = ${member.full_name},
+        personnel_code = ${member.personnel_code},
+        department = ${member.department},
+        "position" = ${member.position}
+      WHERE id = ${member.id}
+      RETURNING *;
+    `;
+    if (rows.length === 0) {
+        return response.status(404).json({ error: 'عضوی با این شناسه یافت نشد.'});
+    }
+    return response.status(200).json({ message: 'اطلاعات عضو با موفقیت به‌روزرسانی شد.', member: rows[0] });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+    if (errorMessage.includes('duplicate key value violates unique constraint "commuting_members_personnel_code_key"')) {
+        return response.status(409).json({ error: 'کد پرسنلی وارد شده تکراری است.' });
+    }
+    return response.status(500).json({ error: 'خطا در به‌روزرسانی اطلاعات.', details: errorMessage });
+  }
+}
+
+// --- DELETE Handler ---
+async function handleDelete(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+  const { id, action } = request.query;
+
+  try {
+    if (id && typeof id === 'string') {
+      // Delete single member
+      const result = await pool.sql`DELETE FROM commuting_members WHERE id = ${parseInt(id, 10)};`;
+      if (result.rowCount === 0) {
+        return response.status(404).json({ error: 'عضوی برای حذف یافت نشد.' });
+      }
+      return response.status(200).json({ message: 'عضو با موفقیت حذف شد.' });
+    } else if (action === 'deleteAll') {
+      // Delete all members
+      await pool.sql`DELETE FROM commuting_members;`;
+      return response.status(200).json({ message: 'تمام اعضای تردد با موفقیت حذف شدند.' });
+    } else {
+      return response.status(400).json({ error: 'درخواست حذف نامعتبر است.' });
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+    return response.status(500).json({ error: 'خطا در حذف اطلاعات.', details: errorMessage });
+  }
+}
+
 // --- Main Handler ---
 export default async function handler(request: VercelRequest, response: VercelResponse) {
   if (!process.env.POSTGRES_URL) {
@@ -132,8 +186,12 @@ export default async function handler(request: VercelRequest, response: VercelRe
         return await handleSinglePost(body, response, pool);
       }
     }
+    case 'PUT':
+        return await handlePut(request, response, pool);
+    case 'DELETE':
+        return await handleDelete(request, response, pool);
     default:
-      response.setHeader('Allow', ['GET', 'POST']);
+      response.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']);
       return response.status(405).json({ error: `Method ${request.method} Not Allowed` });
   }
 }
