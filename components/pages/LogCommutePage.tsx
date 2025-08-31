@@ -10,7 +10,7 @@ const GUARDS = [
 ];
 
 const PERSIAN_MONTHS = ['فروردین', 'اردیبهشت', 'خرداد', 'تیر', 'مرداد', 'شهریور', 'مهر', 'آبان', 'آذر', 'دی', 'بهمن', 'اسفند'];
-const YEARS = Array.from({ length: 1490 - 1402 }, (_, i) => 1403 + i);
+const YEARS = Array.from({ length: 10 }, (_, i) => 1403 + i); // From 1403 for 10 years
 const DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const MINUTES = Array.from({ length: 60 }, (_, i) => i);
@@ -30,6 +30,7 @@ const LogCommutePage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<{ type: 'info' | 'success' | 'error'; message: string } | null>(null);
   
+  const [actionType, setActionType] = useState<'entry' | 'exit'>('entry');
   const [logDate, setLogDate] = useState({ year: '', month: '', day: '' });
   const [entryTime, setEntryTime] = useState({ hour: '', minute: '' });
   const [exitTime, setExitTime] = useState({ hour: '', minute: '' });
@@ -128,17 +129,25 @@ const LogCommutePage: React.FC = () => {
 
       if (!year || !month || !day || !hour || !minute) return null;
 
+      // This is a simplified conversion and might have issues with Jalali leap years.
+      // For a production app, a robust library like `jalali-moment` is recommended.
       const pYear = parseInt(year);
       const pMonth = parseInt(month);
       const pDay = parseInt(day);
-
-      // Approximate Gregorian conversion
-      const gYear = pYear + 621;
-
-      // Create date in UTC to avoid timezone issues
-      const dateObj = new Date(Date.UTC(gYear, pMonth - 1, pDay, parseInt(hour), parseInt(minute)));
       
-      // Adjust for Iran timezone offset (+3:30)
+      let gYear = pYear + 621;
+      // This is a rough approximation for converting day of year
+      const daysInPersianMonths = [31, 31, 31, 31, 31, 31, 30, 30, 30, 30, 30, 29];
+      let dayOfYear = daysInPersianMonths.slice(0, pMonth - 1).reduce((a, b) => a + b, 0) + pDay;
+
+      // Rough check for leap year affecting the start date
+      if ( (pYear + 1) % 4 === 0 && dayOfYear > 365) dayOfYear = 365;
+      if ( (pYear) % 4 !== 0 && dayOfYear > 365) dayOfYear = 365;
+
+      const dateObj = new Date(gYear, 0, dayOfYear + 79); // 79 is approximation for Nowruz
+      dateObj.setUTCHours(parseInt(hour), parseInt(minute), 0, 0);
+
+      // Adjust for Iran timezone offset (+3:30) to get correct UTC time for server
       dateObj.setUTCMinutes(dateObj.getUTCMinutes() - 210);
 
       return dateObj.toISOString();
@@ -321,46 +330,67 @@ const LogCommutePage: React.FC = () => {
             </div>
           )}
         </div>
+        
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">نوع عملیات</label>
+            <div className="grid grid-cols-2 gap-1 rounded-xl bg-gray-200/70 p-1 w-full sm:w-1/2">
+                <button type="button" onClick={() => setActionType('entry')} className={`w-full py-2 text-sm font-semibold rounded-lg transition-colors ${actionType === 'entry' ? 'bg-white text-blue-600 shadow-md' : 'text-gray-600 hover:bg-white/50'}`}>
+                ثبت ورود
+                </button>
+                <button type="button" onClick={() => setActionType('exit')} className={`w-full py-2 text-sm font-semibold rounded-lg transition-colors ${actionType === 'exit' ? 'bg-white text-blue-600 shadow-md' : 'text-gray-600 hover:bg-white/50'}`}>
+                ثبت خروج
+                </button>
+            </div>
+        </div>
 
         <div className="p-4 border border-gray-200 rounded-lg bg-slate-50 space-y-4">
           <h4 className="font-semibold text-gray-700">ثبت دستی تاریخ و زمان (اختیاری)</h4>
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
-            {/* Date */}
-            <div className="lg:col-span-3 grid grid-cols-3 gap-2">
-                <select value={logDate.day} onChange={e => setLogDate(p => ({...p, day: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md">
-                  <option value="" disabled>روز</option>
-                  {DAYS.map(d => <option key={d} value={d}>{toPersianDigits(d)}</option>)}
-                </select>
-                <select value={logDate.month} onChange={e => setLogDate(p => ({...p, month: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md">
-                   <option value="" disabled>ماه</option>
-                  {PERSIAN_MONTHS.map((m, i) => <option key={m} value={i+1}>{m}</option>)}
-                </select>
-                <select value={logDate.year} onChange={e => setLogDate(p => ({...p, year: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md">
-                   <option value="" disabled>سال</option>
-                  {YEARS.map(y => <option key={y} value={y}>{toPersianDigits(y)}</option>)}
-                </select>
+          <p className="text-xs text-gray-500">اگر زمانی را انتخاب نکنید، زمان فعلی سیستم ثبت خواهد شد.</p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+             <div className="md:col-span-1">
+                <label className="block text-xs text-gray-600 mb-1">تاریخ</label>
+                <div className="grid grid-cols-3 gap-2">
+                    <select value={logDate.day} onChange={e => setLogDate(p => ({...p, day: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md">
+                    <option value="" disabled>روز</option>
+                    {DAYS.map(d => <option key={d} value={d}>{toPersianDigits(d)}</option>)}
+                    </select>
+                    <select value={logDate.month} onChange={e => setLogDate(p => ({...p, month: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md">
+                    <option value="" disabled>ماه</option>
+                    {PERSIAN_MONTHS.map((m, i) => <option key={m} value={i+1}>{m}</option>)}
+                    </select>
+                    <select value={logDate.year} onChange={e => setLogDate(p => ({...p, year: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md">
+                    <option value="" disabled>سال</option>
+                    {YEARS.map(y => <option key={y} value={y}>{toPersianDigits(y)}</option>)}
+                    </select>
+                </div>
             </div>
-            {/* Entry Time */}
-            <div className="lg:col-span-2 grid grid-cols-2 gap-2">
-                <select value={entryTime.hour} onChange={e => setEntryTime(p => ({...p, hour: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md" aria-label="ساعت ورود">
-                   <option value="">ساعت ورود</option>
-                   {HOURS.map(h => <option key={h} value={h}>{toPersianDigits(String(h).padStart(2, '0'))}</option>)}
-                </select>
-                <select value={entryTime.minute} onChange={e => setEntryTime(p => ({...p, minute: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md" aria-label="دقیقه ورود">
-                   <option value="">دقیقه ورود</option>
-                   {MINUTES.map(m => <option key={m} value={m}>{toPersianDigits(String(m).padStart(2, '0'))}</option>)}
-                </select>
+            
+             <div className={`md:col-span-1 ${actionType !== 'entry' ? 'opacity-50' : ''}`}>
+                <label className="block text-xs text-gray-600 mb-1">ساعت ورود</label>
+                <div className="grid grid-cols-2 gap-2">
+                    <select value={entryTime.hour} onChange={e => setEntryTime(p => ({...p, hour: e.target.value}))} disabled={actionType !== 'entry'} className="w-full p-2 border border-gray-300 rounded-md disabled:cursor-not-allowed">
+                    <option value="">ساعت</option>
+                    {HOURS.map(h => <option key={h} value={h}>{toPersianDigits(String(h).padStart(2, '0'))}</option>)}
+                    </select>
+                    <select value={entryTime.minute} onChange={e => setEntryTime(p => ({...p, minute: e.target.value}))} disabled={actionType !== 'entry'} className="w-full p-2 border border-gray-300 rounded-md disabled:cursor-not-allowed">
+                    <option value="">دقیقه</option>
+                    {MINUTES.map(m => <option key={m} value={m}>{toPersianDigits(String(m).padStart(2, '0'))}</option>)}
+                    </select>
+                </div>
             </div>
-             {/* Exit Time */}
-             <div className="lg:col-span-2 grid grid-cols-2 gap-2">
-                <select value={exitTime.hour} onChange={e => setExitTime(p => ({...p, hour: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md" aria-label="ساعت خروج">
-                   <option value="">ساعت خروج</option>
-                   {HOURS.map(h => <option key={h} value={h}>{toPersianDigits(String(h).padStart(2, '0'))}</option>)}
-                </select>
-                <select value={exitTime.minute} onChange={e => setExitTime(p => ({...p, minute: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md" aria-label="دقیقه خروج">
-                   <option value="">دقیقه خروج</option>
-                   {MINUTES.map(m => <option key={m} value={m}>{toPersianDigits(String(m).padStart(2, '0'))}</option>)}
-                </select>
+             
+             <div className={`md:col-span-1 ${actionType !== 'exit' ? 'opacity-50' : ''}`}>
+                <label className="block text-xs text-gray-600 mb-1">ساعت خروج</label>
+                <div className="grid grid-cols-2 gap-2">
+                    <select value={exitTime.hour} onChange={e => setExitTime(p => ({...p, hour: e.target.value}))} disabled={actionType !== 'exit'} className="w-full p-2 border border-gray-300 rounded-md disabled:cursor-not-allowed">
+                    <option value="">ساعت</option>
+                    {HOURS.map(h => <option key={h} value={h}>{toPersianDigits(String(h).padStart(2, '0'))}</option>)}
+                    </select>
+                    <select value={exitTime.minute} onChange={e => setExitTime(p => ({...p, minute: e.target.value}))} disabled={actionType !== 'exit'} className="w-full p-2 border border-gray-300 rounded-md disabled:cursor-not-allowed">
+                    <option value="">دقیقه</option>
+                    {MINUTES.map(m => <option key={m} value={m}>{toPersianDigits(String(m).padStart(2, '0'))}</option>)}
+                    </select>
+                </div>
             </div>
           </div>
         </div>
@@ -369,18 +399,11 @@ const LogCommutePage: React.FC = () => {
       
       <div className="flex items-center justify-center gap-4 pt-4 border-t border-gray-100">
         <button
-          onClick={() => handleLogCommute('entry')}
+          onClick={() => handleLogCommute(actionType)}
           disabled={!selectedGuard || !selectedMember}
-          className="px-8 py-3 text-lg font-semibold text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all transform hover:scale-105"
+          className="px-8 py-3 text-lg font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all transform hover:scale-105"
         >
-          ثبت ورود
-        </button>
-        <button
-          onClick={() => handleLogCommute('exit')}
-          disabled={!selectedGuard || !selectedMember}
-          className="px-8 py-3 text-lg font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-all transform hover:scale-105"
-        >
-          ثبت خروج
+          {actionType === 'entry' ? 'ثبت ورود' : 'ثبت خروج'}
         </button>
       </div>
 
