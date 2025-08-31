@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import type { CommutingMember, CommuteLog } from '../../types';
-import { PencilIcon, SearchIcon, TrashIcon, PlusCircleIcon } from '../icons/Icons';
+import { PencilIcon, SearchIcon, TrashIcon, PlusCircleIcon, ChevronDownIcon, ChevronUpIcon } from '../icons/Icons';
 import EditCommuteLogModal from '../EditCommuteLogModal';
 import AddShortLeaveModal from '../AddShortLeaveModal';
 
@@ -67,8 +67,7 @@ const LogCommutePage: React.FC = () => {
   const [selectedGuard, setSelectedGuard] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMembers, setSelectedMembers] = useState<CommutingMember[]>([]);
-  const [isSearchFocused, setIsSearchFocused] = useState(false);
-
+  
   const [loadingMembers, setLoadingMembers] = useState(true);
   const [loadingLogs, setLoadingLogs] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -87,7 +86,7 @@ const LogCommutePage: React.FC = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isShortLeaveModalOpen, setIsShortLeaveModalOpen] = useState(false);
 
-  const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
+  const [openDepartments, setOpenDepartments] = useState<Record<string, boolean>>({});
 
   const toPersianDigits = (s: string | number | null | undefined): string => {
     if (s === null || s === undefined) return '';
@@ -181,30 +180,32 @@ const LogCommutePage: React.FC = () => {
     return { openLogs: open, completedLogs: completed };
   }, [logs]);
 
-  const departments = useMemo(() => {
-    const allDepts = commutingMembers.map(m => m.department || 'بدون واحد');
-    return [...new Set(allDepts)];
-  }, [commutingMembers]);
-
-  const membersFilteredByDept = useMemo(() => {
-    if (selectedDepartments.length === 0) {
-        return commutingMembers;
-    }
-    return commutingMembers.filter(m => selectedDepartments.includes(m.department || 'بدون واحد'));
-  }, [commutingMembers, selectedDepartments]);
-
-  const filteredMembers = useMemo(() => {
-    if (!searchTerm) return [];
-    const lowercasedTerm = searchTerm.toLowerCase();
-    const selectedIds = new Set(selectedMembers.map(m => m.id));
-    return membersFilteredByDept.filter(m =>
-      !selectedIds.has(m.id) && (
-        m.full_name.toLowerCase().includes(lowercasedTerm) ||
-        m.personnel_code.includes(lowercasedTerm)
-      )
+  const membersByDepartment = useMemo(() => {
+    const lowercasedTerm = searchTerm.toLowerCase().trim();
+    
+    const filtered = commutingMembers.filter(m => 
+      !lowercasedTerm || 
+      m.full_name.toLowerCase().includes(lowercasedTerm) || 
+      m.personnel_code.includes(lowercasedTerm)
     );
-  }, [searchTerm, membersFilteredByDept, selectedMembers]);
 
+    const grouped: { [key: string]: CommutingMember[] } = {};
+    filtered.forEach(member => {
+      const dept = member.department || 'بدون واحد';
+      if (!grouped[dept]) {
+        grouped[dept] = [];
+      }
+      grouped[dept].push(member);
+    });
+
+    const sortedGrouped: { [key: string]: CommutingMember[] } = {};
+    Object.keys(grouped).sort().forEach(key => {
+        sortedGrouped[key] = grouped[key].sort((a, b) => a.full_name.localeCompare(b.full_name, 'fa'));
+    });
+
+    return sortedGrouped;
+  }, [commutingMembers, searchTerm]);
+  
   const handleToggleMember = (member: CommutingMember) => {
     setSelectedMembers(prev => {
         const isSelected = prev.some(m => m.id === member.id);
@@ -214,13 +215,22 @@ const LogCommutePage: React.FC = () => {
             return [...prev, member];
         }
     });
-    setSearchTerm('');
   };
   
-  const handleToggleDepartment = (dept: string) => {
-    setSelectedDepartments(prev => 
-      prev.includes(dept) ? prev.filter(d => d !== dept) : [...prev, dept]
-    );
+  const handleToggleDepartmentAccordion = (dept: string) => {
+    setOpenDepartments(prev => ({ ...prev, [dept]: !prev[dept] }));
+  };
+  
+  const handleSelectAllInDepartment = (membersInDept: CommutingMember[], allCurrentlySelected: boolean) => {
+    const memberIdsInDept = new Set(membersInDept.map(m => m.id));
+    
+    setSelectedMembers(prevSelected => {
+        if (allCurrentlySelected) {
+            return prevSelected.filter(m => !memberIdsInDept.has(m.id));
+        }
+        const newMembersToAdd = membersInDept.filter(m => !prevSelected.some(pm => pm.id === m.id));
+        return [...prevSelected, ...newMembersToAdd];
+    });
   };
 
   const getTimestampFromState = (): string | null => {
@@ -262,7 +272,6 @@ const LogCommutePage: React.FC = () => {
       setSelectedMembers([]);
       setSearchTerm('');
       setSearchDate(manualDate);
-      // Await fetchLogs to ensure UI updates after state change
       await fetchLogs();
       
     } catch (err) {
@@ -471,7 +480,6 @@ const LogCommutePage: React.FC = () => {
         />
       }
       
-      {/* Right Column: Form */}
       <div className="lg:col-span-2 bg-white p-6 rounded-lg shadow-lg space-y-6 h-fit sticky top-6">
         <div>
           <h2 className="text-2xl font-bold text-gray-800 mb-2">ثبت تردد</h2>
@@ -505,42 +513,64 @@ const LogCommutePage: React.FC = () => {
         <div className="space-y-4">
             <label htmlFor="personnel-search" className="block text-sm font-medium text-gray-700">انتخاب پرسنل ({toPersianDigits(selectedMembers.length)} نفر)</label>
             
-            <div className="p-3 border rounded-md bg-slate-50 space-y-2">
-                <p className="text-xs font-semibold text-gray-600">فیلتر بر اساس واحد</p>
-                <div className="flex flex-wrap gap-2">
-                    {departments.map(dept => (
-                        <label key={dept} className="flex items-center space-x-2 space-x-reverse text-xs cursor-pointer">
-                            <input type="checkbox" checked={selectedDepartments.includes(dept)} onChange={() => handleToggleDepartment(dept)} className="form-checkbox h-4 w-4 text-blue-600" />
-                            <span>{dept}</span>
-                        </label>
-                    ))}
-                </div>
-                 {selectedDepartments.length > 0 && <button onClick={() => setSelectedDepartments([])} className="text-xs text-red-600 hover:underline">پاک کردن فیلترها</button>}
-            </div>
-
             <div className="relative">
-              <input type="text" id="personnel-search" placeholder="جستجوی پرسنل..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} onFocus={() => setIsSearchFocused(true)} onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)} className="w-full pl-4 pr-10 py-2 border rounded-md" autoComplete="off" />
+              <input type="text" id="personnel-search" placeholder="جستجوی پرسنل..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pl-4 pr-10 py-2 border rounded-md" autoComplete="off" />
               <SearchIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              {isSearchFocused && filteredMembers.length > 0 && (
-                <ul className="absolute z-10 w-full mt-1 bg-white border shadow-lg rounded-md max-h-60 overflow-y-auto">
-                  {filteredMembers.map(m => (<li key={m.id} onMouseDown={() => handleToggleMember(m)} className="px-4 py-2 hover:bg-gray-100 cursor-pointer">{m.full_name} ({toPersianDigits(m.personnel_code)})</li>))}
-                </ul>
+            </div>
+            
+            <div className="border rounded-lg max-h-80 overflow-y-auto bg-slate-50">
+              {Object.entries(membersByDepartment).length > 0 ? (
+                Object.entries(membersByDepartment).map(([department, members]) => {
+                  const departmentMemberIds = members.map(m => m.id);
+                  const selectedInDept = selectedMembers.filter(m => departmentMemberIds.includes(m.id));
+                  const allInDeptSelected = members.length > 0 && selectedInDept.length === members.length;
+                  const isOpen = openDepartments[department] ?? false;
+
+                  return (
+                    <div key={department} className="border-b last:border-b-0">
+                      <div className="flex items-center p-3 bg-slate-100 hover:bg-slate-200 cursor-pointer" onClick={() => handleToggleDepartmentAccordion(department)}>
+                        <input 
+                          type="checkbox"
+                          className="form-checkbox h-4 w-4 text-blue-600 rounded ml-3"
+                          checked={allInDeptSelected}
+                          onChange={() => handleSelectAllInDepartment(members, allInDeptSelected)}
+                          onClick={(e) => e.stopPropagation()}
+                          aria-label={`انتخاب همه در ${department}`}
+                        />
+                        <span className="font-semibold text-gray-700 flex-1">{department}</span>
+                        <span className="text-xs text-gray-500 ml-3">
+                          ({toPersianDigits(selectedInDept.length)} / {toPersianDigits(members.length)})
+                        </span>
+                        {isOpen ? <ChevronUpIcon className="w-5 h-5 text-gray-600" /> : <ChevronDownIcon className="w-5 h-5 text-gray-600" />}
+                      </div>
+                      
+                      {isOpen && (
+                        <div className="p-2 pl-8 bg-white">
+                          {members.map(member => (
+                            <label key={member.id} className="flex items-center my-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                className="form-checkbox h-4 w-4 text-blue-600 rounded ml-3"
+                                checked={selectedMembers.some(m => m.id === member.id)}
+                                onChange={() => handleToggleMember(member)}
+                              />
+                              <span className="text-sm text-gray-800">{member.full_name} <span className="text-gray-500">({toPersianDigits(member.personnel_code)})</span></span>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              ) : (
+                <p className="text-center text-gray-500 p-4">
+                  {searchTerm ? 'پرسنلی با این مشخصات یافت نشد.' : (loadingMembers ? 'در حال بارگذاری...' : 'هیچ عضو ترددی یافت نشد.')}
+                </p>
               )}
             </div>
-            {selectedMembers.length > 0 && (
-                <div className="space-y-2 max-h-40 overflow-y-auto p-2 border rounded-md bg-slate-50">
-                    {selectedMembers.map(m => (
-                        <div key={m.id} className="flex items-center justify-between bg-white p-2 rounded-md border text-sm">
-                           <span>{m.full_name}</span>
-                           <button onClick={() => handleToggleMember(m)} className="text-red-500 hover:text-red-700">&times;</button>
-                        </div>
-                    ))}
-                </div>
-            )}
              {selectedMembers.length > 0 && (
                  <div>
-                    <button onClick={() => setSelectedMembers([])} className="text-xs text-red-600 hover:underline">پاک کردن انتخاب</button>
-                    <button onClick={() => setSelectedMembers(membersFilteredByDept)} className="text-xs text-blue-600 hover:underline mr-4">انتخاب همه موارد فیلتر شده</button>
+                    <button onClick={() => setSelectedMembers([])} className="text-xs text-red-600 hover:underline">پاک کردن انتخاب ({toPersianDigits(selectedMembers.length)})</button>
                 </div>
             )}
         </div>
@@ -551,7 +581,6 @@ const LogCommutePage: React.FC = () => {
         </div>
       </div>
 
-      {/* Left Column: Logs */}
       <div className="lg:col-span-3 bg-white p-6 rounded-lg shadow-lg space-y-6">
           <div>
             <div className="flex flex-wrap items-center justify-between gap-4 mb-4 border-b-2 border-gray-100 pb-4">
@@ -591,7 +620,7 @@ const LogCommutePage: React.FC = () => {
                       <th className="px-4 py-2 text-center text-xs font-bold uppercase text-amber-800">عملیات</th>
                 </tr></thead><tbody className="bg-white divide-y divide-gray-200">
                     {openLogs.map(log => (
-                      <tr key={log.id}><td className="px-4 py-2 whitespace-nowrap text-sm">{log.full_name || log.personnel_code}</td><td className="px-4 py-2 font-mono">{formatTime(log.entry_time)}</td><td>{log.guard_name}</td>
+                      <tr key={log.id}><td className="px-4 py-2 whitespace-nowrap text-sm">{log.full_name || log.personnel_code}</td><td className="px-4 py-2 tracking-wider" style={{ fontFeatureSettings: '"tnum"' }}>{formatTime(log.entry_time)}</td><td>{log.guard_name}</td>
                         <td className="px-4 py-2 text-center"><button onClick={() => handleDirectExit(log.id)} disabled={!selectedGuard} className="px-3 py-1 text-sm font-semibold text-white bg-red-500 rounded-md hover:bg-red-600 disabled:bg-gray-300">ثبت خروج</button></td>
                       </tr>
                     ))}
@@ -620,8 +649,8 @@ const LogCommutePage: React.FC = () => {
                           {log.log_type === 'short_leave' ? 'بین‌ساعتی' : 'اصلی'}
                         </span>
                       </td>
-                      <td className="px-4 py-2 font-mono">{formatTime(log.log_type === 'main' ? log.entry_time : log.exit_time)}</td>
-                      <td className="px-4 py-2 font-mono">{formatTime(log.log_type === 'main' ? log.exit_time : log.entry_time)}</td>
+                      <td className="px-4 py-2 tracking-wider" style={{ fontFeatureSettings: '"tnum"' }}>{formatTime(log.log_type === 'main' ? log.entry_time : log.exit_time)}</td>
+                      <td className="px-4 py-2 tracking-wider" style={{ fontFeatureSettings: '"tnum"' }}>{formatTime(log.log_type === 'main' ? log.exit_time : log.entry_time)}</td>
                       <td className="px-4 py-2 whitespace-nowrap text-sm text-center">
                         <button onClick={() => {setEditingLog(log); setIsEditModalOpen(true);}} className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-full"><PencilIcon className="w-5 h-5"/></button>
                         <button onClick={() => handleDeleteLog(log.id)} className="p-1 text-red-600 hover:text-red-800 hover:bg-red-100 rounded-full mr-2"><TrashIcon className="w-5 h-5"/></button>
