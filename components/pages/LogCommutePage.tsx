@@ -94,14 +94,27 @@ const LogCommutePage: React.FC = () => {
     fetchTodaysLogs();
   }, [fetchCommutingMembers, fetchTodaysLogs]);
 
-  const filteredMembers = useMemo(() => {
-    if (!searchTerm) return [];
+  const groupedAndFilteredMembers = useMemo(() => {
     const lowercasedTerm = searchTerm.toLowerCase();
-    return commutingMembers.filter(m =>
-      m.full_name.toLowerCase().includes(lowercasedTerm) ||
-      m.personnel_code.includes(lowercasedTerm)
-    );
+    
+    const filteredGroups = commutingMembers.reduce((acc, member) => {
+        if (
+            !lowercasedTerm || 
+            member.full_name.toLowerCase().includes(lowercasedTerm) || 
+            member.personnel_code.includes(lowercasedTerm)
+        ) {
+            const department = member.department || 'بدون واحد';
+            if (!acc[department]) {
+                acc[department] = [];
+            }
+            acc[department].push(member);
+        }
+        return acc;
+    }, {} as Record<string, CommutingMember[]>);
+
+    return Object.entries(filteredGroups).sort(([a], [b]) => a.localeCompare(b, 'fa'));
   }, [searchTerm, commutingMembers]);
+
 
   const handleSelectMember = (member: CommutingMember) => {
     setSelectedMember(member);
@@ -278,14 +291,34 @@ const LogCommutePage: React.FC = () => {
               autoComplete="off"
             />
           </div>
-          {isSearchFocused && filteredMembers.length > 0 && (
-            <ul className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-              {filteredMembers.map(m => (
-                <li key={m.id} onMouseDown={() => handleSelectMember(m)} className="px-4 py-2 hover:bg-gray-100 cursor-pointer">
-                  {m.full_name} ({toPersianDigits(m.personnel_code)})
-                </li>
-              ))}
-            </ul>
+           {isSearchFocused && (
+            <div className="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-80 overflow-y-auto">
+              {groupedAndFilteredMembers.length > 0 ? (
+                groupedAndFilteredMembers.map(([department, members]) => (
+                  <div key={department} className="p-2 border-b last:border-b-0">
+                    <p className="px-2 py-1 text-xs font-bold text-gray-500 bg-gray-100 rounded-sm sticky top-0">{department}</p>
+                    <ul className="mt-1">
+                      {members.map(member => (
+                        <li 
+                          key={member.id} 
+                          onMouseDown={() => handleSelectMember(member)} 
+                          className="px-2 py-2 rounded-md hover:bg-blue-50 cursor-pointer text-sm"
+                        >
+                          <div className="flex justify-between items-center">
+                              <span>{member.full_name}</span>
+                              <span className="text-xs text-gray-400 font-mono">{toPersianDigits(member.personnel_code)}</span>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))
+              ) : (
+                <p className="p-4 text-sm text-center text-gray-500">
+                  {searchTerm ? "هیچ پرسنلی با این مشخصات یافت نشد." : "لیست اعضای تردد خالی است."}
+                </p>
+              )}
+            </div>
           )}
         </div>
 
