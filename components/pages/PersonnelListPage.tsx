@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import type { Personnel } from '../../types';
 import EditPersonnelModal from '../EditPersonnelModal';
@@ -304,11 +305,11 @@ const PersonnelListPage: React.FC = () => {
 
   return (
     <div className="bg-white p-6 rounded-lg shadow-lg">
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-6 border-b-2 border-gray-100 pb-4">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 border-b-2 border-gray-100 pb-4">
         <h2 className="text-2xl font-bold text-gray-800">لیست کامل پرسنل</h2>
 
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 w-full md:w-auto">
-          <div className="relative flex-grow md:flex-grow-0 w-full sm:w-auto md:w-64">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full md:w-auto">
+          <div className="relative w-full sm:w-64">
               <input
                   type="text"
                   placeholder="جستجو (نام، کد پرسنلی، کد ملی...)"

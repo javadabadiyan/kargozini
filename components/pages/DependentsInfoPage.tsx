@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { SearchIcon, UserIcon, UsersIcon } from '../icons/Icons';
 import type { Personnel, Dependent } from '../../types';
@@ -199,7 +200,7 @@ const DependentsInfoPage: React.FC = () => {
 
   return (
     <div className="bg-white p-6 rounded-lg shadow-lg">
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-6 border-b-2 border-gray-100 pb-4">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 border-b-2 border-gray-100 pb-4">
         <h2 className="text-2xl font-bold text-gray-800">اطلاعات بستگان</h2>
         <div className="flex items-center gap-2 flex-wrap">
               <button onClick={handleDownloadSample} className="px-4 py-2 bg-gray-100 text-gray-700 border border-gray-300 text-sm rounded-lg hover:bg-gray-200 transition-colors">دانلود نمونه</button>

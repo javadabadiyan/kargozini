@@ -1,7 +1,8 @@
+
 import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import type { MenuItem } from '../types';
 // Fix: Removed `UserGroupIcon` as it's not exported from Icons.tsx.
-import { ChevronDownIcon, ChevronUpIcon, CircleIcon, HomeIcon, DocumentTextIcon, BriefcaseIcon, ShieldCheckIcon, LockClosedIcon, UsersIcon } from './icons/Icons';
+import { ChevronDownIcon, ChevronUpIcon, CircleIcon, HomeIcon, DocumentTextIcon, BriefcaseIcon, ShieldCheckIcon, LockClosedIcon, UsersIcon, XIcon } from './icons/Icons';
 import DependentsInfoPage from './pages/DependentsInfoPage';
 import PlaceholderPage from './pages/PlaceholderPage';
 import PersonnelListPage from './pages/PersonnelListPage';
@@ -167,7 +168,11 @@ const Clock: React.FC = () => {
 };
 
 
-export const Sidebar: React.FC<{ setActivePage: React.Dispatch<React.SetStateAction<React.ComponentType>> }> = ({ setActivePage }) => {
+export const Sidebar: React.FC<{ 
+  setActivePage: React.Dispatch<React.SetStateAction<React.ComponentType>>;
+  isOpen: boolean;
+  onClose: () => void;
+}> = ({ setActivePage, isOpen, onClose }) => {
   const [activeItem, setActiveItem] = useState<string>('personnel-list');
   const [openItems, setOpenItems] = useState<Record<string, boolean>>({
       personnel: true,
@@ -178,17 +183,20 @@ export const Sidebar: React.FC<{ setActivePage: React.Dispatch<React.SetStateAct
   const handleSetActiveItem = useCallback((id: string, page: React.ComponentType) => {
     setActiveItem(id);
     setActivePage(() => page);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [setActivePage]);
+    onClose(); // Close sidebar on mobile after selection
+  }, [setActivePage, onClose]);
 
   const toggleItem = (id: string) => {
     setOpenItems(prev => ({...prev, [id]: !prev[id]}));
   };
 
   return (
-    <aside className="w-72 bg-slate-800 text-white flex flex-col shadow-2xl">
-      <div className="p-6 border-b border-slate-700 text-center">
+    <aside className={`w-72 bg-slate-800 text-white flex flex-col shadow-2xl fixed lg:static inset-y-0 right-0 z-30 transform transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : 'translate-x-full'} lg:translate-x-0`}>
+      <div className="flex items-center justify-between p-6 border-b border-slate-700">
         <h2 className="text-xl font-bold">سیستم جامع کارگزینی</h2>
+         <button onClick={onClose} className="lg:hidden text-gray-400 hover:text-white" aria-label="بستن منو">
+            <XIcon className="w-6 h-6" />
+        </button>
       </div>
       <nav className="flex-1 px-4 py-4 overflow-y-auto">
         {menuItems.map(item => (
