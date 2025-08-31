@@ -43,8 +43,14 @@ async function handleGet(request: VercelRequest, response: VercelResponse, pool:
 async function handleSinglePost(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
     const { personnelCodes, guardName, action, timestampOverride, logType, exitTime: shortLeaveExitTime, entryTime: shortLeaveEntryTime } = request.body;
   
-    if (!personnelCodes || !Array.isArray(personnelCodes) || personnelCodes.length === 0 || !guardName || !action) {
-      return response.status(400).json({ error: 'اطلاعات ارسالی ناقص یا نامعتبر است.' });
+    if (logType === 'short_leave') {
+        if (!personnelCodes || personnelCodes.length !== 1 || !guardName || !shortLeaveEntryTime || !shortLeaveExitTime) {
+            return response.status(400).json({ error: 'اطلاعات ارسالی برای تردد بین ساعتی ناقص است.' });
+        }
+    } else {
+        if (!personnelCodes || !Array.isArray(personnelCodes) || personnelCodes.length === 0 || !guardName || !action) {
+            return response.status(400).json({ error: 'اطلاعات ارسالی برای ورود/خروج ناقص است.' });
+        }
     }
   
     const effectiveTime = timestampOverride ? new Date(timestampOverride).toISOString() : new Date().toISOString();
@@ -68,17 +74,21 @@ async function handleSinglePost(request: VercelRequest, response: VercelResponse
     try {
       await client.query('BEGIN');
       let successCount = 0;
-      const errors = [];
   
       for (const personnelCode of personnelCodes) {
         if (action === 'entry') {
-          const { rows: newLog } = await client.sql`
-            INSERT INTO commute_logs (personnel_code, guard_name, entry_time) 
-            VALUES (${personnelCode}, ${guardName}, ${effectiveTime}) 
-            ON CONFLICT (personnel_code, (DATE(entry_time AT TIME ZONE 'Asia/Tehran'))) DO NOTHING
+           await client.sql`
+            INSERT INTO commute_logs (personnel_code, guard_name, entry_time, log_type) 
+            VALUES (${personnelCode}, ${guardName}, ${effectiveTime}, 'main') 
+            ON CONFLICT (personnel_code, (DATE(entry_time AT TIME ZONE 'Asia/Tehran'))) WHERE log_type = 'main'
+            DO UPDATE SET
+              guard_name = EXCLUDED.guard_name,
+              entry_time = EXCLUDED.entry_time,
+              exit_time = NULL,
+              updated_at = NOW()
             RETURNING id;
           `;
-          if (newLog.length > 0) successCount++;
+          successCount++;
         } else if (action === 'exit') {
           const { rows: updatedLog } = await client.sql`
             UPDATE commute_logs 
