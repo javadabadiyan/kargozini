@@ -85,6 +85,29 @@ const LogCommutePage: React.FC = () => {
     
     const [refreshKey, setRefreshKey] = useState(0);
 
+    const [personnelSearchTerm, setPersonnelSearchTerm] = useState('');
+
+    const filteredGroupedPersonnel = useMemo(() => {
+        if (!personnelSearchTerm.trim()) {
+            return groupedPersonnel;
+        }
+
+        const lowercasedTerm = personnelSearchTerm.toLowerCase().trim();
+        const filteredGroups: { [key: string]: CommutingMember[] } = {};
+
+        for (const unit in groupedPersonnel) {
+            const filteredMembers = groupedPersonnel[unit].filter(member =>
+                member.full_name.toLowerCase().includes(lowercasedTerm) ||
+                member.personnel_code.includes(lowercasedTerm)
+            );
+
+            if (filteredMembers.length > 0) {
+                filteredGroups[unit] = filteredMembers;
+            }
+        }
+        return filteredGroups;
+    }, [personnelSearchTerm, groupedPersonnel]);
+
     const resetDateAndTime = useCallback(() => {
         const now = new Date();
         const formatter = new Intl.DateTimeFormat('fa-IR-u-nu-latn', {
@@ -371,19 +394,34 @@ const LogCommutePage: React.FC = () => {
 
                      <div className="border-t pt-4">
                         <label className="block text-sm font-semibold text-gray-700 mb-2">انتخاب پرسنل ({toPersianDigits(selectedPersonnelCodes.length)} نفر)</label>
+                        <div className="relative mb-2">
+                           <input
+                               type="text"
+                               placeholder="جستجوی پرسنل..."
+                               value={personnelSearchTerm}
+                               onChange={e => setPersonnelSearchTerm(e.target.value)}
+                               className="w-full pr-10 pl-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                           />
+                           <SearchIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                        </div>
                          <div className="border rounded-lg p-2 max-h-60 overflow-y-auto bg-slate-50">
-                            {Object.entries(groupedPersonnel).sort(([a], [b]) => a.localeCompare(b)).map(([unit, personnelInUnit]) => (
+                            {Object.keys(filteredGroupedPersonnel).length === 0 && (
+                                <p className="text-center text-sm text-gray-500 py-4">پرسنلی یافت نشد.</p>
+                            )}
+                            {Object.entries(filteredGroupedPersonnel).sort(([a], [b]) => a.localeCompare(b)).map(([unit, personnelInUnit]) => {
+                                const originalUnitPersonnel = groupedPersonnel[unit] || [];
+                                return (
                                 <details key={unit} className="group" open>
                                     <summary className="flex items-center justify-between p-2 cursor-pointer hover:bg-slate-200 rounded-md list-none">
                                         <div className="flex items-center">
                                             <input type="checkbox" className="ml-2 w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
-                                                checked={personnelInUnit.length > 0 && personnelInUnit.every(p => selectedPersonnelCodes.includes(p.personnel_code))}
+                                                checked={originalUnitPersonnel.length > 0 && originalUnitPersonnel.every(p => selectedPersonnelCodes.includes(p.personnel_code))}
                                                 onChange={(e) => handleUnitSelection(unit, e.target.checked)}
                                                 onClick={(e) => e.stopPropagation()}
                                             />
-                                            <span className="font-semibold text-sm">{unit} ({toPersianDigits(personnelInUnit.length)})</span>
+                                            <span className="font-semibold text-sm">{unit} ({toPersianDigits(originalUnitPersonnel.length)})</span>
                                         </div>
-                                         <div className="text-xs text-gray-500">{toPersianDigits(personnelInUnit.filter(p => selectedPersonnelCodes.includes(p.personnel_code)).length)} / {toPersianDigits(personnelInUnit.length)}</div>
+                                         <div className="text-xs text-gray-500">{toPersianDigits(originalUnitPersonnel.filter(p => selectedPersonnelCodes.includes(p.personnel_code)).length)} / {toPersianDigits(originalUnitPersonnel.length)}</div>
                                     </summary>
                                     <ul className="pr-6 space-y-1 py-1">
                                         {personnelInUnit.map(p => (
@@ -399,7 +437,7 @@ const LogCommutePage: React.FC = () => {
                                         ))}
                                     </ul>
                                 </details>
-                            ))}
+                            )})}
                         </div>
                     </div>
                     
