@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import type { CommutingMember, CommuteLog } from '../../types';
-import { SearchIcon, UserIcon } from '../icons/Icons';
+import { SearchIcon, UserIcon, PencilIcon, TrashIcon } from '../icons/Icons';
+import EditCommuteLogModal from '../EditCommuteLogModal';
 
 const GUARDS = [
   'شیفت A | محسن صادقی گوغری',
@@ -32,6 +33,9 @@ const LogCommutePage: React.FC = () => {
   const [logDate, setLogDate] = useState({ year: '', month: '', day: '' });
   const [entryTime, setEntryTime] = useState({ hour: '', minute: '' });
   const [exitTime, setExitTime] = useState({ hour: '', minute: '' });
+
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingLog, setEditingLog] = useState<CommuteLog | null>(null);
 
   const toPersianDigits = (s: string | number | null | undefined): string => {
     if (s === null || s === undefined) return '';
@@ -171,6 +175,53 @@ const LogCommutePage: React.FC = () => {
     }
   };
   
+  const handleEditClick = (log: CommuteLog) => {
+    setEditingLog(log);
+    setIsEditModalOpen(true);
+  };
+
+  const handleDeleteLog = async (id: number) => {
+    if (window.confirm('آیا از حذف این رکورد تردد اطمینان دارید؟')) {
+      setStatus({ type: 'info', message: 'در حال حذف رکورد...' });
+      try {
+        const response = await fetch('/api/commute-logs', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id }),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'خطا در حذف');
+        setStatus({ type: 'success', message: 'رکورد با موفقیت حذف شد.' });
+        fetchTodaysLogs();
+      } catch (err) {
+        setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطای ناشناخته' });
+      } finally {
+        setTimeout(() => setStatus(null), 5000);
+      }
+    }
+  };
+  
+  const handleSaveLog = async (updatedLog: CommuteLog) => {
+    setStatus({ type: 'info', message: 'در حال ویرایش رکورد...' });
+    try {
+        const response = await fetch('/api/commute-logs', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(updatedLog),
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || 'خطا در ویرایش');
+        
+        setStatus({ type: 'success', message: 'رکورد با موفقیت ویرایش شد.' });
+        setTodaysLogs(prev => prev.map(log => log.id === data.log.id ? data.log : log));
+        setIsEditModalOpen(false);
+    } catch (err) {
+        setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطای ناشناخته' });
+    } finally {
+        setTimeout(() => setStatus(null), 5000);
+    }
+  };
+
   const formatTime = (isoString: string | null) => {
     if (!isoString) return ' - ';
     return toPersianDigits(new Date(isoString).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }));
@@ -183,6 +234,7 @@ const LogCommutePage: React.FC = () => {
   };
 
   return (
+    <>
     <div className="bg-white p-6 rounded-lg shadow-lg space-y-6">
       <div className="border-b-2 border-gray-100 pb-4">
         <h2 className="text-2xl font-bold text-gray-800">ثبت تردد پرسنل</h2>
@@ -310,13 +362,14 @@ const LogCommutePage: React.FC = () => {
                 <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">ساعت ورود</th>
                 <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">ساعت خروج</th>
                 <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">نگهبان ثبت کننده</th>
+                <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">عملیات</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {loadingLogs && <tr><td colSpan={5} className="text-center p-4">در حال بارگذاری...</td></tr>}
-              {error && <tr><td colSpan={5} className="text-center p-4 text-red-500">{error}</td></tr>}
+              {loadingLogs && <tr><td colSpan={6} className="text-center p-4">در حال بارگذاری...</td></tr>}
+              {error && <tr><td colSpan={6} className="text-center p-4 text-red-500">{error}</td></tr>}
               {!loadingLogs && todaysLogs.length === 0 && (
-                <tr><td colSpan={5} className="text-center p-4 text-gray-500">هیچ ترددی برای امروز ثبت نشده است.</td></tr>
+                <tr><td colSpan={6} className="text-center p-4 text-gray-500">هیچ ترددی برای امروز ثبت نشده است.</td></tr>
               )}
               {!loadingLogs && todaysLogs.map(log => (
                 <tr key={log.id} className="hover:bg-slate-50">
@@ -325,6 +378,16 @@ const LogCommutePage: React.FC = () => {
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 font-mono">{formatTime(log.entry_time)}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 font-mono">{formatTime(log.exit_time)}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{log.guard_name}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm">
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => handleEditClick(log)} className="p-1 text-blue-600 hover:text-blue-800" aria-label={`ویرایش تردد ${log.full_name}`}>
+                        <PencilIcon className="w-5 h-5" />
+                      </button>
+                      <button onClick={() => handleDeleteLog(log.id)} className="p-1 text-red-600 hover:text-red-800" aria-label={`حذف تردد ${log.full_name}`}>
+                        <TrashIcon className="w-5 h-5" />
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -332,6 +395,14 @@ const LogCommutePage: React.FC = () => {
         </div>
       </div>
     </div>
+    {isEditModalOpen && editingLog && (
+        <EditCommuteLogModal
+          log={editingLog}
+          onClose={() => setIsEditModalOpen(false)}
+          onSave={handleSaveLog}
+        />
+    )}
+    </>
   );
 };
 

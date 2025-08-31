@@ -88,6 +88,58 @@ async function handlePost(request: VercelRequest, response: VercelResponse, pool
   }
 }
 
+// --- PUT Handler (Update) ---
+async function handlePut(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+  const { id, entry_time, exit_time } = request.body;
+  if (!id || !entry_time) {
+    return response.status(400).json({ error: 'شناسه و زمان ورود برای ویرایش الزامی است.' });
+  }
+  try {
+    const { rows } = await pool.sql`
+      UPDATE commute_logs 
+      SET entry_time = ${entry_time}, exit_time = ${exit_time}
+      WHERE id = ${id}
+      RETURNING id;
+    `;
+    if (rows.length === 0) {
+      return response.status(404).json({ error: 'رکوردی برای ویرایش یافت نشد.' });
+    }
+    
+    const { rows: updatedLogWithDetails } = await pool.sql`
+        SELECT 
+            cl.id, cl.personnel_code, cm.full_name, cl.guard_name, cl.entry_time, cl.exit_time 
+        FROM commute_logs cl
+        LEFT JOIN commuting_members cm ON cl.personnel_code = cm.personnel_code
+        WHERE cl.id = ${id};
+    `;
+
+    return response.status(200).json({ message: 'رکورد با موفقیت ویرایش شد.', log: updatedLogWithDetails[0] });
+  } catch (error) {
+    console.error('Database PUT for commute_logs failed:', error);
+    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+    return response.status(500).json({ error: 'خطا در به‌روزرسانی اطلاعات در پایگاه داده.', details: errorMessage });
+  }
+}
+
+// --- DELETE Handler ---
+async function handleDelete(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+  const { id } = request.body;
+  if (!id) {
+    return response.status(400).json({ error: 'شناسه رکورد برای حذف مورد نیاز است.' });
+  }
+  try {
+    const result = await pool.sql`DELETE FROM commute_logs WHERE id = ${id};`;
+    if (result.rowCount === 0) {
+      return response.status(404).json({ error: 'رکوردی برای حذف یافت نشد.' });
+    }
+    return response.status(200).json({ message: 'رکورد با موفقیت حذف شد.' });
+  } catch (error) {
+    console.error('Database DELETE for commute_logs failed:', error);
+    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+    return response.status(500).json({ error: 'خطا در حذف رکورد از پایگاه داده.', details: errorMessage });
+  }
+}
+
 // --- Main Handler ---
 export default async function handler(request: VercelRequest, response: VercelResponse) {
   if (!process.env.POSTGRES_URL) {
@@ -105,8 +157,12 @@ export default async function handler(request: VercelRequest, response: VercelRe
       return await handleGet(request, response, pool);
     case 'POST':
       return await handlePost(request, response, pool);
+    case 'PUT':
+      return await handlePut(request, response, pool);
+    case 'DELETE':
+      return await handleDelete(request, response, pool);
     default:
-      response.setHeader('Allow', ['GET', 'POST']);
+      response.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']);
       return response.status(405).json({ error: `Method ${request.method} Not Allowed` });
   }
 }
