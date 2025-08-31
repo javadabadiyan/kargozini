@@ -253,7 +253,7 @@ const LogCommutePage: React.FC = () => {
 
   const handleDirectExit = async (logId: number) => {
     if (!selectedGuard) {
-      setStatus({ type: 'error', message: 'لطفاً ابتدا نگهبان را در فرم سمت چپ انتخاب کنید.' });
+      setStatus({ type: 'error', message: 'لطفاً ابتدا نگهبان را در فرم سمت راست انتخاب کنید.' });
       return;
     }
     if (!window.confirm('آیا از ثبت خروج برای این پرسنل اطمینان دارید؟')) return;
@@ -421,6 +421,75 @@ const LogCommutePage: React.FC = () => {
         />
       }
       
+      {/* Right Column: Form */}
+      <div className="lg:col-span-2 bg-white p-6 rounded-lg shadow-lg space-y-6 h-fit sticky top-6">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">ثبت تردد</h2>
+          <p className="text-sm text-gray-500">ورود و خروج پرسنل را در شیفت‌های مختلف ثبت کنید.</p>
+        </div>
+        {status && (<div className={`p-3 mb-4 text-sm rounded-lg ${statusColor[status.type]}`}>{status.message}</div>)}
+        <div className="space-y-4">
+            <label className="block text-sm font-medium text-gray-700">شیفت کاری</label>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            {GUARDS.map(guard => (
+                <label key={guard} className={`text-center px-4 py-2 rounded-lg border cursor-pointer transition-colors ${selectedGuard === guard ? 'bg-blue-600 text-white border-blue-600' : 'bg-white hover:bg-gray-50'}`}>
+                <input type="radio" name="guard" value={guard} checked={selectedGuard === guard} onChange={e => setSelectedGuard(e.target.value)} className="sr-only" />
+                {guard.split('|')[1].trim()} <span className="text-xs opacity-80">{guard.split('|')[0].trim()}</span>
+                </label>
+            ))}
+            </div>
+        </div>
+        <div className="p-4 border border-gray-200 rounded-lg bg-slate-50 space-y-3">
+          <h4 className="font-semibold text-gray-700 text-sm">تاریخ و زمان (اختیاری)</h4>
+          <div className="flex items-center gap-2">
+            <button onClick={() => { const today=getTodayPersian(); setManualDate(today);}} className="text-sm text-blue-600 hover:underline">امروز</button>
+            <button onClick={() => {setManualDate({year:'', month:'', day:''}); setManualTime({hour:'', minute:''})}} className="text-sm text-gray-500 hover:underline">پاک کردن</button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
+              <select value={manualDate.day} onChange={e => setManualDate(p => ({...p, day: e.target.value}))} className="md:col-span-1 p-2 border rounded-md text-sm"><option value="" disabled>روز</option>{DAYS.map(d => <option key={d} value={d}>{toPersianDigits(d)}</option>)}</select>
+              <select value={manualDate.month} onChange={e => setManualDate(p => ({...p, month: e.target.value}))} className="md:col-span-2 p-2 border rounded-md text-sm"><option value="" disabled>ماه</option>{PERSIAN_MONTHS.map((m, i) => <option key={m} value={i+1}>{m}</option>)}</select>
+              <select value={manualDate.year} onChange={e => setManualDate(p => ({...p, year: e.target.value}))} className="md:col-span-2 p-2 border rounded-md text-sm"><option value="" disabled>سال</option>{YEARS.map(y => <option key={y} value={y}>{toPersianDigits(y)}</option>)}</select>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+              <select value={manualTime.hour} onChange={e => setManualTime(p => ({...p, hour: e.target.value}))} className="w-full p-2 border rounded-md text-sm"><option value="">ساعت</option>{Array.from({length:24},(_,i)=>i).map(h => <option key={h} value={h}>{toPersianDigits(String(h).padStart(2, '0'))}</option>)}</select>
+              <select value={manualTime.minute} onChange={e => setManualTime(p => ({...p, minute: e.target.value}))} className="w-full p-2 border rounded-md text-sm"><option value="">دقیقه</option>{Array.from({length:60},(_,i)=>i).map(m => <option key={m} value={m}>{toPersianDigits(String(m).padStart(2, '0'))}</option>)}</select>
+          </div>
+        </div>
+        <div className="space-y-4">
+            <label htmlFor="personnel-search" className="block text-sm font-medium text-gray-700">انتخاب پرسنل ({toPersianDigits(selectedMembers.length)} نفر)</label>
+            <div className="relative">
+              <input type="text" id="personnel-search" placeholder="جستجوی پرسنل..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} onFocus={() => setIsSearchFocused(true)} onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)} className="w-full pl-4 pr-10 py-2 border rounded-md" autoComplete="off" />
+              <SearchIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              {isSearchFocused && filteredMembers.length > 0 && (
+                <ul className="absolute z-10 w-full mt-1 bg-white border shadow-lg rounded-md max-h-60 overflow-y-auto">
+                  {filteredMembers.map(m => (<li key={m.id} onMouseDown={() => handleToggleMember(m)} className="px-4 py-2 hover:bg-gray-100 cursor-pointer">{m.full_name} ({toPersianDigits(m.personnel_code)})</li>))}
+                </ul>
+              )}
+            </div>
+            {selectedMembers.length > 0 && (
+                <div className="space-y-2 max-h-40 overflow-y-auto p-2 border rounded-md bg-slate-50">
+                    {selectedMembers.map(m => (
+                        <div key={m.id} className="flex items-center justify-between bg-white p-2 rounded-md border text-sm">
+                           <span>{m.full_name}</span>
+                           <button onClick={() => handleToggleMember(m)} className="text-red-500 hover:text-red-700">&times;</button>
+                        </div>
+                    ))}
+                </div>
+            )}
+             {selectedMembers.length > 0 && (
+                 <div>
+                    <button onClick={() => setSelectedMembers([])} className="text-xs text-red-600 hover:underline">پاک کردن انتخاب</button>
+                    <button onClick={() => setSelectedMembers(commutingMembers)} className="text-xs text-blue-600 hover:underline mr-4">انتخاب همه</button>
+                </div>
+            )}
+        </div>
+        <div>
+          <button onClick={handleLogEntry} disabled={!selectedGuard || selectedMembers.length === 0} className="w-full px-8 py-3 text-lg font-semibold text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:bg-gray-400 transition-all transform hover:scale-105">
+            ثبت ورود برای {toPersianDigits(selectedMembers.length)} نفر
+          </button>
+        </div>
+      </div>
+
       {/* Left Column: Logs */}
       <div className="lg:col-span-3 bg-white p-6 rounded-lg shadow-lg space-y-6">
           <div>
@@ -502,75 +571,6 @@ const LogCommutePage: React.FC = () => {
                 </div>
             )}
           </div>
-      </div>
-
-      {/* Right Column: Form */}
-      <div className="lg:col-span-2 bg-white p-6 rounded-lg shadow-lg space-y-6 h-fit sticky top-6">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">ثبت تردد</h2>
-          <p className="text-sm text-gray-500">ورود و خروج پرسنل را در شیفت‌های مختلف ثبت کنید.</p>
-        </div>
-        {status && (<div className={`p-3 mb-4 text-sm rounded-lg ${statusColor[status.type]}`}>{status.message}</div>)}
-        <div className="space-y-4">
-            <label className="block text-sm font-medium text-gray-700">شیفت کاری</label>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            {GUARDS.map(guard => (
-                <label key={guard} className={`text-center px-4 py-2 rounded-lg border cursor-pointer transition-colors ${selectedGuard === guard ? 'bg-blue-600 text-white border-blue-600' : 'bg-white hover:bg-gray-50'}`}>
-                <input type="radio" name="guard" value={guard} checked={selectedGuard === guard} onChange={e => setSelectedGuard(e.target.value)} className="sr-only" />
-                {guard.split('|')[1].trim()} <span className="text-xs opacity-80">{guard.split('|')[0].trim()}</span>
-                </label>
-            ))}
-            </div>
-        </div>
-        <div className="p-4 border border-gray-200 rounded-lg bg-slate-50 space-y-3">
-          <h4 className="font-semibold text-gray-700 text-sm">تاریخ و زمان (اختیاری)</h4>
-          <div className="flex items-center gap-2">
-            <button onClick={() => { const today=getTodayPersian(); setManualDate(today);}} className="text-sm text-blue-600 hover:underline">امروز</button>
-            <button onClick={() => {setManualDate({year:'', month:'', day:''}); setManualTime({hour:'', minute:''})}} className="text-sm text-gray-500 hover:underline">پاک کردن</button>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
-              <select value={manualDate.day} onChange={e => setManualDate(p => ({...p, day: e.target.value}))} className="md:col-span-1 p-2 border rounded-md text-sm"><option value="" disabled>روز</option>{DAYS.map(d => <option key={d} value={d}>{toPersianDigits(d)}</option>)}</select>
-              <select value={manualDate.month} onChange={e => setManualDate(p => ({...p, month: e.target.value}))} className="md:col-span-2 p-2 border rounded-md text-sm"><option value="" disabled>ماه</option>{PERSIAN_MONTHS.map((m, i) => <option key={m} value={i+1}>{m}</option>)}</select>
-              <select value={manualDate.year} onChange={e => setManualDate(p => ({...p, year: e.target.value}))} className="md:col-span-2 p-2 border rounded-md text-sm"><option value="" disabled>سال</option>{YEARS.map(y => <option key={y} value={y}>{toPersianDigits(y)}</option>)}</select>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-              <select value={manualTime.hour} onChange={e => setManualTime(p => ({...p, hour: e.target.value}))} className="w-full p-2 border rounded-md text-sm"><option value="">ساعت</option>{Array.from({length:24},(_,i)=>i).map(h => <option key={h} value={h}>{toPersianDigits(String(h).padStart(2, '0'))}</option>)}</select>
-              <select value={manualTime.minute} onChange={e => setManualTime(p => ({...p, minute: e.target.value}))} className="w-full p-2 border rounded-md text-sm"><option value="">دقیقه</option>{Array.from({length:60},(_,i)=>i).map(m => <option key={m} value={m}>{toPersianDigits(String(m).padStart(2, '0'))}</option>)}</select>
-          </div>
-        </div>
-        <div className="space-y-4">
-            <label htmlFor="personnel-search" className="block text-sm font-medium text-gray-700">انتخاب پرسنل ({toPersianDigits(selectedMembers.length)} نفر)</label>
-            <div className="relative">
-              <input type="text" id="personnel-search" placeholder="جستجوی پرسنل..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} onFocus={() => setIsSearchFocused(true)} onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)} className="w-full pl-4 pr-10 py-2 border rounded-md" autoComplete="off" />
-              <SearchIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              {isSearchFocused && filteredMembers.length > 0 && (
-                <ul className="absolute z-10 w-full mt-1 bg-white border shadow-lg rounded-md max-h-60 overflow-y-auto">
-                  {filteredMembers.map(m => (<li key={m.id} onMouseDown={() => handleToggleMember(m)} className="px-4 py-2 hover:bg-gray-100 cursor-pointer">{m.full_name} ({toPersianDigits(m.personnel_code)})</li>))}
-                </ul>
-              )}
-            </div>
-            {selectedMembers.length > 0 && (
-                <div className="space-y-2 max-h-40 overflow-y-auto p-2 border rounded-md bg-slate-50">
-                    {selectedMembers.map(m => (
-                        <div key={m.id} className="flex items-center justify-between bg-white p-2 rounded-md border text-sm">
-                           <span>{m.full_name}</span>
-                           <button onClick={() => handleToggleMember(m)} className="text-red-500 hover:text-red-700">&times;</button>
-                        </div>
-                    ))}
-                </div>
-            )}
-             {selectedMembers.length > 0 && (
-                 <div>
-                    <button onClick={() => setSelectedMembers([])} className="text-xs text-red-600 hover:underline">پاک کردن انتخاب</button>
-                    <button onClick={() => setSelectedMembers(commutingMembers)} className="text-xs text-blue-600 hover:underline mr-4">انتخاب همه</button>
-                </div>
-            )}
-        </div>
-        <div>
-          <button onClick={handleLogEntry} disabled={!selectedGuard || selectedMembers.length === 0} className="w-full px-8 py-3 text-lg font-semibold text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:bg-gray-400 transition-all transform hover:scale-105">
-            ثبت ورود برای {toPersianDigits(selectedMembers.length)} نفر
-          </button>
-        </div>
       </div>
     </div>
   );
