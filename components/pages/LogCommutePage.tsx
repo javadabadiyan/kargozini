@@ -4,8 +4,9 @@ import { PencilIcon, TrashIcon, SearchIcon, ChevronDownIcon, PlusCircleIcon } fr
 import EditCommuteLogModal from '../EditCommuteLogModal';
 import AddShortLeaveModal from '../AddShortLeaveModal';
 
-// Type alias for SheetJS, assuming it's loaded from a global script
+// Type alias for SheetJS and jalali-moment, loaded from global scripts
 declare const XLSX: any;
+declare const moment: any;
 
 const GUARDS = [
   'شیفت A | محسن صادقی گوغری',
@@ -24,31 +25,6 @@ const toPersianDigits = (s: string | number | null | undefined): string => {
     return String(s).replace(/[0-9]/g, (w) => '۰۱۲۳۴۵۶۷۸۹'[parseInt(w, 10)]);
 };
 
-// A robust, standard algorithm for Jalali to Gregorian conversion.
-const jalaliToGregorianArray = (jy: number, jm: number, jd: number): [number, number, number] => {
-    let gy, gm, gd, days;
-    jy += 1595;
-    days = -355668 + (365 * jy) + (Math.floor(jy / 33) * 8) + Math.floor(((jy % 33) + 3) / 4) + jd + ((jm < 7) ? (jm - 1) * 31 : ((jm - 7) * 30) + 186);
-    gy = 400 * Math.floor(days / 146097);
-    days %= 146097;
-    if (days > 36524) {
-        gy += 100 * Math.floor(--days / 36524);
-        days %= 36524;
-        if (days >= 365) days++;
-    }
-    gy += 4 * Math.floor(days / 1461);
-    days %= 1461;
-    if (days > 365) {
-        gy += Math.floor((days - 1) / 365);
-        days = (days - 1) % 365;
-    }
-    gd = days + 1;
-    const sal_a = [0, 31, ((gy % 4 === 0 && gy % 100 !== 0) || (gy % 400 === 0)) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-    for (gm = 1; gm < 13 && gd > sal_a[gm]; gm++) {
-        gd -= sal_a[gm];
-    }
-    return [gy, gm, gd];
-};
 
 const LogCommutePage: React.FC = () => {
     const [commutingMembers, setCommutingMembers] = useState<CommutingMember[]>([]);
@@ -78,13 +54,11 @@ const LogCommutePage: React.FC = () => {
 
 
     const getTodayPersian = useCallback(() => {
-        const today = new Date();
-        const formatter = new Intl.DateTimeFormat('fa-IR-u-nu-latn', { timeZone: 'Asia/Tehran', year: 'numeric', month: 'numeric', day: 'numeric' });
-        const parts = formatter.formatToParts(today);
+        const m = moment().locale('fa');
         return {
-            year: parts.find(p => p.type === 'year')?.value || '',
-            month: parts.find(p => p.type === 'month')?.value || '',
-            day: parts.find(p => p.type === 'day')?.value || '',
+            year: m.format('jYYYY'),
+            month: m.format('jM'),
+            day: m.format('jD'),
         };
     }, []);
 
@@ -122,8 +96,7 @@ const LogCommutePage: React.FC = () => {
         try {
           setLoadingLogs(true);
           setError(null);
-          const [gy, gm, gd] = jalaliToGregorianArray(parseInt(viewDate.year), parseInt(viewDate.month), parseInt(viewDate.day));
-          const dateString = `${gy}-${String(gm).padStart(2, '0')}-${String(gd).padStart(2, '0')}`;
+          const dateString = moment(`${viewDate.year}/${viewDate.month}/${viewDate.day}`, 'jYYYY/jM/jD').format('YYYY-MM-DD');
           const response = await fetch(`/api/commute-logs?date=${dateString}`);
           if (!response.ok) throw new Error((await response.json()).error || 'خطا در دریافت ترددها');
           const data = await response.json();
@@ -184,15 +157,9 @@ const LogCommutePage: React.FC = () => {
             return new Date().toISOString();
         }
         
-        const [gy, gm, gd] = jalaliToGregorianArray(parseInt(logDate.year), parseInt(logDate.month), parseInt(logDate.day));
-        const hour = parseInt(time.hour);
-        const minute = parseInt(time.minute);
-
-        // Iran Timezone is UTC+03:30 (no DST since 2022)
-        const timezoneOffsetString = "+03:30";
-        const isoString = `${gy}-${String(gm).padStart(2, '0')}-${String(gd).padStart(2, '0')}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00.000${timezoneOffsetString}`;
-        
-        return new Date(isoString).toISOString();
+        const jalaliString = `${logDate.year}/${logDate.month}/${logDate.day} ${time.hour}:${time.minute}`;
+        const dateObject = moment(jalaliString, 'jYYYY/jM/jD HH:mm').toDate();
+        return dateObject.toISOString();
     };
 
 
@@ -327,16 +294,15 @@ const LogCommutePage: React.FC = () => {
                 const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
                 
                 const logsToImport = json.map((row: any) => {
-                    const jDateParts = String(row['تاریخ (مثال: 1403/01/25)']).split('/');
-                    const [gy, gm, gd] = jalaliToGregorianArray(parseInt(jDateParts[0]), parseInt(jDateParts[1]), parseInt(jDateParts[2]));
-                    
-                    const entryTimeParts = String(row['ساعت ورود (مثال: 08:00)']).split(':');
-                    const entryIsoString = new Date(`${gy}-${gm}-${gd}T${entryTimeParts[0]}:${entryTimeParts[1]}:00+03:30`).toISOString();
+                    const jDate = String(row['تاریخ (مثال: 1403/01/25)']);
+                    const entryTimeStr = String(row['ساعت ورود (مثال: 08:00)']);
+                    const exitTimeStr = String(row['ساعت خروج (مثال: 16:30)']);
 
+                    const entryIsoString = moment(jDate + ' ' + entryTimeStr, 'jYYYY/jMM/jDD HH:mm').toISOString();
+                    
                     let exitIsoString = null;
-                    if (row['ساعت خروج (مثال: 16:30)']) {
-                        const exitTimeParts = String(row['ساعت خروج (مثال: 16:30)']).split(':');
-                        exitIsoString = new Date(`${gy}-${gm}-${gd}T${exitTimeParts[0]}:${exitTimeParts[1]}:00+03:30`).toISOString();
+                    if (exitTimeStr && exitTimeStr.trim() !== '') {
+                        exitIsoString = moment(jDate + ' ' + exitTimeStr, 'jYYYY/jMM/jDD HH:mm').toISOString();
                     }
 
                     return {
