@@ -355,27 +355,26 @@ const LogCommutePage: React.FC = () => {
         </div>
 
         <div className="p-4 border border-gray-200 rounded-lg bg-slate-50 space-y-4">
-          <h4 className="font-semibold text-gray-700">ثبت دستی تاریخ و زمان (اختیاری)</h4>
+          <h4 className="font-semibold text-gray-700">ثبت تاریخ و زمان</h4>
           <p className="text-xs text-gray-500">اگر زمانی را انتخاب نکنید، زمان فعلی سیستم ثبت خواهد شد.</p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-             <div className="md:col-span-1">
-                <label className="block text-xs text-gray-600 mb-1">تاریخ</label>
-                <div className="grid grid-cols-3 gap-2">
-                    <select value={logDate.day} onChange={e => setLogDate(p => ({...p, day: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md">
-                    <option value="" disabled>روز</option>
-                    {DAYS.map(d => <option key={d} value={d}>{toPersianDigits(d)}</option>)}
-                    </select>
-                    <select value={logDate.month} onChange={e => setLogDate(p => ({...p, month: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md">
-                    <option value="" disabled>ماه</option>
-                    {PERSIAN_MONTHS.map((m, i) => <option key={m} value={i+1}>{m}</option>)}
-                    </select>
-                    <select value={logDate.year} onChange={e => setLogDate(p => ({...p, year: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md">
-                    <option value="" disabled>سال</option>
-                    {YEARS.map(y => <option key={y} value={y}>{toPersianDigits(y)}</option>)}
-                    </select>
-                </div>
+          <div>
+            <label className="block text-xs text-gray-600 mb-1">تاریخ</label>
+            <div className="grid grid-cols-3 gap-2">
+              <select value={logDate.day} onChange={e => setLogDate(p => ({...p, day: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md">
+              <option value="" disabled>روز</option>
+              {DAYS.map(d => <option key={d} value={d}>{toPersianDigits(d)}</option>)}
+              </select>
+              <select value={logDate.month} onChange={e => setLogDate(p => ({...p, month: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md">
+              <option value="" disabled>ماه</option>
+              {PERSIAN_MONTHS.map((m, i) => <option key={m} value={i+1}>{m}</option>)}
+              </select>
+              <select value={logDate.year} onChange={e => setLogDate(p => ({...p, year: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md">
+              <option value="" disabled>سال</option>
+              {YEARS.map(y => <option key={y} value={y}>{toPersianDigits(y)}</option>)}
+              </select>
             </div>
-            
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
              <div className={`md:col-span-1 ${actionType !== 'entry' ? 'opacity-50' : ''}`}>
                 <label className="block text-xs text-gray-600 mb-1">ساعت ورود</label>
                 <div className="grid grid-cols-2 gap-2">
@@ -389,7 +388,6 @@ const LogCommutePage: React.FC = () => {
                     </select>
                 </div>
             </div>
-             
              <div className={`md:col-span-1 ${actionType !== 'exit' ? 'opacity-50' : ''}`}>
                 <label className="block text-xs text-gray-600 mb-1">ساعت خروج</label>
                 <div className="grid grid-cols-2 gap-2">
@@ -405,7 +403,6 @@ const LogCommutePage: React.FC = () => {
             </div>
           </div>
         </div>
-
       </div>
       
       <div className="flex items-center justify-center gap-4 pt-4 border-t border-gray-100">
