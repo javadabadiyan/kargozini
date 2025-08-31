@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import type { CommutingMember, CommuteLog } from '../../types';
-import { PencilIcon, TrashIcon, ArrowRightOnRectangleIcon, ChevronDownIcon } from '../icons/Icons';
+import { PencilIcon, TrashIcon, ArrowRightOnRectangleIcon, ChevronDownIcon, SearchIcon } from '../icons/Icons';
 import EditCommuteLogModal from '../EditCommuteLogModal';
 
 const GUARDS = [
@@ -53,6 +53,7 @@ const LogCommutePage: React.FC = () => {
     const [selectedGuard, setSelectedGuard] = useState<string>(GUARDS[0]);
     const [selectedPersonnel, setSelectedPersonnel] = useState<Set<string>>(new Set());
     const [personnelSearch, setPersonnelSearch] = useState('');
+    const [logSearchTerm, setLogSearchTerm] = useState('');
     
     const [actionType, setActionType] = useState<'entry' | 'exit'>('entry');
 
@@ -160,6 +161,17 @@ const LogCommutePage: React.FC = () => {
         }, {} as Record<string, CommutingMember[]>);
         return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b, 'fa'));
     }, [personnelSearch, commutingMembers]);
+
+    const filteredLogs = useMemo(() => {
+        if (!logSearchTerm.trim()) {
+            return logs;
+        }
+        const lowercasedTerm = logSearchTerm.toLowerCase().trim();
+        return logs.filter(log => 
+            log.full_name?.toLowerCase().includes(lowercasedTerm) ||
+            log.personnel_code.toLowerCase().includes(lowercasedTerm)
+        );
+    }, [logs, logSearchTerm]);
 
     const handlePersonnelToggle = (personnelCode: string) => {
         setSelectedPersonnel(prev => {
@@ -382,6 +394,16 @@ const LogCommutePage: React.FC = () => {
                 </select>
              </div>
           </div>
+          <div className="relative mb-4">
+            <input
+              type="text"
+              placeholder="جستجو در لیست روزانه (نام یا کد پرسنلی)..."
+              value={logSearchTerm}
+              onChange={e => setLogSearchTerm(e.target.value)}
+              className="w-full pr-10 pl-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+            />
+            <SearchIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          </div>
           <div className="overflow-x-auto border rounded-lg">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -395,10 +417,10 @@ const LogCommutePage: React.FC = () => {
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {loadingLogs ? <tr><td colSpan={5} className="text-center p-4">در حال بارگذاری...</td></tr> :
-                 logs.length === 0 ? <tr><td colSpan={5} className="text-center p-4 text-gray-500">هیچ ترددی برای این روز ثبت نشده است.</td></tr> :
-                 logs.map(log => (
+                 filteredLogs.length === 0 ? <tr><td colSpan={5} className="text-center p-4 text-gray-500">{logSearchTerm ? 'موردی با این مشخصات یافت نشد.' : 'هیچ ترددی برای این روز ثبت نشده است.'}</td></tr> :
+                 filteredLogs.map(log => (
                     <tr key={log.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-3 whitespace-nowrap"><div className="text-sm font-medium text-gray-900">{log.full_name}</div><div className="text-xs text-gray-500">رئیس ها (دفتر مرکزی)</div></td>
+                      <td className="px-4 py-3 whitespace-nowrap"><div className="text-sm font-medium text-gray-900">{log.full_name}</div><div className="text-xs text-gray-500">کد: {toPersianDigits(log.personnel_code)}</div></td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{log.guard_name.split('|')[0]}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 tabular-nums">{formatTime(log.entry_time)}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 tabular-nums">{formatTime(log.exit_time)}</td>
