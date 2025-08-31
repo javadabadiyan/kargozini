@@ -1,7 +1,11 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import type { CommutingMember, CommuteLog } from '../../types';
-import { PencilIcon, TrashIcon, ArrowRightOnRectangleIcon, ChevronDownIcon } from '../icons/Icons';
+// FIX: Import ChevronDownIcon to resolve 'Cannot find name' error.
+import { PencilIcon, TrashIcon, SearchIcon, ChevronDownIcon } from '../icons/Icons';
 import EditCommuteLogModal from '../EditCommuteLogModal';
+
+// Type alias for SheetJS, assuming it's loaded from a global script
+declare const XLSX: any;
 
 const GUARDS = [
   'شیفت A | محسن صادقی گوغری',
@@ -20,31 +24,48 @@ const toPersianDigits = (s: string | number | null | undefined): string => {
     return String(s).replace(/[0-9]/g, (w) => '۰۱۲۳۴۵۶۷۸۹'[parseInt(w, 10)]);
 };
 
-const jalaliToGregorian = (jy: number, jm: number, jd: number): [number, number, number] => {
-    let sal_a, gy, gm, gd, j_day_no;
-    sal_a = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-    gy = jy + 621;
-    let leap = (gy % 4 == 0 && gy % 100 != 0) || (gy % 400 == 0);
-    if (leap) sal_a[2] = 29;
-    if (jm <= 6) {
-        j_day_no = (jm - 1) * 31 + jd;
-    } else {
-        j_day_no = 186 + (jm - 7) * 30 + jd;
-    }
-    if (leap && j_day_no > 59) j_day_no++;
-    if (j_day_no > 79) j_day_no -= 79;
-    else {
-        gy--;
-        j_day_no += 286;
-        leap = (gy % 4 == 0 && gy % 100 != 0) || (gy % 400 == 0);
-        if (leap) j_day_no++;
-    }
-    for (gm = 1; gm < 13; gm++) {
-        if (j_day_no <= sal_a[gm]) break;
-        j_day_no -= sal_a[gm];
-    }
-    gd = j_day_no;
-    return [gy, gm, gd];
+const jalaliToGregorian = (jy: number, jm: number, jd: number): Date => {
+  var sal_a, gy, gm, gd, j_day_no;
+  var g_days_in_month = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  var j_days_in_month = [0, 31, 31, 31, 31, 31, 31, 30, 30, 30, 30, 29];
+
+  jy = jy - 979;
+  jm = jm - 1;
+  jd = jd - 1;
+
+  j_day_no = 365 * jy + parseInt(String(jy / 33)) * 8 + parseInt(String(((jy % 33) + 3) / 4));
+  for (var i = 0; i < jm; ++i) j_day_no += j_days_in_month[i+1];
+  j_day_no += jd;
+
+  var g_day_no = j_day_no + 79;
+
+  gy = 1600 + 400 * parseInt(String(g_day_no / 146097)); 
+  g_day_no = g_day_no % 146097;
+
+  var leap = true;
+  if (g_day_no >= 36525) {
+    g_day_no--;
+    gy += 100 * parseInt(String(g_day_no / 36524));
+    g_day_no = g_day_no % 36524;
+    if (g_day_no >= 365) g_day_no++;
+    else leap = false;
+  }
+  gy += 4 * parseInt(String(g_day_no / 1461));
+  g_day_no %= 1461;
+  if (g_day_no >= 366) {
+    leap = false;
+    g_day_no--;
+    gy += parseInt(String(g_day_no / 365));
+    g_day_no = g_day_no % 365;
+  }
+  
+  if (leap && ((gy % 4) == 0) && (((gy % 100) != 0) || ((gy % 400) == 0))) g_days_in_month[2] = 29;
+
+  for (i = 0; g_day_no >= g_days_in_month[i+1]; i++) g_day_no -= g_days_in_month[i+1];
+  gm = i + 1;
+  gd = g_day_no + 1;
+
+  return new Date(gy, gm - 1, gd);
 };
 
 const LogCommutePage: React.FC = () => {
@@ -53,6 +74,8 @@ const LogCommutePage: React.FC = () => {
     const [selectedGuard, setSelectedGuard] = useState<string>(GUARDS[0]);
     const [selectedPersonnel, setSelectedPersonnel] = useState<Set<string>>(new Set());
     const [personnelSearch, setPersonnelSearch] = useState('');
+    const [logSearchTerm, setLogSearchTerm] = useState('');
+    const fileInputRef = useRef<HTMLInputElement>(null);
     
     const [actionType, setActionType] = useState<'entry' | 'exit'>('entry');
 
@@ -71,17 +94,13 @@ const LogCommutePage: React.FC = () => {
 
     const getTodayPersian = useCallback(() => {
         const today = new Date();
-        const formatter = new Intl.DateTimeFormat('fa-IR-u-nu-latn', {
-            timeZone: 'Asia/Tehran',
-            year: 'numeric',
-            month: 'numeric',
-            day: 'numeric',
-        });
+        const formatter = new Intl.DateTimeFormat('fa-IR-u-nu-latn', { timeZone: 'Asia/Tehran', year: 'numeric', month: 'numeric', day: 'numeric' });
         const parts = formatter.formatToParts(today);
-        const year = parts.find(p => p.type === 'year')?.value || '';
-        const month = parts.find(p => p.type === 'month')?.value || '';
-        const day = parts.find(p => p.type === 'day')?.value || '';
-        return { year, month, day };
+        return {
+            year: parts.find(p => p.type === 'year')?.value || '',
+            month: parts.find(p => p.type === 'month')?.value || '',
+            day: parts.find(p => p.type === 'day')?.value || '',
+        };
     }, []);
 
     useEffect(() => {
@@ -118,13 +137,10 @@ const LogCommutePage: React.FC = () => {
         try {
           setLoadingLogs(true);
           setError(null);
-          const [gYear, gMonth, gDay] = jalaliToGregorian(parseInt(viewDate.year), parseInt(viewDate.month), parseInt(viewDate.day));
-          const dateString = `${gYear}-${String(gMonth).padStart(2, '0')}-${String(gDay).padStart(2, '0')}`;
+          const gDate = jalaliToGregorian(parseInt(viewDate.year), parseInt(viewDate.month), parseInt(viewDate.day));
+          const dateString = gDate.toISOString().split('T')[0];
           const response = await fetch(`/api/commute-logs?date=${dateString}`);
-          if (!response.ok) {
-            const errData = await response.json();
-            throw new Error(errData.error || 'خطا در دریافت ترددها');
-          }
+          if (!response.ok) throw new Error((await response.json()).error || 'خطا در دریافت ترددها');
           const data = await response.json();
           setLogs(data.logs || []);
         } catch (err) {
@@ -134,27 +150,22 @@ const LogCommutePage: React.FC = () => {
         }
       }, [viewDate]);
     
-      useEffect(() => {
-        fetchCommutingMembers();
-      }, [fetchCommutingMembers]);
-    
-      useEffect(() => {
-        fetchLogs();
-      }, [fetchLogs]);
+      useEffect(() => { fetchCommutingMembers(); }, [fetchCommutingMembers]);
+      useEffect(() => { fetchLogs(); }, [fetchLogs]);
+
+    const filteredLogs = useMemo(() => {
+        if (!logSearchTerm) return logs;
+        return logs.filter(log => 
+            log.full_name?.toLowerCase().includes(logSearchTerm.toLowerCase()) ||
+            log.personnel_code.includes(logSearchTerm)
+        );
+    }, [logs, logSearchTerm]);
 
     const groupedMembers = useMemo(() => {
-        const filtered = personnelSearch
-            ? commutingMembers.filter(m =>
-                m.full_name.toLowerCase().includes(personnelSearch.toLowerCase()) ||
-                m.personnel_code.includes(personnelSearch)
-            )
-            : commutingMembers;
-
+        const filtered = personnelSearch ? commutingMembers.filter(m => m.full_name.toLowerCase().includes(personnelSearch.toLowerCase()) || m.personnel_code.includes(personnelSearch)) : commutingMembers;
         const groups = filtered.reduce((acc, member) => {
             const department = member.department || 'بدون واحد';
-            if (!acc[department]) {
-                acc[department] = [];
-            }
+            if (!acc[department]) acc[department] = [];
             acc[department].push(member);
             return acc;
         }, {} as Record<string, CommutingMember[]>);
@@ -171,7 +182,7 @@ const LogCommutePage: React.FC = () => {
 
     const handleUnitSelectionToggle = (unitPersonnel: CommutingMember[]) => {
         const unitCodes = unitPersonnel.map(p => p.personnel_code);
-        const allSelectedInUnit = unitCodes.every(code => selectedPersonnel.has(code));
+        const allSelectedInUnit = unitCodes.length > 0 && unitCodes.every(code => selectedPersonnel.has(code));
         setSelectedPersonnel(prev => {
             const newSet = new Set(prev);
             if (allSelectedInUnit) {
@@ -184,48 +195,40 @@ const LogCommutePage: React.FC = () => {
     };
     
     const getTimestampOverride = (time: { hour: string, minute: string }) => {
-        if (!logDate.year || !logDate.month || !logDate.day || !time.hour || !time.minute) return null;
-        const [gYear, gMonth, gDay] = jalaliToGregorian(parseInt(logDate.year), parseInt(logDate.month), parseInt(logDate.day));
-        const date = new Date(Date.UTC(gYear, gMonth - 1, gDay, parseInt(time.hour), parseInt(time.minute)));
-        date.setMinutes(date.getMinutes() - 210); // Adjust for Iran's timezone offset
-        return date.toISOString();
+        if (!logDate.year || !logDate.month || !logDate.day || !time.hour || !time.minute) return new Date().toISOString();
+        const gDate = jalaliToGregorian(parseInt(logDate.year), parseInt(logDate.month), parseInt(logDate.day));
+        gDate.setHours(parseInt(time.hour), parseInt(time.minute));
+        return gDate.toISOString();
     };
 
     const handleSubmit = async () => {
         if (selectedPersonnel.size === 0) {
-            setStatus({ type: 'error', message: 'لطفاً حداقل یک پرسنل را انتخاب کنید.' });
-            return;
+            setStatus({ type: 'error', message: 'لطفاً حداقل یک پرسنل را انتخاب کنید.' }); return;
         }
-        
         const actionText = actionType === 'entry' ? 'ورود' : 'خروج';
         setStatus({ type: 'info', message: `در حال ثبت ${actionText}...` });
         
-        const timestampOverride = getTimestampOverride(actionType === 'entry' ? entryTime : exitTime);
-        
-        let successCount = 0;
-        for (const personnelCode of selectedPersonnel) {
-            try {
-                const response = await fetch('/api/commute-logs', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ personnelCode, guardName: selectedGuard, action: actionType, timestampOverride })
-                });
-                if (response.ok) {
-                    successCount++;
-                } else {
-                    const errorData = await response.json();
-                    // Optionally show individual errors, for now, we just count success
-                    console.error(`Failed for ${personnelCode}:`, errorData.error);
-                }
-            } catch (err) {
-                 console.error(`Request failed for ${personnelCode}:`, err);
-            }
+        try {
+            const response = await fetch('/api/commute-logs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    personnelCodes: Array.from(selectedPersonnel), 
+                    guardName: selectedGuard, 
+                    action: actionType, 
+                    timestampOverride: getTimestampOverride(actionType === 'entry' ? entryTime : exitTime) 
+                })
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error);
+            setStatus({ type: 'success', message: data.message });
+            setSelectedPersonnel(new Set());
+            fetchLogs();
+        } catch (err) {
+            setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطای ناشناخته' });
+        } finally {
+            setTimeout(() => setStatus(null), 5000);
         }
-        
-        setStatus({ type: 'success', message: `${actionText} برای ${toPersianDigits(successCount)} نفر با موفقیت ثبت شد.` });
-        setSelectedPersonnel(new Set());
-        fetchLogs();
-        setTimeout(() => setStatus(null), 5000);
     };
 
     const handleEditClick = (log: CommuteLog) => {
@@ -268,125 +271,113 @@ const LogCommutePage: React.FC = () => {
         return toPersianDigits(new Date(isoString).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tehran' }));
     };
 
+    const formatDate = (isoString: string | null) => {
+        if (!isoString) return '---';
+        return toPersianDigits(new Date(isoString).toLocaleDateString('fa-IR', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'Asia/Tehran' }));
+    };
+
+    const handleDownloadSample = () => {
+        const sampleData = [[ 'کد پرسنلی', 'تاریخ (مثال: 1403/01/25)', 'ساعت ورود (مثال: 08:00)', 'ساعت خروج (مثال: 16:30)', 'شیفت' ]];
+        const ws = XLSX.utils.aoa_to_sheet(sampleData);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'نمونه');
+        XLSX.writeFile(wb, 'نمونه_ورود_تردد.xlsx');
+    };
+
+    const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        setStatus({ type: 'info', message: 'در حال پردازش فایل...' });
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                const data = new Uint8Array(e.target?.result as ArrayBuffer);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+                
+                const logsToImport = json.map((row: any) => {
+                    const jDate = String(row['تاریخ (مثال: 1403/01/25)']).split('/');
+                    const gDate = jalaliToGregorian(parseInt(jDate[0]), parseInt(jDate[1]), parseInt(jDate[2]));
+                    
+                    const entryTimeParts = String(row['ساعت ورود (مثال: 08:00)']).split(':');
+                    const entryTime = new Date(gDate);
+                    entryTime.setHours(parseInt(entryTimeParts[0]), parseInt(entryTimeParts[1]));
+
+                    let exitTime = null;
+                    if (row['ساعت خروج (مثال: 16:30)']) {
+                        const exitTimeParts = String(row['ساعت خروج (مثال: 16:30)']).split(':');
+                        exitTime = new Date(gDate);
+                        exitTime.setHours(parseInt(exitTimeParts[0]), parseInt(exitTimeParts[1]));
+                    }
+
+                    return {
+                        personnel_code: String(row['کد پرسنلی']),
+                        guard_name: String(row['شیفت']),
+                        entry_time: entryTime.toISOString(),
+                        exit_time: exitTime ? exitTime.toISOString() : null,
+                    };
+                });
+
+                const response = await fetch('/api/commute-logs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(logsToImport) });
+                const resData = await response.json();
+                if (!response.ok) throw new Error(resData.error);
+                setStatus({ type: 'success', message: resData.message });
+                fetchLogs();
+            } catch (err) {
+                setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در پردازش فایل' });
+            } finally {
+                if (fileInputRef.current) fileInputRef.current.value = "";
+                setTimeout(() => setStatus(null), 5000);
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    };
+
+    const handleExport = () => {
+        const dataToExport = filteredLogs.map(log => ({
+            'کد پرسنلی': toPersianDigits(log.personnel_code),
+            'نام پرسنل': log.full_name,
+            'تاریخ': formatDate(log.entry_time),
+            'ساعت ورود': formatTime(log.entry_time),
+            'ساعت خروج': formatTime(log.exit_time),
+            'شیفت': log.guard_name,
+        }));
+        const ws = XLSX.utils.json_to_sheet(dataToExport);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'گزارش تردد');
+        XLSX.writeFile(wb, 'گزارش_تردد.xlsx');
+    };
+
     const statusColor = { info: 'bg-blue-100 text-blue-800', success: 'bg-green-100 text-green-800', error: 'bg-red-100 text-red-800' };
 
     return (
     <>
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Right Column: Form */}
-        <div className="lg:col-span-5 bg-white p-6 rounded-lg shadow-lg space-y-6">
-          <h2 className="text-xl font-bold text-gray-800">ثبت تردد</h2>
-          {status && <div className={`p-3 text-sm rounded-lg ${statusColor[status.type]}`}>{status.message}</div>}
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">شیفت کاری</label>
-              <div className="grid grid-cols-1 gap-2">
-                {GUARDS.map(guard => (
-                  <label key={guard} className={`flex items-center p-3 rounded-lg border cursor-pointer transition-colors ${selectedGuard === guard ? 'bg-blue-100 border-blue-500' : 'bg-slate-50'}`}>
-                    <input type="radio" name="guard" value={guard} checked={selectedGuard === guard} onChange={e => setSelectedGuard(e.target.value)} className="w-4 h-4 text-blue-600 focus:ring-blue-500"/>
-                    <span className="mr-3 text-sm">{guard}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-
-             <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">نوع عملیات</label>
-                <div className="grid grid-cols-2 gap-1 p-1 bg-slate-200 rounded-lg">
-                    <button type="button" onClick={() => setActionType('entry')} className={`px-4 py-2 text-sm font-semibold rounded-md transition-colors ${actionType === 'entry' ? 'bg-white text-blue-600 shadow' : 'text-gray-600'}`}>
-                        ثبت ورود
-                    </button>
-                    <button type="button" onClick={() => setActionType('exit')} className={`px-4 py-2 text-sm font-semibold rounded-md transition-colors ${actionType === 'exit' ? 'bg-white text-blue-600 shadow' : 'text-gray-600'}`}>
-                        ثبت خروج
-                    </button>
-                </div>
-            </div>
-            
-             <div className="border rounded-lg p-4 space-y-3 bg-slate-50">
-              <h3 className="font-semibold">ثبت تاریخ و زمان</h3>
-               <div className="grid grid-cols-3 gap-2">
-                <select value={logDate.day} onChange={e => setLogDate(p => ({...p, day: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md font-sans"><option value="" disabled>روز</option>{DAYS.map(d => <option key={d} value={d}>{toPersianDigits(d)}</option>)}</select>
-                <select value={logDate.month} onChange={e => setLogDate(p => ({...p, month: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md font-sans"><option value="" disabled>ماه</option>{PERSIAN_MONTHS.map((m, i) => <option key={m} value={i+1}>{m}</option>)}</select>
-                <select value={logDate.year} onChange={e => setLogDate(p => ({...p, year: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md font-sans"><option value="" disabled>سال</option>{YEARS.map(y => <option key={y} value={y}>{toPersianDigits(y)}</option>)}</select>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className={actionType === 'exit' ? 'opacity-50' : ''}>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">ساعت ورود</label>
-                      <div className="grid grid-cols-2 gap-2">
-                          <select value={entryTime.hour} onChange={e => setEntryTime(p => ({...p, hour: e.target.value}))} disabled={actionType === 'exit'} className="w-full p-2 border border-gray-300 rounded-md font-sans"><option value="">ساعت</option>{HOURS.map(h => <option key={h} value={h}>{toPersianDigits(String(h).padStart(2,'0'))}</option>)}</select>
-                          <select value={entryTime.minute} onChange={e => setEntryTime(p => ({...p, minute: e.target.value}))} disabled={actionType === 'exit'} className="w-full p-2 border border-gray-300 rounded-md font-sans"><option value="">دقیقه</option>{MINUTES.map(m => <option key={m} value={m}>{toPersianDigits(String(m).padStart(2,'0'))}</option>)}</select>
-                      </div>
-                  </div>
-                  <div className={actionType === 'entry' ? 'opacity-50' : ''}>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">ساعت خروج</label>
-                      <div className="grid grid-cols-2 gap-2">
-                          <select value={exitTime.hour} onChange={e => setExitTime(p => ({...p, hour: e.target.value}))} disabled={actionType === 'entry'} className="w-full p-2 border border-gray-300 rounded-md font-sans"><option value="">ساعت</option>{HOURS.map(h => <option key={h} value={h}>{toPersianDigits(String(h).padStart(2,'0'))}</option>)}</select>
-                          <select value={exitTime.minute} onChange={e => setExitTime(p => ({...p, minute: e.target.value}))} disabled={actionType === 'entry'} className="w-full p-2 border border-gray-300 rounded-md font-sans"><option value="">دقیقه</option>{MINUTES.map(m => <option key={m} value={m}>{toPersianDigits(String(m).padStart(2,'0'))}</option>)}</select>
-                      </div>
-                  </div>
-              </div>
-            </div>
-
-            <div className="border rounded-lg">
-                <div className="p-4 border-b">
-                     <h3 className="font-semibold">انتخاب پرسنل ({toPersianDigits(selectedPersonnel.size)} نفر)</h3>
-                     <input type="text" placeholder="جستجوی پرسنل..." value={personnelSearch} onChange={e => setPersonnelSearch(e.target.value)} className="w-full mt-2 p-2 border rounded-md"/>
-                </div>
-                <div className="max-h-80 overflow-y-auto p-2">
-                    {groupedMembers.map(([unit, members]) => {
-                        const allInUnitSelected = members.every(m => selectedPersonnel.has(m.personnel_code));
-                        return (
-                            <div key={unit} className="mb-2">
-                                <button onClick={() => setOpenUnits(prev => new Set(prev).add(unit))} className="w-full flex justify-between items-center p-2 bg-gray-100 rounded-md">
-                                    <div className="flex items-center">
-                                        <input type="checkbox" checked={allInUnitSelected} onChange={() => handleUnitSelectionToggle(members)} className="ml-2 w-4 h-4"/>
-                                        <span className="font-semibold text-sm">{unit}</span>
-                                    </div>
-                                    <ChevronDownIcon className="w-4 h-4" />
-                                </button>
-                                <div className="pr-4 mt-1 space-y-1">
-                                    {members.map(member => (
-                                        <label key={member.personnel_code} className="flex items-center p-2 rounded-md hover:bg-slate-50 cursor-pointer">
-                                            <input type="checkbox" checked={selectedPersonnel.has(member.personnel_code)} onChange={() => handlePersonnelToggle(member.personnel_code)} className="ml-2 w-4 h-4"/>
-                                            <div className="flex flex-col">
-                                                <span className="text-sm">{member.full_name}</span>
-                                                <span className="text-xs text-gray-500 font-mono">کد: {toPersianDigits(member.personnel_code)}</span>
-                                            </div>
-                                        </label>
-                                    ))}
-                                </div>
-                            </div>
-                        )
-                    })}
-                </div>
-            </div>
-            <button onClick={handleSubmit} disabled={selectedPersonnel.size === 0} className="w-full py-3 text-lg font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-gray-400">
-                {actionType === 'entry' ? 'ثبت ورود' : 'ثبت خروج'} برای {toPersianDigits(selectedPersonnel.size)} نفر
-            </button>
-          </div>
-        </div>
-        
-        {/* Left Column: Logs */}
         <div className="lg:col-span-7 bg-white p-6 rounded-lg shadow-lg">
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-4">
              <h2 className="text-xl font-bold text-gray-800">ترددهای ثبت شده در تاریخ</h2>
              <div className="grid grid-cols-3 gap-2">
-                <select value={viewDate.day} onChange={e => setViewDate(p => ({...p, day: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md bg-slate-50 font-sans">
-                    {DAYS.map(d => <option key={d} value={d}>{toPersianDigits(d)}</option>)}
-                </select>
-                <select value={viewDate.month} onChange={e => setViewDate(p => ({...p, month: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md bg-slate-50 font-sans">
-                    {PERSIAN_MONTHS.map((m, i) => <option key={m} value={i+1}>{m}</option>)}
-                </select>
-                <select value={viewDate.year} onChange={e => setViewDate(p => ({...p, year: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md bg-slate-50 font-sans">
-                    {YEARS.map(y => <option key={y} value={y}>{toPersianDigits(y)}</option>)}
-                </select>
+                <select value={viewDate.day} onChange={e => setViewDate(p => ({...p, day: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md bg-slate-50 font-sans">{DAYS.map(d => <option key={d} value={d}>{toPersianDigits(d)}</option>)}</select>
+                <select value={viewDate.month} onChange={e => setViewDate(p => ({...p, month: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md bg-slate-50 font-sans">{PERSIAN_MONTHS.map((m, i) => <option key={m} value={i+1}>{m}</option>)}</select>
+                <select value={viewDate.year} onChange={e => setViewDate(p => ({...p, year: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md bg-slate-50 font-sans">{YEARS.map(y => <option key={y} value={y}>{toPersianDigits(y)}</option>)}</select>
              </div>
+          </div>
+          <div className="relative mb-4">
+            <input type="text" placeholder="جستجو در نتایج..." value={logSearchTerm} onChange={e => setLogSearchTerm(e.target.value)} className="w-full pr-10 pl-4 py-2 border rounded-lg"/>
+            <SearchIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          </div>
+          <div className="flex flex-wrap gap-2 mb-4">
+              <button onClick={handleDownloadSample} className="px-3 py-1.5 text-xs bg-gray-100 rounded-md hover:bg-gray-200">دانلود نمونه</button>
+              <input type="file" accept=".xlsx, .xls" ref={fileInputRef} onChange={handleFileImport} className="hidden" id="excel-import-logs"/>
+              <label htmlFor="excel-import-logs" className="px-3 py-1.5 text-xs bg-green-600 text-white rounded-md cursor-pointer hover:bg-green-700">ورود از اکسل</label>
+              <button onClick={handleExport} className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700">خروجی اکسل</button>
           </div>
           <div className="overflow-x-auto border rounded-lg">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">پرسنل</th>
+                  <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">تاریخ</th>
                   <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">شیفت</th>
                   <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">ورود</th>
                   <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">خروج</th>
@@ -394,14 +385,15 @@ const LogCommutePage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {loadingLogs ? <tr><td colSpan={5} className="text-center p-4">در حال بارگذاری...</td></tr> :
-                 logs.length === 0 ? <tr><td colSpan={5} className="text-center p-4 text-gray-500">هیچ ترددی برای این روز ثبت نشده است.</td></tr> :
-                 logs.map(log => (
+                {loadingLogs ? <tr><td colSpan={6} className="text-center p-4">در حال بارگذاری...</td></tr> :
+                 filteredLogs.length === 0 ? <tr><td colSpan={6} className="text-center p-4 text-gray-500">هیچ ترددی برای این روز ثبت نشده است.</td></tr> :
+                 filteredLogs.map(log => (
                     <tr key={log.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-3 whitespace-nowrap"><div className="text-sm font-medium text-gray-900">{log.full_name}</div><div className="text-xs text-gray-500">رئیس ها (دفتر مرکزی)</div></td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{log.guard_name.split('|')[0]}</td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 tabular-nums">{formatTime(log.entry_time)}</td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 tabular-nums">{formatTime(log.exit_time)}</td>
+                      <td className="px-4 py-3 whitespace-nowrap"><div className="text-sm font-medium text-gray-900">{log.full_name}</div><div className="text-xs text-gray-500 font-sans">کد: {toPersianDigits(log.personnel_code)}</div></td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 font-sans">{formatDate(log.entry_time)}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{log.guard_name}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 font-sans tabular-nums">{formatTime(log.entry_time)}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 font-sans tabular-nums">{formatTime(log.exit_time)}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm">
                         <div className="flex items-center justify-center gap-1">
                           <button onClick={() => handleEditClick(log)} className="p-2 text-blue-600 hover:bg-blue-100 rounded-md" title="ویرایش"><PencilIcon className="w-5 h-5" /></button>
@@ -412,6 +404,75 @@ const LogCommutePage: React.FC = () => {
                  ))}
               </tbody>
             </table>
+          </div>
+        </div>
+
+        <div className="lg:col-span-5 bg-white p-6 rounded-lg shadow-lg space-y-6">
+          <h2 className="text-xl font-bold text-gray-800">ثبت تردد</h2>
+          {status && <div className={`p-3 text-sm rounded-lg ${statusColor[status.type]}`}>{status.message}</div>}
+          
+          <div className="space-y-4">
+             <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">نوع عملیات</label>
+                <div className="grid grid-cols-2 gap-1 p-1 bg-slate-200 rounded-lg">
+                    <button type="button" onClick={() => setActionType('entry')} className={`px-4 py-2 text-sm font-semibold rounded-md transition-colors ${actionType === 'entry' ? 'bg-white text-blue-600 shadow' : 'text-gray-600'}`}>ثبت ورود</button>
+                    <button type="button" onClick={() => setActionType('exit')} className={`px-4 py-2 text-sm font-semibold rounded-md transition-colors ${actionType === 'exit' ? 'bg-white text-blue-600 shadow' : 'text-gray-600'}`}>ثبت خروج</button>
+                </div>
+            </div>
+             <div className="border rounded-lg p-4 space-y-3 bg-slate-50">
+              <h3 className="font-semibold">ثبت تاریخ و زمان</h3>
+               <div className="grid grid-cols-3 gap-2">
+                <select value={logDate.day} onChange={e => setLogDate(p => ({...p, day: e.target.value}))} className="w-full p-2 border rounded-md font-sans">{DAYS.map(d => <option key={d} value={d}>{toPersianDigits(d)}</option>)}</select>
+                <select value={logDate.month} onChange={e => setLogDate(p => ({...p, month: e.target.value}))} className="w-full p-2 border rounded-md font-sans">{PERSIAN_MONTHS.map((m, i) => <option key={m} value={i+1}>{m}</option>)}</select>
+                <select value={logDate.year} onChange={e => setLogDate(p => ({...p, year: e.target.value}))} className="w-full p-2 border rounded-md font-sans">{YEARS.map(y => <option key={y} value={y}>{toPersianDigits(y)}</option>)}</select>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className={actionType === 'exit' ? 'opacity-50' : ''}>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">ساعت ورود</label>
+                      <div className="grid grid-cols-2 gap-2"><select value={entryTime.hour} onChange={e => setEntryTime(p => ({...p, hour: e.target.value}))} disabled={actionType === 'exit'} className="w-full p-2 border rounded-md font-sans">{HOURS.map(h => <option key={h} value={h}>{toPersianDigits(String(h).padStart(2,'0'))}</option>)}</select><select value={entryTime.minute} onChange={e => setEntryTime(p => ({...p, minute: e.target.value}))} disabled={actionType === 'exit'} className="w-full p-2 border rounded-md font-sans">{MINUTES.map(m => <option key={m} value={m}>{toPersianDigits(String(m).padStart(2,'0'))}</option>)}</select></div>
+                  </div>
+                  <div className={actionType === 'entry' ? 'opacity-50' : ''}>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">ساعت خروج</label>
+                      <div className="grid grid-cols-2 gap-2"><select value={exitTime.hour} onChange={e => setExitTime(p => ({...p, hour: e.target.value}))} disabled={actionType === 'entry'} className="w-full p-2 border rounded-md font-sans">{HOURS.map(h => <option key={h} value={h}>{toPersianDigits(String(h).padStart(2,'0'))}</option>)}</select><select value={exitTime.minute} onChange={e => setExitTime(p => ({...p, minute: e.target.value}))} disabled={actionType === 'entry'} className="w-full p-2 border rounded-md font-sans">{MINUTES.map(m => <option key={m} value={m}>{toPersianDigits(String(m).padStart(2,'0'))}</option>)}</select></div>
+                  </div>
+              </div>
+            </div>
+             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">شیفت کاری</label>
+              <div className="grid grid-cols-1 gap-2">
+                {GUARDS.map(guard => (<label key={guard} className={`flex items-center p-3 rounded-lg border cursor-pointer ${selectedGuard === guard ? 'bg-blue-100 border-blue-500' : 'bg-slate-50'}`}><input type="radio" name="guard" value={guard} checked={selectedGuard === guard} onChange={e => setSelectedGuard(e.target.value)} className="w-4 h-4 text-blue-600"/> <span className="mr-3 text-sm">{guard}</span></label>))}
+              </div>
+            </div>
+            <div className="border rounded-lg">
+                <div className="p-4 border-b">
+                     <h3 className="font-semibold">انتخاب پرسنل ({toPersianDigits(selectedPersonnel.size)} نفر)</h3>
+                     <input type="text" placeholder="جستجوی پرسنل..." value={personnelSearch} onChange={e => setPersonnelSearch(e.target.value)} className="w-full mt-2 p-2 border rounded-md"/>
+                </div>
+                <div className="max-h-80 overflow-y-auto p-2">
+                    {groupedMembers.map(([unit, members]) => {
+                        const allInUnitSelected = members.length > 0 && members.every(m => selectedPersonnel.has(m.personnel_code));
+                        const someInUnitSelected = !allInUnitSelected && members.some(m => selectedPersonnel.has(m.personnel_code));
+                        return (
+                            <div key={unit} className="mb-2">
+                                <button onClick={() => setOpenUnits(prev => { const newSet = new Set(prev); if (newSet.has(unit)) newSet.delete(unit); else newSet.add(unit); return newSet; })} className="w-full flex justify-between items-center p-2 bg-gray-100 rounded-md">
+                                    <div className="flex items-center">
+                                      {/* FIX: Changed ref from a concise body arrow function returning a value to a block body returning void. */}
+                                      <input type="checkbox" checked={allInUnitSelected} ref={el => { if (el) { el.indeterminate = someInUnitSelected; } }} onChange={() => handleUnitSelectionToggle(members)} className="ml-2 w-4 h-4" onClick={e => e.stopPropagation()}/>
+                                      <span className="font-semibold text-sm">{unit}</span>
+                                    </div>
+                                    <ChevronDownIcon className={`w-4 h-4 transition-transform ${openUnits.has(unit) ? 'rotate-180' : ''}`} />
+                                </button>
+                                {openUnits.has(unit) && <div className="pr-4 mt-1 space-y-1">
+                                    {members.map(member => (<label key={member.personnel_code} className="flex items-center p-2 rounded-md hover:bg-slate-50 cursor-pointer"><input type="checkbox" checked={selectedPersonnel.has(member.personnel_code)} onChange={() => handlePersonnelToggle(member.personnel_code)} className="ml-2 w-4 h-4"/> <div className="flex flex-col"><span className="text-sm">{member.full_name}</span> <span className="text-xs text-gray-500 font-sans">کد: {toPersianDigits(member.personnel_code)}</span></div></label>))}
+                                </div>}
+                            </div>
+                        )
+                    })}
+                </div>
+            </div>
+            <button onClick={handleSubmit} disabled={selectedPersonnel.size === 0} className="w-full py-3 text-lg font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-gray-400">
+                {actionType === 'entry' ? 'ثبت ورود' : 'ثبت خروج'} برای {toPersianDigits(selectedPersonnel.size)} نفر
+            </button>
           </div>
         </div>
       </div>

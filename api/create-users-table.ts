@@ -86,14 +86,33 @@ export default async function handler(
         id SERIAL PRIMARY KEY,
         personnel_code VARCHAR(50) NOT NULL,
         guard_name VARCHAR(255) NOT NULL,
-        entry_time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        entry_time TIMESTAMPTZ NOT NULL,
         exit_time TIMESTAMPTZ,
+        log_type VARCHAR(50) DEFAULT 'main' NOT NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
     `;
     messages.push('جدول "commute_logs" با موفقیت ایجاد یا تایید شد.');
     
+    // Add unique constraint for main log type per day per person
+    await (client as any).query(`
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_constraint 
+                WHERE conname = 'unique_main_commute_log_per_day'
+            ) THEN
+                ALTER TABLE commute_logs 
+                ADD CONSTRAINT unique_main_commute_log_per_day 
+                UNIQUE (personnel_code, (DATE(entry_time AT TIME ZONE 'Asia/Tehran'))) 
+                DEFERRABLE INITIALLY IMMEDIATE;
+            END IF;
+        END;
+        $$;
+    `);
+    messages.push('محدودیت یکتا برای تردد اصلی روزانه هر پرسنل ایجاد یا تایید شد.');
+
     // Create trigger function for updated_at
     await (client as any).query(`
         CREATE OR REPLACE FUNCTION update_updated_at_column()
