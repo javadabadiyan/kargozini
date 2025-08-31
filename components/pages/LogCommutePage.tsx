@@ -362,7 +362,7 @@ const LogCommutePage: React.FC = () => {
                                             <input type="checkbox" checked={selectedPersonnel.has(member.personnel_code)} onChange={() => handlePersonnelToggle(member.personnel_code)} className="ml-2 w-4 h-4"/>
                                             <div className="flex flex-col">
                                                 <span className="text-sm">{member.full_name}</span>
-                                                <span className="text-xs text-gray-500 font-mono">کد: {toPersianDigits(member.personnel_code)}</span>
+                                                <span className="text-xs text-gray-500 font-sans tracking-wider">کد: {toPersianDigits(member.personnel_code)}</span>
                                             </div>
                                         </label>
                                     ))}
