@@ -200,8 +200,13 @@ const LogCommutePage: React.FC = () => {
         }
         
         const jalaliString = `${logDate.year}/${logDate.month}/${logDate.day} ${time.hour}:${time.minute}`;
-        const dateObject = moment(jalaliString, 'jYYYY/jM/jD HH:mm').toDate();
-        return dateObject.toISOString();
+        const momentDate = moment(jalaliString, 'jYYYY/jM/jD HH:mm');
+    
+        if (!momentDate.isValid()) {
+            throw new Error(`تاریخ یا زمان وارد شده نامعتبر است: ${toPersianDigits(jalaliString)}`);
+        }
+    
+        return momentDate.toDate().toISOString();
     };
 
 
