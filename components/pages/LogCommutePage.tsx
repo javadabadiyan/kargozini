@@ -409,7 +409,7 @@ const LogCommutePage: React.FC = () => {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">پرسنل</th>
-                  <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">شیفت</th>
+                  <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">شیفت کاری</th>
                   <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">ورود</th>
                   <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">خروج</th>
                   <th className="px-4 py-3 text-center text-xs font-bold text-gray-600 uppercase">عملیات</th>
@@ -421,7 +421,7 @@ const LogCommutePage: React.FC = () => {
                  filteredLogs.map(log => (
                     <tr key={log.id} className="hover:bg-slate-50">
                       <td className="px-4 py-3 whitespace-nowrap"><div className="text-sm font-medium text-gray-900">{log.full_name}</div><div className="text-xs text-gray-500">کد: {toPersianDigits(log.personnel_code)}</div></td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{log.guard_name.split('|')[0]}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{log.guard_name}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 tabular-nums">{formatTime(log.entry_time)}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 tabular-nums">{formatTime(log.exit_time)}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm">
