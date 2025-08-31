@@ -48,7 +48,8 @@ const jalaliToGregorian = (jy: number, jm: number, jd: number): Date => {
   if (!((cent === 4) || (yindex === 4))) {
       year++;
   }
-  const yearday = wjd - (new Date(year, 0, 1).getTime() / 86400000 + 2440587.5);
+  // FIX: Changed 'yearday' from a const to a let to allow reassignment in the loop.
+  let yearday = wjd - (new Date(year, 0, 1).getTime() / 86400000 + 2440587.5);
   const isLeap = (year % 4 === 0) && (!((year % 100 === 0) && (year % 400 !== 0)));
   const month_days = [0, 31, (isLeap ? 29 : 28), 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 
