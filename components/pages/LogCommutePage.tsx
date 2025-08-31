@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import type { CommutingMember, CommuteLog } from '../../types';
-// FIX: Import ChevronDownIcon to resolve 'Cannot find name' error.
-import { PencilIcon, TrashIcon, SearchIcon, ChevronDownIcon } from '../icons/Icons';
+import { PencilIcon, TrashIcon, SearchIcon, ChevronDownIcon, PlusCircleIcon } from '../icons/Icons';
 import EditCommuteLogModal from '../EditCommuteLogModal';
+import AddShortLeaveModal from '../AddShortLeaveModal';
 
 // Type alias for SheetJS, assuming it's loaded from a global script
 declare const XLSX: any;
@@ -91,6 +91,9 @@ const LogCommutePage: React.FC = () => {
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editingLog, setEditingLog] = useState<CommuteLog | null>(null);
     const [openUnits, setOpenUnits] = useState<Set<string>>(new Set());
+    const [isShortLeaveModalOpen, setIsShortLeaveModalOpen] = useState(false);
+    const [logForShortLeave, setLogForShortLeave] = useState<CommuteLog | null>(null);
+
 
     const getTodayPersian = useCallback(() => {
         const today = new Date();
@@ -265,6 +268,42 @@ const LogCommutePage: React.FC = () => {
             setTimeout(() => setStatus(null), 5000);
         }
     };
+    
+    const handleAddShortLeaveClick = (log: CommuteLog) => {
+        setLogForShortLeave(log);
+        setIsShortLeaveModalOpen(true);
+    };
+
+    const handleSaveShortLeave = async (leaveData: { exitTime: string; entryTime: string }) => {
+        if (!logForShortLeave) return;
+
+        setStatus({ type: 'info', message: 'در حال ثبت تردد بین ساعتی...' });
+        try {
+            const response = await fetch('/api/commute-logs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    personnelCodes: [logForShortLeave.personnel_code],
+                    guardName: selectedGuard,
+                    action: '', // Not used by API for short_leave
+                    logType: 'short_leave',
+                    entryTime: leaveData.entryTime, // Return time
+                    exitTime: leaveData.exitTime,   // Departure time
+                }),
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'خطا در ثبت تردد');
+            setStatus({ type: 'success', message: data.message });
+            setIsShortLeaveModalOpen(false);
+            setLogForShortLeave(null);
+            fetchLogs(); // Refresh the list
+        } catch (err) {
+            // Re-throw to be caught by the modal and display error there
+            throw err;
+        } finally {
+             setTimeout(() => setStatus(null), 5000);
+        }
+    };
 
     const formatTime = (isoString: string | null) => {
         if (!isoString) return '---';
@@ -378,7 +417,7 @@ const LogCommutePage: React.FC = () => {
                 <tr>
                   <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">پرسنل</th>
                   <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">تاریخ</th>
-                  <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">شیفت</th>
+                  <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">شیفت / نوع</th>
                   <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">ورود</th>
                   <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">خروج</th>
                   <th className="px-4 py-3 text-center text-xs font-bold text-gray-600 uppercase">عملیات</th>
@@ -391,12 +430,25 @@ const LogCommutePage: React.FC = () => {
                     <tr key={log.id} className="hover:bg-slate-50">
                       <td className="px-4 py-3 whitespace-nowrap"><div className="text-sm font-medium text-gray-900">{log.full_name}</div><div className="text-xs text-gray-500 font-sans">کد: {toPersianDigits(log.personnel_code)}</div></td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 font-sans">{formatDate(log.entry_time)}</td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{log.guard_name}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">
+                        {log.log_type === 'short_leave' ? (
+                            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                                بین ساعتی
+                            </span>
+                        ) : (
+                            log.guard_name
+                        )}
+                      </td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 font-sans tabular-nums">{formatTime(log.entry_time)}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 font-sans tabular-nums">{formatTime(log.exit_time)}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm">
                         <div className="flex items-center justify-center gap-1">
-                          <button onClick={() => handleEditClick(log)} className="p-2 text-blue-600 hover:bg-blue-100 rounded-md" title="ویرایش"><PencilIcon className="w-5 h-5" /></button>
+                          {log.log_type === 'main' && (
+                            <>
+                              <button onClick={() => handleAddShortLeaveClick(log)} className="p-2 text-green-600 hover:bg-green-100 rounded-md" title="تردد بین ساعتی"><PlusCircleIcon className="w-5 h-5" /></button>
+                              <button onClick={() => handleEditClick(log)} className="p-2 text-blue-600 hover:bg-blue-100 rounded-md" title="ویرایش"><PencilIcon className="w-5 h-5" /></button>
+                            </>
+                          )}
                           <button onClick={() => handleDeleteLog(log.id)} className="p-2 text-red-600 hover:bg-red-100 rounded-md" title="حذف"><TrashIcon className="w-5 h-5" /></button>
                         </div>
                       </td>
@@ -456,7 +508,6 @@ const LogCommutePage: React.FC = () => {
                             <div key={unit} className="mb-2">
                                 <button onClick={() => setOpenUnits(prev => { const newSet = new Set(prev); if (newSet.has(unit)) newSet.delete(unit); else newSet.add(unit); return newSet; })} className="w-full flex justify-between items-center p-2 bg-gray-100 rounded-md">
                                     <div className="flex items-center">
-                                      {/* FIX: Changed ref from a concise body arrow function returning a value to a block body returning void. */}
                                       <input type="checkbox" checked={allInUnitSelected} ref={el => { if (el) { el.indeterminate = someInUnitSelected; } }} onChange={() => handleUnitSelectionToggle(members)} className="ml-2 w-4 h-4" onClick={e => e.stopPropagation()}/>
                                       <span className="font-semibold text-sm">{unit}</span>
                                     </div>
@@ -478,6 +529,13 @@ const LogCommutePage: React.FC = () => {
       </div>
       {isEditModalOpen && editingLog && (
         <EditCommuteLogModal log={editingLog} onClose={() => setIsEditModalOpen(false)} onSave={handleSaveLog} />
+      )}
+      {isShortLeaveModalOpen && logForShortLeave && (
+        <AddShortLeaveModal 
+            log={logForShortLeave}
+            onClose={() => setIsShortLeaveModalOpen(false)}
+            onSave={handleSaveShortLeave}
+        />
       )}
     </>
   );
