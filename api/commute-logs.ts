@@ -19,11 +19,9 @@ async function handleGet(request: VercelRequest, response: VercelResponse, pool:
 
     let dateFilterClause = '';
     if (searchDate) {
-        // Use Asia/Tehran timezone to correctly define the day's boundaries
         dateFilterClause = `cl.entry_time >= ($${paramIndex++}::date AT TIME ZONE 'Asia/Tehran') AND cl.entry_time < ($${paramIndex++}::date + INTERVAL '1 day' AT TIME ZONE 'Asia/Tehran')`;
         params.push(searchDate, searchDate);
     } else {
-        // Default to the current day in Asia/Tehran timezone
         dateFilterClause = `cl.entry_time >= (date_trunc('day', NOW() AT TIME ZONE 'Asia/Tehran')) AND cl.entry_time < (date_trunc('day', NOW() AT TIME ZONE 'Asia/Tehran') + INTERVAL '1 day')`;
     }
 
@@ -47,7 +45,7 @@ async function handleGet(request: VercelRequest, response: VercelResponse, pool:
         
         const dataParams = [...params, pageSize, offset];
         const dataQuery = `
-            SELECT cl.id, cl.personnel_code, cm.full_name, cl.guard_name, cl.entry_time, cl.exit_time 
+            SELECT cl.id, cl.personnel_code, cm.full_name, cl.guard_name, cl.entry_time, cl.exit_time, cl.log_type
             ${baseQuery}
             ORDER BY cl.entry_time DESC
             LIMIT $${params.length + 1} OFFSET $${params.length + 2};
@@ -75,34 +73,32 @@ async function handleGet(request: VercelRequest, response: VercelResponse, pool:
 
 
 // --- POST Handler (Log Commute) ---
-async function handleSinglePost(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
-  const { personnelCode, personnelCodes, guardName, action, timestampOverride, logId } = request.body;
+async function handlePost(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
+  const { personnelCode, personnelCodes, guardName, action, timestampOverride, logId, leaveTime, returnTime } = request.body;
 
-  if (!guardName || !action || !['entry', 'exit'].includes(action)) {
+  if (!guardName || !action) {
     return response.status(400).json({ error: 'اطلاعات ارسالی ناقص یا نامعتبر است.' });
   }
   
-  const effectiveTime = timestampOverride ? `'${new Date(timestampOverride).toISOString()}'` : 'NOW()';
-
-  const client = await pool.connect();
   try {
     if (action === 'entry') {
         const codesToProcess = personnelCodes || (personnelCode ? [personnelCode] : []);
         if (codesToProcess.length === 0) {
             return response.status(400).json({ error: 'کد پرسنلی برای ثبت ورود الزامی است.' });
         }
-
+        
+        const effectiveTime = timestampOverride ? new Date(timestampOverride) : new Date();
+        
         await client.query('BEGIN');
         
-        // Check for open logs in a single query
         const openLogsResult = await client.query(`
             SELECT personnel_code FROM commute_logs 
             WHERE 
                 personnel_code = ANY($1) AND 
                 exit_time IS NULL AND 
-                entry_time >= date_trunc('day', ${effectiveTime}::timestamptz AT TIME ZONE 'Asia/Tehran') AND
-                entry_time < date_trunc('day', ${effectiveTime}::timestamptz AT TIME ZONE 'Asia/Tehran') + interval '1 day';
-        `, [codesToProcess]);
+                entry_time >= date_trunc('day', $2::timestamptz AT TIME ZONE 'Asia/Tehran') AND
+                entry_time < date_trunc('day', $2::timestamptz AT TIME ZONE 'Asia/Tehran') + interval '1 day';
+        `, [codesToProcess, effectiveTime]);
 
         if (openLogsResult.rows.length > 0) {
             await client.query('ROLLBACK');
@@ -110,9 +106,12 @@ async function handleSinglePost(request: VercelRequest, response: VercelResponse
             return response.status(409).json({ error: `برای پرسنل با کدهای (${duplicateCodes}) یک ورود باز در این روز ثبت شده است.` });
         }
         
-        // Bulk insert using a single query
-        const values = codesToProcess.map(code => `('${code}', '${guardName.replace(/'/g, "''")}', ${effectiveTime})`).join(', ');
-        await client.query(`INSERT INTO commute_logs (personnel_code, guard_name, entry_time) VALUES ${values};`);
+        for (const code of codesToProcess) {
+           await client.query(`
+            INSERT INTO commute_logs (personnel_code, guard_name, entry_time) 
+            VALUES ($1, $2, $3);
+           `, [code, guardName, effectiveTime]);
+        }
 
         await client.query('COMMIT');
         return response.status(201).json({ message: `ورود برای ${codesToProcess.length} نفر با موفقیت ثبت شد.` });
@@ -120,6 +119,8 @@ async function handleSinglePost(request: VercelRequest, response: VercelResponse
     
     if (action === 'exit') {
         let openLogId = logId;
+        const effectiveTime = timestampOverride ? new Date(timestampOverride) : new Date();
+        
         if (!openLogId) {
              if (!personnelCode) return response.status(400).json({ error: 'کد پرسنلی برای ثبت خروج الزامی است.' });
              const { rows: openLogs } = await client.query(`
@@ -127,10 +128,10 @@ async function handleSinglePost(request: VercelRequest, response: VercelResponse
                 WHERE 
                     personnel_code = $1 AND 
                     exit_time IS NULL AND 
-                    entry_time >= date_trunc('day', ${effectiveTime}::timestamptz AT TIME ZONE 'Asia/Tehran') AND
-                    entry_time < date_trunc('day', ${effectiveTime}::timestamptz AT TIME ZONE 'Asia/Tehran') + interval '1 day'
+                    entry_time >= date_trunc('day', $2::timestamptz AT TIME ZONE 'Asia/Tehran') AND
+                    entry_time < date_trunc('day', $2::timestamptz AT TIME ZONE 'Asia/Tehran') + interval '1 day'
                 ORDER BY entry_time DESC LIMIT 1;
-            `, [personnelCode]);
+            `, [personnelCode, effectiveTime]);
             if (!openLogs[0]) {
                 return response.status(404).json({ error: 'هیچ ورود بازی برای این پرسنل در این روز یافت نشد تا خروج ثبت شود.' });
             }
@@ -139,22 +140,32 @@ async function handleSinglePost(request: VercelRequest, response: VercelResponse
 
         const { rows: updatedLog } = await client.query(`
             UPDATE commute_logs 
-            SET exit_time = ${effectiveTime}, guard_name = $1
-            WHERE id = $2
+            SET exit_time = $1, guard_name = $2
+            WHERE id = $3
             RETURNING *;
-        `, [guardName, openLogId]);
+        `, [effectiveTime, guardName, openLogId]);
         return response.status(200).json({ message: 'خروج با موفقیت ثبت شد.', log: updatedLog[0] });
+    }
+
+    if (action === 'short_leave') {
+      if (!personnelCode || !guardName || !leaveTime || !returnTime) {
+        return response.status(400).json({ error: 'برای تردد بین‌ساعتی، پرسنل، نگهبان، زمان خروج و بازگشت الزامی است.' });
+      }
+      const { rows } = await client.query(
+        `INSERT INTO commute_logs (personnel_code, guard_name, entry_time, exit_time, log_type)
+         VALUES ($1, $2, $3, $4, 'short_leave') RETURNING *;`,
+        [personnelCode, guardName, returnTime, leaveTime]
+      );
+      return response.status(201).json({ message: 'تردد بین‌ساعتی ثبت شد.', log: rows[0] });
     }
     
     return response.status(400).json({ error: 'عملیات نامعتبر است.' });
 
   } catch (error) {
-    if (client) await client.query('ROLLBACK').catch(rbError => console.error('Rollback failed:', rbError));
+    await client.query('ROLLBACK').catch(rbError => console.error('Rollback failed:', rbError));
     console.error('Database POST for commute_logs failed:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     return response.status(500).json({ error: 'عملیات پایگاه داده با شکست مواجه شد.', details: errorMessage });
-  } finally {
-      if(client) client.release();
   }
 }
 
@@ -175,17 +186,18 @@ async function handleBulkPost(allLogs: BulkLog[], response: VercelResponse, clie
         let paramIndex = 1;
 
         for (const log of validList) {
-            values.push(log.personnel_code, log.guard_name, log.entry_time, log.exit_time || null);
-            valuePlaceholders.push(`($${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++})`);
+            values.push(log.personnel_code, log.guard_name, log.entry_time, log.exit_time || null, log.log_type || 'main');
+            valuePlaceholders.push(`($${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++})`);
         }
         
         const query = `
-            INSERT INTO commute_logs (personnel_code, guard_name, entry_time, exit_time)
+            INSERT INTO commute_logs (personnel_code, guard_name, entry_time, exit_time, log_type)
             VALUES ${valuePlaceholders.join(', ')}
             ON CONFLICT (personnel_code, entry_time) 
             DO UPDATE SET 
                 exit_time = EXCLUDED.exit_time, 
-                guard_name = EXCLUDED.guard_name;
+                guard_name = EXCLUDED.guard_name,
+                log_type = EXCLUDED.log_type;
         `;
 
         await (client as any).query(query, values);
@@ -203,7 +215,7 @@ async function handleBulkPost(allLogs: BulkLog[], response: VercelResponse, clie
 
 // --- PUT Handler (Update) ---
 async function handlePut(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
-  const { id, personnel_code, guard_name, entry_time, exit_time } = request.body;
+  const { id, personnel_code, guard_name, entry_time, exit_time, log_type } = request.body;
   if (!id || !personnel_code || !guard_name || !entry_time) {
       return response.status(400).json({ error: 'اطلاعات ارسالی برای ویرایش ناقص است.' });
   }
@@ -213,7 +225,8 @@ async function handlePut(request: VercelRequest, response: VercelResponse, pool:
               personnel_code = ${personnel_code},
               guard_name = ${guard_name},
               entry_time = ${entry_time},
-              exit_time = ${exit_time}
+              exit_time = ${exit_time},
+              log_type = ${log_type || 'main'}
           WHERE id = ${id}
           RETURNING *;
       `;
@@ -273,27 +286,26 @@ export default async function handler(request: VercelRequest, response: VercelRe
   const pool = createPool({
     connectionString: process.env.POSTGRES_URL,
   });
-
-  switch (request.method) {
-    case 'GET':
-        return await handleGet(request, response, pool);
-    case 'POST': {
-        const client = await pool.connect();
-        try {
-            if (Array.isArray(request.body)) {
-                return await handleBulkPost(request.body, response, client);
-            }
-            return await handleSinglePost(request, response, pool);
-        } finally {
-            client.release();
-        }
+  const client = await pool.connect();
+  try {
+    switch (request.method) {
+      case 'GET':
+          return await handleGet(request, response, pool);
+      case 'POST': {
+          if (Array.isArray(request.body)) {
+              return await handleBulkPost(request.body, response, client);
+          }
+          return await handlePost(request, response, client);
+      }
+      case 'PUT':
+          return await handlePut(request, response, pool);
+      case 'DELETE':
+          return await handleDelete(request, response, pool);
+      default:
+          response.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']);
+          return response.status(405).json({ error: `Method ${request.method} Not Allowed` });
     }
-    case 'PUT':
-        return await handlePut(request, response, pool);
-    case 'DELETE':
-        return await handleDelete(request, response, pool);
-    default:
-        response.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']);
-        return response.status(405).json({ error: `Method ${request.method} Not Allowed` });
+  } finally {
+      client.release();
   }
 }

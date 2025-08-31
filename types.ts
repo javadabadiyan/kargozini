@@ -59,4 +59,5 @@ export interface CommuteLog {
   guard_name: string;
   entry_time: string; // ISO string from DB
   exit_time: string | null; // ISO string from DB or null
+  log_type: string; // 'main' or 'short_leave'
 }

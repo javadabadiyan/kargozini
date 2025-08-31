@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import type { CommutingMember, CommuteLog } from '../../types';
-import { PencilIcon, SearchIcon, TrashIcon, UserIcon } from '../icons/Icons';
+import { PencilIcon, SearchIcon, TrashIcon, PlusCircleIcon } from '../icons/Icons';
 import EditCommuteLogModal from '../EditCommuteLogModal';
+import AddShortLeaveModal from '../AddShortLeaveModal';
 
 declare const XLSX: any;
 
@@ -21,8 +22,9 @@ const LOG_HEADER_MAP: { [key: string]: keyof Omit<CommuteLog, 'id' | 'full_name'
   'نام نگهبان': 'guard_name',
   'زمان ورود': 'entry_time',
   'زمان خروج': 'exit_time',
+  'نوع تردد': 'log_type',
 };
-const EXPORT_HEADERS = ['کد پرسنلی', 'نام و نام خانوادگی', 'نام نگهبان', 'زمان ورود', 'زمان خروج'];
+const EXPORT_HEADERS = ['کد پرسنلی', 'نام و نام خانوادگی', 'نام نگهبان', 'زمان ورود', 'زمان خروج', 'نوع تردد'];
 
 
 // Accurate Jalali to Gregorian conversion function
@@ -83,6 +85,9 @@ const LogCommutePage: React.FC = () => {
 
   const [editingLog, setEditingLog] = useState<CommuteLog | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isShortLeaveModalOpen, setIsShortLeaveModalOpen] = useState(false);
+
+  const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
 
   const toPersianDigits = (s: string | number | null | undefined): string => {
     if (s === null || s === undefined) return '';
@@ -176,17 +181,29 @@ const LogCommutePage: React.FC = () => {
     return { openLogs: open, completedLogs: completed };
   }, [logs]);
 
+  const departments = useMemo(() => {
+    const allDepts = commutingMembers.map(m => m.department || 'بدون واحد');
+    return [...new Set(allDepts)];
+  }, [commutingMembers]);
+
+  const membersFilteredByDept = useMemo(() => {
+    if (selectedDepartments.length === 0) {
+        return commutingMembers;
+    }
+    return commutingMembers.filter(m => selectedDepartments.includes(m.department || 'بدون واحد'));
+  }, [commutingMembers, selectedDepartments]);
+
   const filteredMembers = useMemo(() => {
     if (!searchTerm) return [];
     const lowercasedTerm = searchTerm.toLowerCase();
     const selectedIds = new Set(selectedMembers.map(m => m.id));
-    return commutingMembers.filter(m =>
+    return membersFilteredByDept.filter(m =>
       !selectedIds.has(m.id) && (
         m.full_name.toLowerCase().includes(lowercasedTerm) ||
         m.personnel_code.includes(lowercasedTerm)
       )
     );
-  }, [searchTerm, commutingMembers, selectedMembers]);
+  }, [searchTerm, membersFilteredByDept, selectedMembers]);
 
   const handleToggleMember = (member: CommutingMember) => {
     setSelectedMembers(prev => {
@@ -200,6 +217,12 @@ const LogCommutePage: React.FC = () => {
     setSearchTerm('');
   };
   
+  const handleToggleDepartment = (dept: string) => {
+    setSelectedDepartments(prev => 
+      prev.includes(dept) ? prev.filter(d => d !== dept) : [...prev, dept]
+    );
+  };
+
   const getTimestampFromState = (): string | null => {
       const { year, month, day } = manualDate;
       const { hour, minute } = manualTime;
@@ -239,11 +262,9 @@ const LogCommutePage: React.FC = () => {
       setSelectedMembers([]);
       setSearchTerm('');
       setSearchDate(manualDate);
-      if (dateToIsoString(searchDate) !== dateToIsoString(manualDate)) {
-        await fetchLogs();
-      } else {
-        fetchLogs();
-      }
+      // Await fetchLogs to ensure UI updates after state change
+      await fetchLogs();
+      
     } catch (err) {
       setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطای ناشناخته' });
     } finally {
@@ -316,6 +337,26 @@ const LogCommutePage: React.FC = () => {
      }
   };
 
+    const handleSaveShortLeave = async (logData: { personnelCode: string; guardName: string; leaveTime: string; returnTime: string; }) => {
+        setStatus({ type: 'info', message: 'در حال ثبت تردد بین‌ساعتی...'});
+        try {
+            const response = await fetch('/api/commute-logs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...logData, action: 'short_leave' }),
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || 'خطا در ثبت');
+            setStatus({ type: 'success', message: data.message });
+            setIsShortLeaveModalOpen(false);
+            await fetchLogs();
+        } catch(err) {
+            setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطای ناشناخته' });
+        } finally {
+            setTimeout(() => setStatus(null), 5000);
+        }
+    };
+
     const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
@@ -362,13 +403,13 @@ const LogCommutePage: React.FC = () => {
     };
 
     const handleDownloadSample = () => {
-        const headers = ['کد پرسنلی', 'نام نگهبان', 'زمان ورود', 'زمان خروج'];
+        const headers = ['کد پرسنلی', 'نام نگهبان', 'زمان ورود', 'زمان خروج', 'نوع تردد'];
         const sampleData = [
-            ['1001', 'شیفت A | محسن صادقی گوغری', '2023-10-26T08:00:00', '2023-10-26T16:00:00'],
-            ['1002', 'شیفت B | عباس فیروز آبادی', '2023-10-26T16:00:00', '2023-10-27T00:00:00']
+            ['1001', 'شیفت A | محسن صادقی گوغری', '2023-10-26T08:00:00', '2023-10-26T16:00:00', 'main'],
+            ['1002', 'شیفت B | عباس فیروز آبادی', '2023-10-26T12:00:00', '2023-10-26T13:00:00', 'short_leave']
         ];
         const ws = XLSX.utils.aoa_to_sheet([headers, ...sampleData.map(row => row.map(cell => cell.toString()))]);
-        ws['!cols'] = [{wch:15}, {wch:30}, {wch:25}, {wch:25}];
+        ws['!cols'] = [{wch:15}, {wch:30}, {wch:25}, {wch:25}, {wch:15}];
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'نمونه');
         XLSX.writeFile(wb, 'Sample_CommuteLogs_File.xlsx');
@@ -389,6 +430,7 @@ const LogCommutePage: React.FC = () => {
             'نام نگهبان': log.guard_name,
             'زمان ورود': log.entry_time ? new Date(log.entry_time).toLocaleString('fa-IR', {timeZone: 'Asia/Tehran'}) : '',
             'زمان خروج': log.exit_time ? new Date(log.exit_time).toLocaleString('fa-IR', {timeZone: 'Asia/Tehran'}) : '',
+            'نوع تردد': log.log_type === 'short_leave' ? 'بین‌ساعتی' : 'اصلی',
         }));
         
         const worksheet = XLSX.utils.json_to_sheet(dataToExport, { header: EXPORT_HEADERS });
@@ -420,6 +462,14 @@ const LogCommutePage: React.FC = () => {
             onSave={handleSaveLog} 
         />
       }
+      {isShortLeaveModalOpen && 
+        <AddShortLeaveModal
+            members={commutingMembers}
+            guards={GUARDS}
+            onClose={() => setIsShortLeaveModalOpen(false)}
+            onSave={handleSaveShortLeave}
+        />
+      }
       
       {/* Right Column: Form */}
       <div className="lg:col-span-2 bg-white p-6 rounded-lg shadow-lg space-y-6 h-fit sticky top-6">
@@ -440,11 +490,8 @@ const LogCommutePage: React.FC = () => {
             </div>
         </div>
         <div className="p-4 border border-gray-200 rounded-lg bg-slate-50 space-y-3">
-          <h4 className="font-semibold text-gray-700 text-sm">تاریخ و زمان (اختیاری)</h4>
-          <div className="flex items-center gap-2">
-            <button onClick={() => { const today=getTodayPersian(); setManualDate(today);}} className="text-sm text-blue-600 hover:underline">امروز</button>
-            <button onClick={() => {setManualDate({year:'', month:'', day:''}); setManualTime({hour:'', minute:''})}} className="text-sm text-gray-500 hover:underline">پاک کردن</button>
-          </div>
+          <h4 className="font-semibold text-gray-700 text-sm">تاریخ و زمان ورود (اختیاری)</h4>
+          <p className="text-xs text-gray-500">اگر خالی باشد، زمان فعلی سیستم ثبت می‌شود.</p>
           <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
               <select value={manualDate.day} onChange={e => setManualDate(p => ({...p, day: e.target.value}))} className="md:col-span-1 p-2 border rounded-md text-sm"><option value="" disabled>روز</option>{DAYS.map(d => <option key={d} value={d}>{toPersianDigits(d)}</option>)}</select>
               <select value={manualDate.month} onChange={e => setManualDate(p => ({...p, month: e.target.value}))} className="md:col-span-2 p-2 border rounded-md text-sm"><option value="" disabled>ماه</option>{PERSIAN_MONTHS.map((m, i) => <option key={m} value={i+1}>{m}</option>)}</select>
@@ -457,6 +504,20 @@ const LogCommutePage: React.FC = () => {
         </div>
         <div className="space-y-4">
             <label htmlFor="personnel-search" className="block text-sm font-medium text-gray-700">انتخاب پرسنل ({toPersianDigits(selectedMembers.length)} نفر)</label>
+            
+            <div className="p-3 border rounded-md bg-slate-50 space-y-2">
+                <p className="text-xs font-semibold text-gray-600">فیلتر بر اساس واحد</p>
+                <div className="flex flex-wrap gap-2">
+                    {departments.map(dept => (
+                        <label key={dept} className="flex items-center space-x-2 space-x-reverse text-xs cursor-pointer">
+                            <input type="checkbox" checked={selectedDepartments.includes(dept)} onChange={() => handleToggleDepartment(dept)} className="form-checkbox h-4 w-4 text-blue-600" />
+                            <span>{dept}</span>
+                        </label>
+                    ))}
+                </div>
+                 {selectedDepartments.length > 0 && <button onClick={() => setSelectedDepartments([])} className="text-xs text-red-600 hover:underline">پاک کردن فیلترها</button>}
+            </div>
+
             <div className="relative">
               <input type="text" id="personnel-search" placeholder="جستجوی پرسنل..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} onFocus={() => setIsSearchFocused(true)} onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)} className="w-full pl-4 pr-10 py-2 border rounded-md" autoComplete="off" />
               <SearchIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -479,7 +540,7 @@ const LogCommutePage: React.FC = () => {
              {selectedMembers.length > 0 && (
                  <div>
                     <button onClick={() => setSelectedMembers([])} className="text-xs text-red-600 hover:underline">پاک کردن انتخاب</button>
-                    <button onClick={() => setSelectedMembers(commutingMembers)} className="text-xs text-blue-600 hover:underline mr-4">انتخاب همه</button>
+                    <button onClick={() => setSelectedMembers(membersFilteredByDept)} className="text-xs text-blue-600 hover:underline mr-4">انتخاب همه موارد فیلتر شده</button>
                 </div>
             )}
         </div>
@@ -496,9 +557,10 @@ const LogCommutePage: React.FC = () => {
             <div className="flex flex-wrap items-center justify-between gap-4 mb-4 border-b-2 border-gray-100 pb-4">
                <h2 className="text-2xl font-bold text-gray-800">ترددهای ثبت شده در {toPersianDigits(searchDate.day)}/{toPersianDigits(searchDate.month)}/{toPersianDigits(searchDate.year)}</h2>
                <div className="flex items-center gap-2 flex-wrap">
-                  <input type="file" accept=".xlsx, .xls" ref={fileInputRef} onChange={handleFileImport} className="hidden" id="excel-import-logs" />
-                  <label htmlFor="excel-import-logs" className="px-3 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 cursor-pointer">ورود از اکسل</label>
-                  <button onClick={handleDownloadSample} className="px-3 py-2 text-sm bg-gray-100 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-200">دانلود نمونه</button>
+                  <button onClick={() => setIsShortLeaveModalOpen(true)} className="flex items-center gap-2 px-3 py-2 text-sm bg-purple-600 text-white rounded-lg hover:bg-purple-700">
+                    <PlusCircleIcon className="w-5 h-5"/>
+                    <span>ثبت تردد بین‌ساعتی</span>
+                  </button>
                   <button onClick={handleExport} className="px-3 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">خروجی اکسل</button>
                </div>
             </div>
@@ -543,17 +605,23 @@ const LogCommutePage: React.FC = () => {
              <div className="overflow-x-auto border rounded-lg">
               <table className="min-w-full"><thead className="bg-gray-50"><tr>
                     <th className="px-4 py-2 text-right text-xs font-bold text-gray-600 uppercase">پرسنل</th>
-                    <th className="px-4 py-2 text-right text-xs font-bold text-gray-600 uppercase">ورود</th>
+                    <th className="px-4 py-2 text-right text-xs font-bold text-gray-600 uppercase">نوع</th>
                     <th className="px-4 py-2 text-right text-xs font-bold text-gray-600 uppercase">خروج</th>
+                    <th className="px-4 py-2 text-right text-xs font-bold text-gray-600 uppercase">ورود</th>
                     <th className="px-4 py-2 text-center text-xs font-bold text-gray-600 uppercase">عملیات</th>
                 </tr></thead><tbody className="bg-white divide-y divide-gray-200">
-                  {loadingLogs && <tr><td colSpan={4} className="text-center p-4">در حال بارگذاری...</td></tr>}
-                  {!loadingLogs && completedLogs.length === 0 && (<tr><td colSpan={4} className="text-center p-4 text-gray-500">هیچ تردد تکمیل‌شده‌ای یافت نشد.</td></tr>)}
+                  {loadingLogs && <tr><td colSpan={5} className="text-center p-4">در حال بارگذاری...</td></tr>}
+                  {!loadingLogs && completedLogs.length === 0 && (<tr><td colSpan={5} className="text-center p-4 text-gray-500">هیچ تردد تکمیل‌شده‌ای یافت نشد.</td></tr>)}
                   {!loadingLogs && completedLogs.map(log => (
                     <tr key={log.id} className="hover:bg-slate-50">
                       <td className="px-4 py-2 whitespace-nowrap text-sm">{log.full_name || log.personnel_code}</td>
-                      <td className="px-4 py-2 font-mono">{formatTime(log.entry_time)}</td>
-                      <td className="px-4 py-2 font-mono">{formatTime(log.exit_time)}</td>
+                      <td className="px-4 py-2 whitespace-nowrap text-sm">
+                        <span className={`px-2 py-1 text-xs rounded-full ${log.log_type === 'short_leave' ? 'bg-purple-100 text-purple-800' : 'bg-green-100 text-green-800'}`}>
+                          {log.log_type === 'short_leave' ? 'بین‌ساعتی' : 'اصلی'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 font-mono">{formatTime(log.log_type === 'main' ? log.entry_time : log.exit_time)}</td>
+                      <td className="px-4 py-2 font-mono">{formatTime(log.log_type === 'main' ? log.exit_time : log.entry_time)}</td>
                       <td className="px-4 py-2 whitespace-nowrap text-sm text-center">
                         <button onClick={() => {setEditingLog(log); setIsEditModalOpen(true);}} className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-full"><PencilIcon className="w-5 h-5"/></button>
                         <button onClick={() => handleDeleteLog(log.id)} className="p-1 text-red-600 hover:text-red-800 hover:bg-red-100 rounded-full mr-2"><TrashIcon className="w-5 h-5"/></button>
