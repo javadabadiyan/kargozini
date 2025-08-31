@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import type { CommutingMember, CommuteLog } from '../../types';
-import { SearchIcon, PencilIcon, TrashIcon, PlusCircleIcon } from '../icons/Icons';
+import { SearchIcon, PencilIcon, TrashIcon, PlusCircleIcon, ArrowRightOnRectangleIcon } from '../icons/Icons';
 import EditCommuteLogModal from '../EditCommuteLogModal';
 import AddShortLeaveModal from '../AddShortLeaveModal';
 
@@ -42,7 +42,7 @@ const useDebounce = <T,>(value: T, delay: number): T => {
 };
 
 const formatTime = (isoString: string | null) => {
-    if (!isoString) return ' - ';
+    if (!isoString) return '--:--';
     try {
         const date = new Date(isoString);
         const time = date.toLocaleTimeString('fa-IR', {
@@ -58,7 +58,6 @@ const formatTime = (isoString: string | null) => {
 };
 
 const LogCommutePage: React.FC = () => {
-    const [action, setAction] = useState<'entry' | 'exit'>('entry');
     const [members, setMembers] = useState<CommutingMember[]>([]);
     const [groupedPersonnel, setGroupedPersonnel] = useState<{ [key: string]: CommutingMember[] }>({});
     const [selectedPersonnelCodes, setSelectedPersonnelCodes] = useState<string[]>([]);
@@ -73,9 +72,6 @@ const LogCommutePage: React.FC = () => {
     const [logs, setLogs] = useState<CommuteLog[]>([]);
     const [historyLoading, setHistoryLoading] = useState(true);
     const [historyError, setHistoryError] = useState<string | null>(null);
-    const [currentPage, setCurrentPage] = useState(1);
-    const [totalPages, setTotalPages] = useState(0);
-    const [searchDate, setSearchDate] = useState(new Date());
     const [searchJalaliDate, setSearchJalaliDate] = useState({ year: '', month: '', day: '' });
     const [searchTerm, setSearchTerm] = useState('');
     const debouncedSearchTerm = useDebounce(searchTerm, 500);
@@ -92,23 +88,20 @@ const LogCommutePage: React.FC = () => {
         if (!personnelSearchTerm.trim()) {
             return groupedPersonnel;
         }
-
         const lowercasedTerm = personnelSearchTerm.toLowerCase().trim();
         const filteredGroups: { [key: string]: CommutingMember[] } = {};
-
         for (const unit in groupedPersonnel) {
             const filteredMembers = groupedPersonnel[unit].filter(member =>
                 member.full_name.toLowerCase().includes(lowercasedTerm) ||
                 member.personnel_code.includes(lowercasedTerm)
             );
-
             if (filteredMembers.length > 0) {
                 filteredGroups[unit] = filteredMembers;
             }
         }
         return filteredGroups;
     }, [personnelSearchTerm, groupedPersonnel]);
-
+    
     const resetDateAndTime = useCallback(() => {
         const now = new Date();
         const formatter = new Intl.DateTimeFormat('fa-IR-u-nu-latn', {
@@ -129,34 +122,17 @@ const LogCommutePage: React.FC = () => {
 
     useEffect(() => {
         resetDateAndTime();
-    }, [resetDateAndTime]);
-
-    useEffect(() => {
         const now = new Date();
         const formatter = new Intl.DateTimeFormat('fa-IR-u-nu-latn', {
             year: 'numeric', month: 'numeric', day: 'numeric', timeZone: 'Asia/Tehran'
         });
         const parts = formatter.formatToParts(now);
-        const initialJalaliDate = {
+        setSearchJalaliDate({
             year: parts.find(p => p.type === 'year')?.value || '',
             month: parts.find(p => p.type === 'month')?.value || '',
             day: parts.find(p => p.type === 'day')?.value || '',
-        };
-        setSearchJalaliDate(initialJalaliDate);
-    }, []);
-
-     useEffect(() => {
-        const { year, month, day } = searchJalaliDate;
-        if (year && month && day) {
-            try {
-                const { gy, gm, gd } = jalaliToGregorian(year, month, day);
-                const newSearchDate = new Date(Date.UTC(gy, gm - 1, gd));
-                setSearchDate(newSearchDate);
-            } catch (e) {
-                console.error("Error converting Jalali to Gregorian for search date", e);
-            }
-        }
-    }, [searchJalaliDate]);
+        });
+    }, [resetDateAndTime]);
 
     const fetchCommutingMembers = useCallback(async () => {
         try {
@@ -177,43 +153,42 @@ const LogCommutePage: React.FC = () => {
         }
     }, []);
     
-    const fetchLogs = useCallback(async (page: number, sDate: Date, search: string) => {
+    const fetchLogs = useCallback(async () => {
         setHistoryLoading(true);
         setHistoryError(null);
         try {
-            const dateString = `${sDate.getUTCFullYear()}-${String(sDate.getUTCMonth() + 1).padStart(2, '0')}-${String(sDate.getUTCDate()).padStart(2, '0')}`;
-            const response = await fetch(`/api/commute-logs?page=${page}&searchDate=${dateString}&searchTerm=${encodeURIComponent(search)}`);
+            const { year, month, day } = searchJalaliDate;
+            if(!year || !month || !day) return;
+            const {gy, gm, gd} = jalaliToGregorian(year, month, day);
+            const dateString = `${gy}-${String(gm).padStart(2, '0')}-${String(gd).padStart(2, '0')}`;
+            
+            const response = await fetch(`/api/commute-logs?searchDate=${dateString}&searchTerm=${encodeURIComponent(debouncedSearchTerm)}&pageSize=100`);
             if (!response.ok) {
                 const errData = await response.json();
                 throw new Error(errData.error || 'خطا در دریافت تاریخچه تردد');
             }
             const data = await response.json();
             setLogs(data.logs || []);
-            setTotalPages(Math.ceil((data.totalCount || 0) / 10));
         } catch (err) {
             setHistoryError(err instanceof Error ? err.message : 'خطای ناشناخته');
         } finally {
             setHistoryLoading(false);
         }
-    }, []);
+    }, [searchJalaliDate, debouncedSearchTerm]);
 
     useEffect(() => {
         fetchCommutingMembers();
     }, [fetchCommutingMembers]);
 
     useEffect(() => {
-        fetchLogs(currentPage, searchDate, debouncedSearchTerm);
-    }, [currentPage, searchDate, debouncedSearchTerm, fetchLogs, refreshKey]);
+        fetchLogs();
+    }, [fetchLogs, refreshKey]);
 
-    const handleLogSubmit = async (e: React.FormEvent) => {
+    const handleLogEntry = async (e: React.FormEvent) => {
         e.preventDefault();
         if (selectedPersonnelCodes.length === 0) {
             setStatus({ type: 'error', message: 'لطفاً حداقل یک پرسنل را انتخاب کنید.' }); return;
         }
-        if (!selectedGuard) {
-            setStatus({ type: 'error', message: 'لطفاً شیفت کاری (نگهبان) را انتخاب کنید.' }); return;
-        }
-
         const { year, month, day } = date;
         const { hour, minute } = time;
         let timestampOverride = null;
@@ -225,12 +200,12 @@ const LogCommutePage: React.FC = () => {
         }
 
         setIsSubmitting(true);
-        setStatus({ type: 'info', message: 'در حال ثبت تردد...' });
+        setStatus({ type: 'info', message: 'در حال ثبت ورود...' });
         try {
             const response = await fetch('/api/commute-logs', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ personnelCodes: selectedPersonnelCodes, guardName: selectedGuard, action, timestampOverride }),
+                body: JSON.stringify({ personnelCodes: selectedPersonnelCodes, guardName: selectedGuard, action: 'entry', timestampOverride }),
             });
             const result = await response.json();
             if (!response.ok) throw new Error(result.error || 'خطا در ثبت تردد');
@@ -244,16 +219,34 @@ const LogCommutePage: React.FC = () => {
             setTimeout(() => setStatus(null), 5000);
         }
     };
+    
+    const handleLogExit = async (personnelCode: string) => {
+        if (!window.confirm(`آیا از ثبت خروج برای این پرسنل با زمان فعلی اطمینان دارید؟`)) return;
+        
+        setStatus({ type: 'info', message: 'در حال ثبت خروج...' });
+        try {
+            const response = await fetch('/api/commute-logs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ personnelCodes: [personnelCode], guardName: selectedGuard, action: 'exit' }),
+            });
+             const result = await response.json();
+            if (!response.ok) throw new Error(result.error || 'خطا در ثبت خروج');
+            setStatus({ type: 'success', message: result.message });
+            setRefreshKey(k => k + 1);
+        } catch (error) {
+             setStatus({ type: 'error', message: error instanceof Error ? error.message : 'خطای ناشناخته' });
+        } finally {
+             setTimeout(() => setStatus(null), 5000);
+        }
+    };
 
-    const handlePersonnelSelection = (code: string) => setSelectedPersonnelCodes(prev => prev.includes(code) ? prev.filter(c => c !== code) : [...prev, code]);
     const handleUnitSelection = (unit: string, select: boolean) => {
         const unitCodes = groupedPersonnel[unit]?.map(p => p.personnel_code) || [];
         if (select) setSelectedPersonnelCodes(prev => [...new Set([...prev, ...unitCodes])]);
         else setSelectedPersonnelCodes(prev => prev.filter(c => !unitCodes.includes(c)));
     };
     
-    const handleClearDate = (e: React.MouseEvent) => { e.preventDefault(); setDate({ year: '', month: '', day: '' }); };
-
     const handleEditClick = (log: CommuteLog) => { setEditingLog(log); setIsEditModalOpen(true); };
     const handleCloseModal = () => { setIsEditModalOpen(false); setEditingLog(null); setIsShortLeaveModalOpen(false); };
     
@@ -289,64 +282,90 @@ const LogCommutePage: React.FC = () => {
         }
     };
     
-    const handleSaveShortLeave = async (data: any) => {
-        try {
-            const response = await fetch('/api/commute-logs', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ ...data, action: 'short_leave' }),
-            });
-            const result = await response.json();
-            if (!response.ok) throw new Error(result.error || 'خطا در ثبت تردد بین‌ساعتی');
-            setStatus({ type: 'success', message: result.message });
-            setRefreshKey(k => k + 1);
-            handleCloseModal();
-        } catch (err) {
-             throw err; // Propagate error to modal
-        }
-    }
-
     return (
     <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        <div className="lg:col-span-3 bg-white p-6 rounded-lg shadow-lg">
+             <div className="flex flex-wrap items-center justify-between gap-4 mb-6 border-b-2 border-gray-100 pb-4">
+                 <h2 className="text-xl font-bold text-gray-800">
+                    ترددهای ثبت شده در {toPersianDigits(searchJalaliDate.year)}/{toPersianDigits(searchJalaliDate.month)}/{toPersianDigits(searchJalaliDate.day)}
+                </h2>
+                 <div className="flex items-center gap-2">
+                    <button onClick={() => {}} className="px-3 py-2 bg-green-100 text-green-800 text-sm rounded-lg hover:bg-green-200 transition-colors">ورود از اکسل</button>
+                    <a href="#" className="text-sm text-blue-600 hover:underline">دانلود نمونه فایل اکسل</a>
+                 </div>
+             </div>
+             
+             <div className="flex flex-wrap gap-4 mb-4">
+                <div className="flex items-center gap-2">
+                    <select value={searchJalaliDate.day} onChange={e => setSearchJalaliDate(p => ({...p, day: e.target.value}))} className="p-2 border border-gray-300 rounded-lg text-sm w-20 bg-white"><option value="" disabled>روز</option>{DAYS.map(d => <option key={d} value={d}>{toPersianDigits(d)}</option>)}</select>
+                    <select value={searchJalaliDate.month} onChange={e => setSearchJalaliDate(p => ({...p, month: e.target.value}))} className="p-2 border border-gray-300 rounded-lg text-sm w-32 bg-white"><option value="" disabled>ماه</option>{PERSIAN_MONTHS.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}</select>
+                    <select value={searchJalaliDate.year} onChange={e => setSearchJalaliDate(p => ({...p, year: e.target.value}))} className="p-2 border border-gray-300 rounded-lg text-sm w-24 bg-white"><option value="" disabled>سال</option>{YEARS.map(y => <option key={y} value={y}>{toPersianDigits(y)}</option>)}</select>
+                </div>
+                <div className="relative flex-grow">
+                    <input type="text" placeholder="جستجوی پرسنل در لیست روزانه..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pr-10 pl-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+                    <SearchIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                </div>
+            </div>
+
+            <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-slate-50">
+                        <tr>
+                            {['پرسنل', 'شیفت', 'ورود', 'خروج', 'عملیات'].map(h => <th key={h} className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider whitespace-nowrap">{h}</th>)}
+                        </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                        {historyLoading && <tr><td colSpan={5} className="text-center p-4">در حال بارگذاری...</td></tr>}
+                        {historyError && <tr><td colSpan={5} className="text-center p-4 text-red-500">{historyError}</td></tr>}
+                        {!historyLoading && !historyError && logs.map(log => (
+                            <tr key={log.id} className="hover:bg-slate-50">
+                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-800 font-medium">
+                                    <div>{log.full_name || log.personnel_code}</div>
+                                    <div className="text-xs text-gray-500">{log.full_name && `کد: ${toPersianDigits(log.personnel_code)}`}</div>
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">{log.guard_name?.split('|')[0].trim()}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 tracking-wider">{formatTime(log.entry_time)}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 tracking-wider">{formatTime(log.exit_time)}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm text-center space-x-1 space-x-reverse">
+                                    {log.exit_time === null && (
+                                      <button onClick={() => handleLogExit(log.personnel_code)} title="ثبت خروج" className="p-1 text-green-600 hover:text-green-800 hover:bg-green-100 rounded-full transition-colors"><ArrowRightOnRectangleIcon className="w-5 h-5" /></button>
+                                    )}
+                                    <button onClick={() => handleEditClick(log)} title="ویرایش" className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-full transition-colors"><PencilIcon className="w-5 h-5" /></button>
+                                    <button onClick={() => handleDeleteLog(log.id)} title="حذف" className="p-1 text-red-600 hover:text-red-800 hover:bg-red-100 rounded-full transition-colors"><TrashIcon className="w-5 h-5" /></button>
+                                </td>
+                            </tr>
+                        ))}
+                        {!historyLoading && !historyError && logs.length === 0 && (
+                            <tr><td colSpan={5} className="text-center p-4 text-gray-500">هیچ ترددی برای تاریخ انتخاب شده یافت نشد.</td></tr>
+                        )}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
         <div className="lg:col-span-2">
             <div className="bg-white p-6 rounded-lg shadow-lg sticky top-6">
-                <form onSubmit={handleLogSubmit} className="space-y-6">
-                    <div>
-                        <div className="flex justify-between items-center mb-2"><label className="text-sm font-semibold text-gray-700">نوع عملیات</label></div>
-                        <div className="flex bg-slate-100 p-1 rounded-lg">
-                            <button type="button" onClick={() => setAction('entry')} className={`flex-1 py-2 text-sm font-semibold rounded-md transition-all ${action === 'entry' ? 'bg-white shadow text-blue-600' : 'text-slate-500'}`}>ثبت ورود</button>
-                            <button type="button" onClick={() => setAction('exit')} className={`flex-1 py-2 text-sm font-semibold rounded-md transition-all ${action === 'exit' ? 'bg-white shadow text-blue-600' : 'text-slate-500'}`}>ثبت خروج</button>
-                        </div>
-                    </div>
-                    
-                    <div>
+                <h3 className="text-xl font-bold text-gray-800 mb-1">ثبت تردد</h3>
+                <p className="text-sm text-gray-500 mb-6">ورود و خروج پرسنل را در شیفت‌های مختلف ثبت کنید.</p>
+                <form onSubmit={handleLogEntry} className="space-y-5">
+                     <div>
                         <label className="block text-sm font-semibold text-gray-700 mb-2">تاریخ</label>
                         <div className="grid grid-cols-3 gap-2">
                             <select value={date.day} onChange={e => setDate(p => ({...p, day: e.target.value}))} className="w-full px-3 py-2 text-sm text-gray-700 bg-gray-50 border border-gray-300 rounded-md"><option value="" disabled>روز</option>{DAYS.map(d => <option key={d} value={d}>{toPersianDigits(d)}</option>)}</select>
                             <select value={date.month} onChange={e => setDate(p => ({...p, month: e.target.value}))} className="w-full px-3 py-2 text-sm text-gray-700 bg-gray-50 border border-gray-300 rounded-md"><option value="" disabled>ماه</option>{PERSIAN_MONTHS.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}</select>
                             <select value={date.year} onChange={e => setDate(p => ({...p, year: e.target.value}))} className="w-full px-3 py-2 text-sm text-gray-700 bg-gray-50 border border-gray-300 rounded-md"><option value="" disabled>سال</option>{YEARS.map(y => <option key={y} value={y}>{toPersianDigits(y)}</option>)}</select>
                         </div>
-                        <div className="flex justify-start gap-4 mt-2 text-xs">
+                        <div className="flex justify-start mt-2 text-xs">
                            <button type="button" onClick={resetDateAndTime} className="text-blue-600 hover:underline">امروز</button>
-                           <button type="button" onClick={handleClearDate} className="text-gray-500 hover:underline">پاک کردن</button>
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className={action !== 'entry' ? 'opacity-40' : ''}>
-                           <label className="block text-sm font-semibold text-gray-700 mb-2">ساعت ورود</label>
-                           <div className="flex gap-2">
-                             <select value={time.hour} onChange={e => setTime(p => ({...p, hour: e.target.value}))} disabled={action !== 'entry'} className="w-full px-3 py-2 text-sm text-gray-700 bg-gray-50 border border-gray-300 rounded-md disabled:bg-gray-200"><option value="">ساعت</option>{HOURS.map(h => <option key={h} value={h}>{toPersianDigits(String(h).padStart(2,'0'))}</option>)}</select>
-                             <select value={time.minute} onChange={e => setTime(p => ({...p, minute: e.target.value}))} disabled={action !== 'entry'} className="w-full px-3 py-2 text-sm text-gray-700 bg-gray-50 border border-gray-300 rounded-md disabled:bg-gray-200"><option value="">دقیقه</option>{MINUTES.map(m => <option key={m} value={m}>{toPersianDigits(String(m).padStart(2,'0'))}</option>)}</select>
-                           </div>
-                        </div>
-                         <div className={action !== 'exit' ? 'opacity-40' : ''}>
-                           <label className="block text-sm font-semibold text-gray-700 mb-2">ساعت خروج</label>
-                           <div className="flex gap-2">
-                             <select value={time.hour} onChange={e => setTime(p => ({...p, hour: e.target.value}))} disabled={action !== 'exit'} className="w-full px-3 py-2 text-sm text-gray-700 bg-gray-50 border border-gray-300 rounded-md disabled:bg-gray-200"><option value="">ساعت</option>{HOURS.map(h => <option key={h} value={h}>{toPersianDigits(String(h).padStart(2,'0'))}</option>)}</select>
-                             <select value={time.minute} onChange={e => setTime(p => ({...p, minute: e.target.value}))} disabled={action !== 'exit'} className="w-full px-3 py-2 text-sm text-gray-700 bg-gray-50 border border-gray-300 rounded-md disabled:bg-gray-200"><option value="">دقیقه</option>{MINUTES.map(m => <option key={m} value={m}>{toPersianDigits(String(m).padStart(2,'0'))}</option>)}</select>
-                           </div>
-                        </div>
+                    <div>
+                       <label className="block text-sm font-semibold text-gray-700 mb-2">ساعت ورود</label>
+                       <div className="flex gap-2">
+                         <select value={time.hour} onChange={e => setTime(p => ({...p, hour: e.target.value}))} className="w-full px-3 py-2 text-sm text-gray-700 bg-gray-50 border border-gray-300 rounded-md"><option value="">ساعت</option>{HOURS.map(h => <option key={h} value={h}>{toPersianDigits(String(h).padStart(2,'0'))}</option>)}</select>
+                         <select value={time.minute} onChange={e => setTime(p => ({...p, minute: e.target.value}))} className="w-full px-3 py-2 text-sm text-gray-700 bg-gray-50 border border-gray-300 rounded-md"><option value="">دقیقه</option>{MINUTES.map(m => <option key={m} value={m}>{toPersianDigits(String(m).padStart(2,'0'))}</option>)}</select>
+                       </div>
                     </div>
                     
                     <div>
@@ -372,24 +391,19 @@ const LogCommutePage: React.FC = () => {
                            />
                            <SearchIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                         </div>
-                         <div className="border rounded-lg p-2 max-h-60 overflow-y-auto bg-slate-50">
-                            {Object.keys(filteredGroupedPersonnel).length === 0 && (
-                                <p className="text-center text-sm text-gray-500 py-4">پرسنلی یافت نشد.</p>
-                            )}
-                            {Object.entries(filteredGroupedPersonnel).sort(([a], [b]) => a.localeCompare(b)).map(([unit, personnelInUnit]) => {
-                                const originalUnitPersonnel = groupedPersonnel[unit] || [];
-                                return (
+                         <div className="border rounded-lg p-2 max-h-48 overflow-y-auto bg-slate-50">
+                            {Object.keys(filteredGroupedPersonnel).length === 0 && <p className="text-center text-sm text-gray-500 py-4">پرسنلی یافت نشد.</p>}
+                            {Object.entries(filteredGroupedPersonnel).sort(([a], [b]) => a.localeCompare(b)).map(([unit, personnelInUnit]) => (
                                 <details key={unit} className="group" open>
                                     <summary className="flex items-center justify-between p-2 cursor-pointer hover:bg-slate-200 rounded-md list-none">
                                         <div className="flex items-center">
                                             <input type="checkbox" className="ml-2 w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
-                                                checked={originalUnitPersonnel.length > 0 && originalUnitPersonnel.every(p => selectedPersonnelCodes.includes(p.personnel_code))}
+                                                checked={(groupedPersonnel[unit] || []).every(p => selectedPersonnelCodes.includes(p.personnel_code))}
                                                 onChange={(e) => handleUnitSelection(unit, e.target.checked)}
                                                 onClick={(e) => e.stopPropagation()}
                                             />
-                                            <span className="font-semibold text-sm">{unit} ({toPersianDigits(originalUnitPersonnel.length)})</span>
+                                            <span className="font-semibold text-sm">{unit}</span>
                                         </div>
-                                         <div className="text-xs text-gray-500">{toPersianDigits(originalUnitPersonnel.filter(p => selectedPersonnelCodes.includes(p.personnel_code)).length)} / {toPersianDigits(originalUnitPersonnel.length)}</div>
                                     </summary>
                                     <ul className="pr-6 space-y-1 py-1">
                                         {personnelInUnit.map(p => (
@@ -397,15 +411,18 @@ const LogCommutePage: React.FC = () => {
                                                 <label className="flex items-center p-1.5 rounded-md hover:bg-slate-200 cursor-pointer">
                                                     <input type="checkbox" className="ml-2 w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
                                                         checked={selectedPersonnelCodes.includes(p.personnel_code)}
-                                                        onChange={() => handlePersonnelSelection(p.personnel_code)}
+                                                        onChange={() => setSelectedPersonnelCodes(prev => prev.includes(p.personnel_code) ? prev.filter(c => c !== p.personnel_code) : [...prev, p.personnel_code])}
                                                     />
-                                                    <span className="text-sm text-gray-700">{p.full_name}</span>
+                                                    <div>
+                                                        <span className="text-sm text-gray-800">{p.full_name}</span>
+                                                        <div className="text-xs text-gray-500">کد: {toPersianDigits(p.personnel_code)}</div>
+                                                    </div>
                                                 </label>
                                             </li>
                                         ))}
                                     </ul>
                                 </details>
-                            )})}
+                            ))}
                         </div>
                     </div>
                     
@@ -413,77 +430,17 @@ const LogCommutePage: React.FC = () => {
                         status.type === 'success' ? 'bg-green-100 text-green-800' : status.type === 'error' ? 'bg-red-100 text-red-800' : 'bg-blue-100 text-blue-800'
                     }`}>{status.message}</div>)}
                     <button type="submit" disabled={isSubmitting || selectedPersonnelCodes.length === 0} className="w-full py-3 text-lg font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-all transform hover:scale-105 disabled:bg-gray-400 disabled:scale-100">
-                      {isSubmitting ? 'در حال ثبت...' : `ثبت ${action === 'entry' ? 'ورود' : 'خروج'} برای ${toPersianDigits(selectedPersonnelCodes.length)} نفر`}
+                      {isSubmitting ? 'در حال ثبت...' : `ثبت ورود برای ${toPersianDigits(selectedPersonnelCodes.length)} نفر`}
                     </button>
                 </form>
             </div>
-        </div>
-
-        <div className="lg:col-span-3 bg-white p-6 rounded-lg shadow-lg">
-             <div className="flex flex-wrap items-center justify-between gap-4 mb-6 border-b-2 border-gray-100 pb-4">
-                 <h2 className="text-2xl font-bold text-gray-800">ترددهای ثبت شده</h2>
-                 <button onClick={() => setIsShortLeaveModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700 transition-colors">
-                     <PlusCircleIcon className="w-5 h-5" />
-                     ثبت تردد بین‌ساعتی
-                 </button>
-             </div>
-             
-             <div className="flex flex-wrap gap-4 mb-4">
-                <div className="flex items-center gap-2">
-                    <label className="text-sm font-medium text-gray-700">تاریخ:</label>
-                    <select value={searchJalaliDate.day} onChange={e => setSearchJalaliDate(p => ({...p, day: e.target.value}))} className="p-2 border border-gray-300 rounded-lg text-sm w-20 bg-white"><option value="" disabled>روز</option>{DAYS.map(d => <option key={d} value={d}>{toPersianDigits(d)}</option>)}</select>
-                    <select value={searchJalaliDate.month} onChange={e => setSearchJalaliDate(p => ({...p, month: e.target.value}))} className="p-2 border border-gray-300 rounded-lg text-sm w-32 bg-white"><option value="" disabled>ماه</option>{PERSIAN_MONTHS.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}</select>
-                    <select value={searchJalaliDate.year} onChange={e => setSearchJalaliDate(p => ({...p, year: e.target.value}))} className="p-2 border border-gray-300 rounded-lg text-sm w-24 bg-white"><option value="" disabled>سال</option>{YEARS.map(y => <option key={y} value={y}>{toPersianDigits(y)}</option>)}</select>
-                </div>
-                <div className="relative flex-grow">
-                    <input type="text" placeholder="جستجوی پرسنل..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pr-10 pl-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
-                    <SearchIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                </div>
-            </div>
-
-            <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 border">
-                    <thead className="bg-gray-100">
-                        <tr>
-                            {['پرسنل', 'شیفت', 'ورود', 'خروج', 'نوع', 'عملیات'].map(h => <th key={h} className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider whitespace-nowrap">{h}</th>)}
-                        </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                        {historyLoading && <tr><td colSpan={6} className="text-center p-4">در حال بارگذاری...</td></tr>}
-                        {historyError && <tr><td colSpan={6} className="text-center p-4 text-red-500">{historyError}</td></tr>}
-                        {!historyLoading && !historyError && logs.map(log => (
-                            <tr key={log.id} className="hover:bg-slate-50">
-                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">{log.full_name || log.personnel_code}</td>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">{log.guard_name?.split('|')[0].trim()}</td>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm font-mono tracking-wider">{formatTime(log.entry_time)}</td>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm font-mono tracking-wider">{formatTime(log.exit_time)}</td>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm"><span className={`px-2 py-1 rounded-full text-xs font-semibold ${log.log_type === 'short_leave' ? 'bg-purple-100 text-purple-800' : 'bg-green-100 text-green-800'}`}>{log.log_type === 'short_leave' ? 'بین ساعتی' : 'اصلی'}</span></td>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm text-center space-x-2 space-x-reverse">
-                                    <button onClick={() => handleEditClick(log)} className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-full transition-colors"><PencilIcon className="w-5 h-5" /></button>
-                                    <button onClick={() => handleDeleteLog(log.id)} className="p-1 text-red-600 hover:text-red-800 hover:bg-red-100 rounded-full transition-colors"><TrashIcon className="w-5 h-5" /></button>
-                                </td>
-                            </tr>
-                        ))}
-                        {!historyLoading && !historyError && logs.length === 0 && (
-                            <tr><td colSpan={6} className="text-center p-4 text-gray-500">هیچ ترددی برای تاریخ انتخاب شده یافت نشد.</td></tr>
-                        )}
-                    </tbody>
-                </table>
-            </div>
-            {!historyLoading && !historyError && totalPages > 1 && (
-                <div className="flex justify-center items-center gap-4 mt-6">
-                    <button onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1} className="px-4 py-2 text-sm text-gray-700 bg-white border rounded-lg hover:bg-gray-100 disabled:opacity-50">قبلی</button>
-                    <span className="text-sm text-gray-600">صفحه {toPersianDigits(currentPage)} از {toPersianDigits(totalPages)}</span>
-                    <button onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages} className="px-4 py-2 text-sm text-gray-700 bg-white border rounded-lg hover:bg-gray-100 disabled:opacity-50">بعدی</button>
-                </div>
-            )}
         </div>
 
         {isEditModalOpen && editingLog && (
             <EditCommuteLogModal log={editingLog} guards={GUARDS} onClose={handleCloseModal} onSave={handleSaveLog} />
         )}
         {isShortLeaveModalOpen && (
-            <AddShortLeaveModal members={members} guards={GUARDS} onClose={handleCloseModal} onSave={handleSaveShortLeave} />
+            <AddShortLeaveModal members={members} guards={GUARDS} onClose={handleCloseModal} onSave={() => Promise.resolve()} />
         )}
     </div>
     );
