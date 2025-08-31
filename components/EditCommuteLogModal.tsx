@@ -19,10 +19,38 @@ const toPersianDigits = (s: string | number | null | undefined): string => {
     return String(s).replace(/[0-9]/g, (w) => '۰۱۲۳۴۵۶۷۸۹'[parseInt(w, 10)]);
 };
 
-const toGregorian = (jy: number, jm: number, jd: number) => {
-    let gy = jy + 621;
-    return new Date(gy, jm - 1, jd);
+// Accurate Jalali to Gregorian conversion function
+const jalaliToGregorian = (jy_str: string, jm_str: string, jd_str: string) => {
+    const jy = parseInt(jy_str, 10);
+    const jm = parseInt(jm_str, 10);
+    const jd = parseInt(jd_str, 10);
+
+    const sal_a = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    const jy_temp = jy + 1595;
+    let days = -355668 + (365 * jy_temp) + (Math.floor(jy_temp / 33) * 8) + Math.floor(((jy_temp % 33) + 3) / 4) + jd + ((jm < 7) ? (jm - 1) * 31 : ((jm - 7) * 30) + 186);
+    let gy = 400 * Math.floor(days / 146097);
+    days %= 146097;
+    if (days > 36524) {
+        gy += 100 * Math.floor(--days / 36524);
+        days %= 36524;
+        if (days >= 365) days++;
+    }
+    gy += 4 * Math.floor(days / 1461);
+    days %= 1461;
+    if (days > 365) {
+        gy += Math.floor((days - 1) / 365);
+        days = (days - 1) % 365;
+    }
+    let gd = days + 1;
+    sal_a[2] = ((gy % 4 === 0 && gy % 100 !== 0) || (gy % 400 === 0)) ? 29 : 28;
+    let gm;
+    for (gm = 1; gm <= 12; gm++) {
+        if (gd <= sal_a[gm]) break;
+        gd -= sal_a[gm];
+    }
+    return { gy, gm, gd };
 };
+
 
 const isoToPersianParts = (isoString: string | null) => {
     if (!isoString) return { year: '', month: '', day: '', hour: '', minute: '' };
@@ -44,9 +72,13 @@ const isoToPersianParts = (isoString: string | null) => {
 const persianPartsToIso = (parts: ReturnType<typeof isoToPersianParts>): string | null => {
     const { year, month, day, hour, minute } = parts;
     if (!year || !month || !day || !hour || !minute) return null;
-    const date = toGregorian(parseInt(year), parseInt(month), parseInt(day));
-    date.setHours(parseInt(hour), parseInt(minute));
-    date.setMinutes(date.getMinutes() - 210); // Adjust for Iran timezone
+    
+    const { gy, gm, gd } = jalaliToGregorian(year, month, day);
+    
+    const date = new Date(Date.UTC(gy, gm - 1, gd, parseInt(hour), parseInt(minute)));
+    // Subtract 3.5 hours (210 minutes) to convert from Tehran local time to UTC
+    date.setUTCMinutes(date.getUTCMinutes() - 210);
+
     return date.toISOString();
 }
 
