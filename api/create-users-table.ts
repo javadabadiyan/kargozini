@@ -89,10 +89,29 @@ export default async function handler(
         entry_time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         exit_time TIMESTAMPTZ,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        log_type VARCHAR(50) NOT NULL DEFAULT 'main'
       );
     `;
     messages.push('جدول "commute_logs" با موفقیت ایجاد یا تایید شد.');
+
+    await (client as any).query(`
+        DO $$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1
+                FROM   pg_class c
+                JOIN   pg_namespace n ON n.oid = c.relnamespace
+                WHERE  c.relname = 'commute_logs_personnel_date_main_log_idx'
+                AND    n.nspname = 'public' -- or your schema name
+            ) THEN
+                CREATE UNIQUE INDEX commute_logs_personnel_date_main_log_idx
+                ON commute_logs (personnel_code, (DATE(entry_time AT TIME ZONE 'Asia/Tehran')))
+                WHERE log_type = 'main';
+            END IF;
+        END$$;
+    `);
+    messages.push('ایندکس یکتای partial برای جدول "commute_logs" ایجاد یا تایید شد.');
     
     // Create trigger function for updated_at
     await (client as any).query(`
