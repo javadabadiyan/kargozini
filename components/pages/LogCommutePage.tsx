@@ -76,6 +76,7 @@ const LogCommutePage: React.FC = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [totalPages, setTotalPages] = useState(0);
     const [searchDate, setSearchDate] = useState(new Date());
+    const [searchJalaliDate, setSearchJalaliDate] = useState({ year: '', month: '', day: '' });
     const [searchTerm, setSearchTerm] = useState('');
     const debouncedSearchTerm = useDebounce(searchTerm, 500);
     
@@ -130,6 +131,33 @@ const LogCommutePage: React.FC = () => {
         resetDateAndTime();
     }, [resetDateAndTime]);
 
+    useEffect(() => {
+        const now = new Date();
+        const formatter = new Intl.DateTimeFormat('fa-IR-u-nu-latn', {
+            year: 'numeric', month: 'numeric', day: 'numeric', timeZone: 'Asia/Tehran'
+        });
+        const parts = formatter.formatToParts(now);
+        const initialJalaliDate = {
+            year: parts.find(p => p.type === 'year')?.value || '',
+            month: parts.find(p => p.type === 'month')?.value || '',
+            day: parts.find(p => p.type === 'day')?.value || '',
+        };
+        setSearchJalaliDate(initialJalaliDate);
+    }, []);
+
+     useEffect(() => {
+        const { year, month, day } = searchJalaliDate;
+        if (year && month && day) {
+            try {
+                const { gy, gm, gd } = jalaliToGregorian(year, month, day);
+                const newSearchDate = new Date(Date.UTC(gy, gm - 1, gd));
+                setSearchDate(newSearchDate);
+            } catch (e) {
+                console.error("Error converting Jalali to Gregorian for search date", e);
+            }
+        }
+    }, [searchJalaliDate]);
+
     const fetchCommutingMembers = useCallback(async () => {
         try {
             const response = await fetch('/api/commuting-members');
@@ -153,7 +181,7 @@ const LogCommutePage: React.FC = () => {
         setHistoryLoading(true);
         setHistoryError(null);
         try {
-            const dateString = `${sDate.getFullYear()}-${String(sDate.getMonth() + 1).padStart(2, '0')}-${String(sDate.getDate()).padStart(2, '0')}`;
+            const dateString = `${sDate.getUTCFullYear()}-${String(sDate.getUTCMonth() + 1).padStart(2, '0')}-${String(sDate.getUTCDate()).padStart(2, '0')}`;
             const response = await fetch(`/api/commute-logs?page=${page}&searchDate=${dateString}&searchTerm=${encodeURIComponent(search)}`);
             if (!response.ok) {
                 const errData = await response.json();
@@ -280,66 +308,6 @@ const LogCommutePage: React.FC = () => {
 
     return (
     <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        <div className="lg:col-span-3 bg-white p-6 rounded-lg shadow-lg">
-             <div className="flex flex-wrap items-center justify-between gap-4 mb-6 border-b-2 border-gray-100 pb-4">
-                 <h2 className="text-2xl font-bold text-gray-800">ترددهای ثبت شده</h2>
-                 <button onClick={() => setIsShortLeaveModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700 transition-colors">
-                     <PlusCircleIcon className="w-5 h-5" />
-                     ثبت تردد بین‌ساعتی
-                 </button>
-             </div>
-             
-             <div className="flex flex-wrap gap-4 mb-4">
-                <input
-                    type="date"
-                    value={searchDate.toISOString().split('T')[0]}
-                    onChange={e => setSearchDate(new Date(e.target.value))}
-                    className="p-2 border border-gray-300 rounded-lg text-sm"
-                />
-                <div className="relative flex-grow">
-                    <input type="text" placeholder="جستجوی پرسنل..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pr-10 pl-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
-                    <SearchIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                </div>
-            </div>
-
-            <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 border">
-                    <thead className="bg-gray-100">
-                        <tr>
-                            {['پرسنل', 'شیفت', 'ورود', 'خروج', 'نوع', 'عملیات'].map(h => <th key={h} className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider whitespace-nowrap">{h}</th>)}
-                        </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                        {historyLoading && <tr><td colSpan={6} className="text-center p-4">در حال بارگذاری...</td></tr>}
-                        {historyError && <tr><td colSpan={6} className="text-center p-4 text-red-500">{historyError}</td></tr>}
-                        {!historyLoading && !historyError && logs.map(log => (
-                            <tr key={log.id} className="hover:bg-slate-50">
-                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">{log.full_name || log.personnel_code}</td>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">{log.guard_name?.split('|')[0].trim()}</td>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm font-mono tracking-wider">{formatTime(log.entry_time)}</td>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm font-mono tracking-wider">{formatTime(log.exit_time)}</td>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm"><span className={`px-2 py-1 rounded-full text-xs font-semibold ${log.log_type === 'short_leave' ? 'bg-purple-100 text-purple-800' : 'bg-green-100 text-green-800'}`}>{log.log_type === 'short_leave' ? 'بین ساعتی' : 'اصلی'}</span></td>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm text-center space-x-2 space-x-reverse">
-                                    <button onClick={() => handleEditClick(log)} className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-full transition-colors"><PencilIcon className="w-5 h-5" /></button>
-                                    <button onClick={() => handleDeleteLog(log.id)} className="p-1 text-red-600 hover:text-red-800 hover:bg-red-100 rounded-full transition-colors"><TrashIcon className="w-5 h-5" /></button>
-                                </td>
-                            </tr>
-                        ))}
-                        {!historyLoading && !historyError && logs.length === 0 && (
-                            <tr><td colSpan={6} className="text-center p-4 text-gray-500">هیچ ترددی برای تاریخ انتخاب شده یافت نشد.</td></tr>
-                        )}
-                    </tbody>
-                </table>
-            </div>
-            {!historyLoading && !historyError && totalPages > 1 && (
-                <div className="flex justify-center items-center gap-4 mt-6">
-                    <button onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1} className="px-4 py-2 text-sm text-gray-700 bg-white border rounded-lg hover:bg-gray-100 disabled:opacity-50">قبلی</button>
-                    <span className="text-sm text-gray-600">صفحه {toPersianDigits(currentPage)} از {toPersianDigits(totalPages)}</span>
-                    <button onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages} className="px-4 py-2 text-sm text-gray-700 bg-white border rounded-lg hover:bg-gray-100 disabled:opacity-50">بعدی</button>
-                </div>
-            )}
-        </div>
-
         <div className="lg:col-span-2">
             <div className="bg-white p-6 rounded-lg shadow-lg sticky top-6">
                 <form onSubmit={handleLogSubmit} className="space-y-6">
@@ -449,6 +417,66 @@ const LogCommutePage: React.FC = () => {
                     </button>
                 </form>
             </div>
+        </div>
+
+        <div className="lg:col-span-3 bg-white p-6 rounded-lg shadow-lg">
+             <div className="flex flex-wrap items-center justify-between gap-4 mb-6 border-b-2 border-gray-100 pb-4">
+                 <h2 className="text-2xl font-bold text-gray-800">ترددهای ثبت شده</h2>
+                 <button onClick={() => setIsShortLeaveModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white text-sm rounded-lg hover:bg-teal-700 transition-colors">
+                     <PlusCircleIcon className="w-5 h-5" />
+                     ثبت تردد بین‌ساعتی
+                 </button>
+             </div>
+             
+             <div className="flex flex-wrap gap-4 mb-4">
+                <div className="flex items-center gap-2">
+                    <label className="text-sm font-medium text-gray-700">تاریخ:</label>
+                    <select value={searchJalaliDate.day} onChange={e => setSearchJalaliDate(p => ({...p, day: e.target.value}))} className="p-2 border border-gray-300 rounded-lg text-sm w-20 bg-white"><option value="" disabled>روز</option>{DAYS.map(d => <option key={d} value={d}>{toPersianDigits(d)}</option>)}</select>
+                    <select value={searchJalaliDate.month} onChange={e => setSearchJalaliDate(p => ({...p, month: e.target.value}))} className="p-2 border border-gray-300 rounded-lg text-sm w-32 bg-white"><option value="" disabled>ماه</option>{PERSIAN_MONTHS.map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}</select>
+                    <select value={searchJalaliDate.year} onChange={e => setSearchJalaliDate(p => ({...p, year: e.target.value}))} className="p-2 border border-gray-300 rounded-lg text-sm w-24 bg-white"><option value="" disabled>سال</option>{YEARS.map(y => <option key={y} value={y}>{toPersianDigits(y)}</option>)}</select>
+                </div>
+                <div className="relative flex-grow">
+                    <input type="text" placeholder="جستجوی پرسنل..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full pr-10 pl-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" />
+                    <SearchIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                </div>
+            </div>
+
+            <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200 border">
+                    <thead className="bg-gray-100">
+                        <tr>
+                            {['پرسنل', 'شیفت', 'ورود', 'خروج', 'نوع', 'عملیات'].map(h => <th key={h} className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider whitespace-nowrap">{h}</th>)}
+                        </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                        {historyLoading && <tr><td colSpan={6} className="text-center p-4">در حال بارگذاری...</td></tr>}
+                        {historyError && <tr><td colSpan={6} className="text-center p-4 text-red-500">{historyError}</td></tr>}
+                        {!historyLoading && !historyError && logs.map(log => (
+                            <tr key={log.id} className="hover:bg-slate-50">
+                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">{log.full_name || log.personnel_code}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">{log.guard_name?.split('|')[0].trim()}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm font-mono tracking-wider">{formatTime(log.entry_time)}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm font-mono tracking-wider">{formatTime(log.exit_time)}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm"><span className={`px-2 py-1 rounded-full text-xs font-semibold ${log.log_type === 'short_leave' ? 'bg-purple-100 text-purple-800' : 'bg-green-100 text-green-800'}`}>{log.log_type === 'short_leave' ? 'بین ساعتی' : 'اصلی'}</span></td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm text-center space-x-2 space-x-reverse">
+                                    <button onClick={() => handleEditClick(log)} className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-full transition-colors"><PencilIcon className="w-5 h-5" /></button>
+                                    <button onClick={() => handleDeleteLog(log.id)} className="p-1 text-red-600 hover:text-red-800 hover:bg-red-100 rounded-full transition-colors"><TrashIcon className="w-5 h-5" /></button>
+                                </td>
+                            </tr>
+                        ))}
+                        {!historyLoading && !historyError && logs.length === 0 && (
+                            <tr><td colSpan={6} className="text-center p-4 text-gray-500">هیچ ترددی برای تاریخ انتخاب شده یافت نشد.</td></tr>
+                        )}
+                    </tbody>
+                </table>
+            </div>
+            {!historyLoading && !historyError && totalPages > 1 && (
+                <div className="flex justify-center items-center gap-4 mt-6">
+                    <button onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1} className="px-4 py-2 text-sm text-gray-700 bg-white border rounded-lg hover:bg-gray-100 disabled:opacity-50">قبلی</button>
+                    <span className="text-sm text-gray-600">صفحه {toPersianDigits(currentPage)} از {toPersianDigits(totalPages)}</span>
+                    <button onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages} className="px-4 py-2 text-sm text-gray-700 bg-white border rounded-lg hover:bg-gray-100 disabled:opacity-50">بعدی</button>
+                </div>
+            )}
         </div>
 
         {isEditModalOpen && editingLog && (
