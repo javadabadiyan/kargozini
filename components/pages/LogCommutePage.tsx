@@ -320,14 +320,34 @@ const LogCommutePage: React.FC = () => {
         }
     };
 
-    const formatTime = (isoString: string | null) => {
+    const formatTime = (isoString: string | null): string => {
         if (!isoString) return '---';
-        return toPersianDigits(new Date(isoString).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tehran' }));
+        try {
+            const date = new Date(isoString);
+            if (isNaN(date.getTime())) {
+                console.error('Invalid date string received for time formatting:', isoString);
+                return 'زمان نامعتبر';
+            }
+            return toPersianDigits(date.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tehran' }));
+        } catch (e) {
+            console.error('Error formatting time:', e);
+            return 'خطای زمان';
+        }
     };
-
-    const formatDate = (isoString: string | null) => {
+    
+    const formatDate = (isoString: string | null): string => {
         if (!isoString) return '---';
-        return toPersianDigits(new Date(isoString).toLocaleDateString('fa-IR', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'Asia/Tehran' }));
+        try {
+            const date = new Date(isoString);
+            if (isNaN(date.getTime())) {
+                console.error('Invalid date string received for date formatting:', isoString);
+                return 'تاریخ نامعتبر';
+            }
+            return toPersianDigits(date.toLocaleDateString('fa-IR', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'Asia/Tehran' }));
+        } catch (e) {
+            console.error('Error formatting date:', e);
+            return 'خطای تاریخ';
+        }
     };
 
     const handleDownloadSample = () => {
