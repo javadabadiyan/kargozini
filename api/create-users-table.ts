@@ -86,10 +86,12 @@ export default async function handler(
         id SERIAL PRIMARY KEY,
         personnel_code VARCHAR(50) NOT NULL,
         guard_name VARCHAR(255) NOT NULL,
-        entry_time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        entry_time TIMESTAMPTZ NOT NULL,
         exit_time TIMESTAMPTZ,
+        log_type VARCHAR(20) NOT NULL DEFAULT 'main',
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        CONSTRAINT unique_log_entry UNIQUE (personnel_code, entry_time)
       );
     `;
     messages.push('جدول "commute_logs" با موفقیت ایجاد یا تایید شد.');
