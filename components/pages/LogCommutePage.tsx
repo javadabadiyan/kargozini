@@ -74,6 +74,7 @@ const LogCommutePage: React.FC = () => {
   const [status, setStatus] = useState<{ type: 'info' | 'success' | 'error'; message: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  const [operationType, setOperationType] = useState<'entry' | 'exit'>('entry');
   const [manualDate, setManualDate] = useState({ year: '', month: '', day: '' });
   const [manualTime, setManualTime] = useState({ hour: '', minute: '' });
 
@@ -167,19 +168,6 @@ const LogCommutePage: React.FC = () => {
     fetchLogs();
   }, [fetchLogs]);
 
-  const { openLogs, completedLogs } = useMemo(() => {
-    const open: CommuteLog[] = [];
-    const completed: CommuteLog[] = [];
-    logs.forEach(log => {
-      if (log.exit_time) {
-        completed.push(log);
-      } else {
-        open.push(log);
-      }
-    });
-    return { openLogs: open, completedLogs: completed };
-  }, [logs]);
-
   const membersByDepartment = useMemo(() => {
     const lowercasedTerm = searchTerm.toLowerCase().trim();
     
@@ -246,7 +234,7 @@ const LogCommutePage: React.FC = () => {
       return date.toISOString();
   };
 
-  const handleLogEntry = async () => {
+  const handleLogCommute = async () => {
     if (!selectedGuard || selectedMembers.length === 0) {
       setStatus({ type: 'error', message: 'لطفاً نگهبان و حداقل یک پرسنل را انتخاب کنید.' });
       return;
@@ -254,7 +242,7 @@ const LogCommutePage: React.FC = () => {
     
     const timestampOverride = getTimestampFromState();
 
-    setStatus({ type: 'info', message: `در حال ثبت ورود برای ${toPersianDigits(selectedMembers.length)} نفر...` });
+    setStatus({ type: 'info', message: `در حال ثبت ${operationType === 'entry' ? 'ورود' : 'خروج'} برای ${toPersianDigits(selectedMembers.length)} نفر...` });
     try {
       const response = await fetch('/api/commute-logs', {
         method: 'POST',
@@ -262,7 +250,7 @@ const LogCommutePage: React.FC = () => {
         body: JSON.stringify({ 
             personnelCodes: selectedMembers.map(m => m.personnel_code),
             guardName: selectedGuard,
-            action: 'entry',
+            action: operationType,
             timestampOverride
         }),
       });
@@ -276,34 +264,6 @@ const LogCommutePage: React.FC = () => {
       
     } catch (err) {
       setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطای ناشناخته' });
-    } finally {
-        setTimeout(() => setStatus(null), 5000);
-    }
-  };
-
-  const handleDirectExit = async (logId: number) => {
-    if (!selectedGuard) {
-      setStatus({ type: 'error', message: 'لطفاً ابتدا نگهبان را در فرم سمت راست انتخاب کنید.' });
-      return;
-    }
-    if (!window.confirm('آیا از ثبت خروج برای این پرسنل اطمینان دارید؟')) return;
-    setStatus({ type: 'info', message: 'در حال ثبت خروج...'});
-    try {
-       const response = await fetch('/api/commute-logs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-            guardName: selectedGuard,
-            action: 'exit',
-            logId: logId
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'خطا در ثبت خروج');
-      setStatus({ type: 'success', message: `خروج با موفقیت ثبت شد.`});
-      await fetchLogs();
-    } catch(err) {
-        setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در ثبت خروج' });
     } finally {
         setTimeout(() => setStatus(null), 5000);
     }
@@ -455,7 +415,7 @@ const LogCommutePage: React.FC = () => {
 
 
   const formatTime = (isoString: string | null) => {
-    if (!isoString) return ' - ';
+    if (!isoString) return <span className="text-gray-400">-</span>;
     return toPersianDigits(new Date(isoString).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tehran' }));
   };
 
@@ -497,8 +457,21 @@ const LogCommutePage: React.FC = () => {
             ))}
             </div>
         </div>
+        
+        <div className="space-y-4">
+            <label className="block text-sm font-medium text-gray-700">نوع عملیات</label>
+             <div className="flex items-center rounded-lg border border-gray-300 p-1 bg-gray-100">
+                <button onClick={() => setOperationType('entry')} className={`flex-1 py-2 text-sm font-semibold rounded-md transition-colors ${operationType === 'entry' ? 'bg-blue-600 text-white shadow' : 'text-gray-600 hover:bg-gray-200'}`}>
+                    ثبت ورود
+                </button>
+                <button onClick={() => setOperationType('exit')} className={`flex-1 py-2 text-sm font-semibold rounded-md transition-colors ${operationType === 'exit' ? 'bg-red-600 text-white shadow' : 'text-gray-600 hover:bg-gray-200'}`}>
+                    ثبت خروج
+                </button>
+            </div>
+        </div>
+
         <div className="p-4 border border-gray-200 rounded-lg bg-slate-50 space-y-3">
-          <h4 className="font-semibold text-gray-700 text-sm">تاریخ و زمان ورود (اختیاری)</h4>
+          <h4 className="font-semibold text-gray-700 text-sm">{operationType === 'entry' ? 'تاریخ و زمان ورود (اختیاری)' : 'تاریخ و زمان خروج (اختیاری)'}</h4>
           <p className="text-xs text-gray-500">اگر خالی باشد، زمان فعلی سیستم ثبت می‌شود.</p>
           <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
               <select value={manualDate.day} onChange={e => setManualDate(p => ({...p, day: e.target.value}))} className="md:col-span-1 p-2 border rounded-md text-sm"><option value="" disabled>روز</option>{DAYS.map(d => <option key={d} value={d}>{toPersianDigits(d)}</option>)}</select>
@@ -575,8 +548,9 @@ const LogCommutePage: React.FC = () => {
             )}
         </div>
         <div>
-          <button onClick={handleLogEntry} disabled={!selectedGuard || selectedMembers.length === 0} className="w-full px-8 py-3 text-lg font-semibold text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:bg-gray-400 transition-all transform hover:scale-105">
-            ثبت ورود برای {toPersianDigits(selectedMembers.length)} نفر
+          <button onClick={handleLogCommute} disabled={!selectedGuard || selectedMembers.length === 0} 
+            className={`w-full px-8 py-3 text-lg font-semibold text-white rounded-lg disabled:bg-gray-400 transition-all transform hover:scale-105 ${operationType === 'entry' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}>
+            {operationType === 'entry' ? `ثبت ورود برای ${toPersianDigits(selectedMembers.length)} نفر` : `ثبت خروج برای ${toPersianDigits(selectedMembers.length)} نفر`}
           </button>
         </div>
       </div>
@@ -610,38 +584,19 @@ const LogCommutePage: React.FC = () => {
           </div>
           
           <div className="space-y-4">
-            <h3 className="text-xl font-bold text-gray-700">ورودهای باز ({toPersianDigits(openLogs.length)})</h3>
-            {openLogs.length > 0 ? (
-              <div className="overflow-x-auto border rounded-lg">
-                <table className="min-w-full"><thead className="bg-amber-50"><tr>
-                      <th className="px-4 py-2 text-right text-xs font-bold uppercase text-amber-800">پرسنل</th>
-                      <th className="px-4 py-2 text-right text-xs font-bold uppercase text-amber-800">ورود</th>
-                      <th className="px-4 py-2 text-right text-xs font-bold uppercase text-amber-800">نگهبان</th>
-                      <th className="px-4 py-2 text-center text-xs font-bold uppercase text-amber-800">عملیات</th>
-                </tr></thead><tbody className="bg-white divide-y divide-gray-200">
-                    {openLogs.map(log => (
-                      <tr key={log.id}><td className="px-4 py-2 whitespace-nowrap text-sm">{log.full_name || log.personnel_code}</td><td className="px-4 py-2 tracking-wider" style={{ fontFeatureSettings: '"tnum"' }}>{formatTime(log.entry_time)}</td><td>{log.guard_name}</td>
-                        <td className="px-4 py-2 text-center"><button onClick={() => handleDirectExit(log.id)} disabled={!selectedGuard} className="px-3 py-1 text-sm font-semibold text-white bg-red-500 rounded-md hover:bg-red-600 disabled:bg-gray-300">ثبت خروج</button></td>
-                      </tr>
-                    ))}
-                </tbody></table>
-              </div>
-            ) : <p className="text-center py-4 text-gray-500 bg-slate-50 rounded-lg">در حال حاضر هیچ ورود بازی برای تاریخ انتخاب شده ثبت نشده است.</p>}
-          </div>
-
-          <div className="space-y-4">
-            <h3 className="text-xl font-bold text-gray-700">تاریخچه ترددهای تکمیل‌شده</h3>
+            <h3 className="text-xl font-bold text-gray-700">ترددهای ثبت شده</h3>
              <div className="overflow-x-auto border rounded-lg">
               <table className="min-w-full"><thead className="bg-gray-50"><tr>
                     <th className="px-4 py-2 text-right text-xs font-bold text-gray-600 uppercase">پرسنل</th>
                     <th className="px-4 py-2 text-right text-xs font-bold text-gray-600 uppercase">نوع</th>
-                    <th className="px-4 py-2 text-right text-xs font-bold text-gray-600 uppercase">خروج</th>
                     <th className="px-4 py-2 text-right text-xs font-bold text-gray-600 uppercase">ورود</th>
+                    <th className="px-4 py-2 text-right text-xs font-bold text-gray-600 uppercase">خروج</th>
+                    <th className="px-4 py-2 text-right text-xs font-bold text-gray-600 uppercase">نگهبان</th>
                     <th className="px-4 py-2 text-center text-xs font-bold text-gray-600 uppercase">عملیات</th>
                 </tr></thead><tbody className="bg-white divide-y divide-gray-200">
-                  {loadingLogs && <tr><td colSpan={5} className="text-center p-4">در حال بارگذاری...</td></tr>}
-                  {!loadingLogs && completedLogs.length === 0 && (<tr><td colSpan={5} className="text-center p-4 text-gray-500">هیچ تردد تکمیل‌شده‌ای یافت نشد.</td></tr>)}
-                  {!loadingLogs && completedLogs.map(log => (
+                  {loadingLogs && <tr><td colSpan={6} className="text-center p-4">در حال بارگذاری...</td></tr>}
+                  {!loadingLogs && logs.length === 0 && (<tr><td colSpan={6} className="text-center p-4 text-gray-500">هیچ ترددی یافت نشد.</td></tr>)}
+                  {!loadingLogs && logs.map(log => (
                     <tr key={log.id} className="hover:bg-slate-50">
                       <td className="px-4 py-2 whitespace-nowrap text-sm">{log.full_name || log.personnel_code}</td>
                       <td className="px-4 py-2 whitespace-nowrap text-sm">
@@ -649,8 +604,9 @@ const LogCommutePage: React.FC = () => {
                           {log.log_type === 'short_leave' ? 'بین‌ساعتی' : 'اصلی'}
                         </span>
                       </td>
-                      <td className="px-4 py-2 tracking-wider" style={{ fontFeatureSettings: '"tnum"' }}>{formatTime(log.log_type === 'main' ? log.entry_time : log.exit_time)}</td>
-                      <td className="px-4 py-2 tracking-wider" style={{ fontFeatureSettings: '"tnum"' }}>{formatTime(log.log_type === 'main' ? log.exit_time : log.entry_time)}</td>
+                      <td className="px-4 py-2" style={{ fontFeatureSettings: '"tnum"' }}>{formatTime(log.entry_time)}</td>
+                      <td className="px-4 py-2" style={{ fontFeatureSettings: '"tnum"' }}>{formatTime(log.exit_time)}</td>
+                      <td className="px-4 py-2 whitespace-nowrap text-sm text-gray-600">{log.guard_name.split('|')[1]?.trim() || log.guard_name}</td>
                       <td className="px-4 py-2 whitespace-nowrap text-sm text-center">
                         <button onClick={() => {setEditingLog(log); setIsEditModalOpen(true);}} className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-100 rounded-full"><PencilIcon className="w-5 h-5"/></button>
                         <button onClick={() => handleDeleteLog(log.id)} className="p-1 text-red-600 hover:text-red-800 hover:bg-red-100 rounded-full mr-2"><TrashIcon className="w-5 h-5"/></button>

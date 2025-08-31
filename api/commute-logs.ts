@@ -74,7 +74,7 @@ async function handleGet(request: VercelRequest, response: VercelResponse, pool:
 
 // --- POST Handler (Log Commute) ---
 async function handlePost(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
-  const { personnelCode, personnelCodes, guardName, action, timestampOverride, logId, leaveTime, returnTime } = request.body;
+  const { personnelCode, personnelCodes, guardName, action, timestampOverride, leaveTime, returnTime } = request.body;
 
   if (!guardName || !action) {
     return response.status(400).json({ error: 'اطلاعات ارسالی ناقص یا نامعتبر است.' });
@@ -118,12 +118,19 @@ async function handlePost(request: VercelRequest, response: VercelResponse, clie
     }
     
     if (action === 'exit') {
-        let openLogId = logId;
+        const codesToProcess = personnelCodes || (personnelCode ? [personnelCode] : []);
+        if (codesToProcess.length === 0) {
+            return response.status(400).json({ error: 'کد پرسنلی برای ثبت خروج الزامی است.' });
+        }
         const effectiveTime = timestampOverride ? new Date(timestampOverride) : new Date();
+
+        await client.query('BEGIN');
         
-        if (!openLogId) {
-             if (!personnelCode) return response.status(400).json({ error: 'کد پرسنلی برای ثبت خروج الزامی است.' });
-             const { rows: openLogs } = await client.query(`
+        const updatedLogs = [];
+        const notFoundCodes = [];
+
+        for (const code of codesToProcess) {
+            const { rows: openLogs } = await client.query(`
                 SELECT id FROM commute_logs 
                 WHERE 
                     personnel_code = $1 AND 
@@ -131,20 +138,30 @@ async function handlePost(request: VercelRequest, response: VercelResponse, clie
                     entry_time >= date_trunc('day', $2::timestamptz AT TIME ZONE 'Asia/Tehran') AND
                     entry_time < date_trunc('day', $2::timestamptz AT TIME ZONE 'Asia/Tehran') + interval '1 day'
                 ORDER BY entry_time DESC LIMIT 1;
-            `, [personnelCode, effectiveTime]);
-            if (!openLogs[0]) {
-                return response.status(404).json({ error: 'هیچ ورود بازی برای این پرسنل در این روز یافت نشد تا خروج ثبت شود.' });
+            `, [code, effectiveTime]);
+            
+            if (openLogs.length > 0) {
+                const logIdToUpdate = openLogs[0].id;
+                const { rows: updated } = await client.query(`
+                    UPDATE commute_logs 
+                    SET exit_time = $1, guard_name = $2
+                    WHERE id = $3
+                    RETURNING *;
+                `, [effectiveTime, guardName, logIdToUpdate]);
+                updatedLogs.push(updated[0]);
+            } else {
+                notFoundCodes.push(code);
             }
-            openLogId = openLogs[0].id;
         }
 
-        const { rows: updatedLog } = await client.query(`
-            UPDATE commute_logs 
-            SET exit_time = $1, guard_name = $2
-            WHERE id = $3
-            RETURNING *;
-        `, [effectiveTime, guardName, openLogId]);
-        return response.status(200).json({ message: 'خروج با موفقیت ثبت شد.', log: updatedLog[0] });
+        await client.query('COMMIT');
+        
+        let message = `خروج برای ${updatedLogs.length} نفر با موفقیت ثبت شد.`;
+        if (notFoundCodes.length > 0) {
+            message += ` برای پرسنل با کدهای (${notFoundCodes.join(', ')}) ورود بازی در این روز یافت نشد.`;
+        }
+
+        return response.status(200).json({ message, updatedLogs });
     }
 
     if (action === 'short_leave') {
