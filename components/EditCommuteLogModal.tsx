@@ -96,10 +96,10 @@ const EditCommuteLogModal: React.FC<EditCommuteLogModalProps> = ({ log, onClose,
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">زمان ورود</label>
               <div className="grid grid-cols-2 gap-2">
-                <select value={entryTime.hour} onChange={e => setEntryTime(p => ({...p, hour: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md font-sans">
+                <select value={entryTime.hour} onChange={e => setEntryTime(p => ({...p, hour: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md">
                    {HOURS.map(h => <option key={h} value={h}>{toPersianDigits(String(h).padStart(2, '0'))}</option>)}
                 </select>
-                <select value={entryTime.minute} onChange={e => setEntryTime(p => ({...p, minute: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md font-sans">
+                <select value={entryTime.minute} onChange={e => setEntryTime(p => ({...p, minute: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md">
                    {MINUTES.map(m => <option key={m} value={m}>{toPersianDigits(String(m).padStart(2, '0'))}</option>)}
                 </select>
               </div>
@@ -107,11 +107,11 @@ const EditCommuteLogModal: React.FC<EditCommuteLogModalProps> = ({ log, onClose,
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">زمان خروج (اختیاری)</label>
               <div className="grid grid-cols-2 gap-2">
-                <select value={exitTime.hour} onChange={e => setExitTime(p => ({...p, hour: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md font-sans">
+                <select value={exitTime.hour} onChange={e => setExitTime(p => ({...p, hour: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md">
                    <option value="">ساعت</option>
                    {HOURS.map(h => <option key={h} value={h}>{toPersianDigits(String(h).padStart(2, '0'))}</option>)}
                 </select>
-                <select value={exitTime.minute} onChange={e => setExitTime(p => ({...p, minute: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md font-sans">
+                <select value={exitTime.minute} onChange={e => setExitTime(p => ({...p, minute: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md">
                    <option value="">دقیقه</option>
                    {MINUTES.map(m => <option key={m} value={m}>{toPersianDigits(String(m).padStart(2, '0'))}</option>)}
                 </select>

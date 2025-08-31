@@ -86,39 +86,14 @@ export default async function handler(
         id SERIAL PRIMARY KEY,
         personnel_code VARCHAR(50) NOT NULL,
         guard_name VARCHAR(255) NOT NULL,
-        entry_time TIMESTAMPTZ NOT NULL,
+        entry_time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         exit_time TIMESTAMPTZ,
-        log_type VARCHAR(50) DEFAULT 'main' NOT NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
     `;
     messages.push('جدول "commute_logs" با موفقیت ایجاد یا تایید شد.');
     
-    // Drop the old incorrect constraint if it exists
-    await (client as any).query(`
-        DO $$
-        BEGIN
-            IF EXISTS (
-                SELECT 1 FROM pg_constraint 
-                WHERE conname = 'unique_main_commute_log_per_day'
-            ) THEN
-                ALTER TABLE commute_logs DROP CONSTRAINT unique_main_commute_log_per_day;
-            END IF;
-        END;
-        $$;
-    `);
-    messages.push('محدودیت یکتای قدیمی (در صورت وجود) حذف شد.');
-
-    // Create a partial unique index for main log type per day per person
-    await client.sql`
-      CREATE UNIQUE INDEX IF NOT EXISTS unique_main_commute_log_per_day_idx
-      ON commute_logs (personnel_code, (DATE(entry_time AT TIME ZONE 'Asia/Tehran')))
-      WHERE (log_type = 'main');
-    `;
-    messages.push('ایندکس یکتای partial برای تردد اصلی روزانه هر پرسنل ایجاد یا تایید شد.');
-
-
     // Create trigger function for updated_at
     await (client as any).query(`
         CREATE OR REPLACE FUNCTION update_updated_at_column()

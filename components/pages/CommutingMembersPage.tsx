@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { CommutingMember } from '../../types';
 import AddCommutingMemberModal from '../AddCommutingMemberModal';
-import EditCommutingMemberModal from '../EditCommutingMemberModal';
-import { PencilIcon, TrashIcon } from '../icons/Icons';
 
 declare const XLSX: any;
 
@@ -13,7 +11,7 @@ const HEADER_MAP: { [key: string]: keyof Omit<CommutingMember, 'id'> } = {
   'سمت': 'position',
 };
 
-const TABLE_HEADERS = [...Object.keys(HEADER_MAP), 'عملیات'];
+const TABLE_HEADERS = Object.keys(HEADER_MAP);
 
 const CommutingMembersPage: React.FC = () => {
   const [members, setMembers] = useState<CommutingMember[]>([]);
@@ -21,10 +19,7 @@ const CommutingMembersPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<{ type: 'info' | 'success' | 'error'; message: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editingMember, setEditingMember] = useState<CommutingMember | null>(null);
 
   const toPersianDigits = (s: string | null | undefined): string => {
     if (s === null || s === undefined) return '';
@@ -54,7 +49,7 @@ const CommutingMembersPage: React.FC = () => {
   }, []);
 
   const handleDownloadSample = () => {
-    const ws = XLSX.utils.aoa_to_sheet([Object.keys(HEADER_MAP)]);
+    const ws = XLSX.utils.aoa_to_sheet([TABLE_HEADERS]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'نمونه');
     XLSX.writeFile(wb, 'Sample_Commuting_Members.xlsx');
@@ -105,7 +100,7 @@ const CommutingMembersPage: React.FC = () => {
   const handleExport = () => {
     const dataToExport = members.map(m => {
         const row: { [key: string]: any } = {};
-        for(const header of Object.keys(HEADER_MAP)){
+        for(const header of TABLE_HEADERS){
             const key = HEADER_MAP[header];
             row[header] = toPersianDigits(m[key]);
         }
@@ -139,73 +134,6 @@ const CommutingMembersPage: React.FC = () => {
     }
   };
 
-  const handleEditClick = (member: CommutingMember) => {
-    setEditingMember(member);
-    setIsEditModalOpen(true);
-  };
-
-  const handleSaveEditedMember = async (member: CommutingMember) => {
-    try {
-      const response = await fetch('/api/commuting-members', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(member),
-      });
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || 'خطا در ویرایش اطلاعات');
-      }
-      setStatus({ type: 'success', message: 'اطلاعات با موفقیت ویرایش شد.' });
-      setIsEditModalOpen(false);
-      setEditingMember(null);
-      fetchMembers();
-    } catch (err) {
-      setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در ویرایش' });
-    } finally {
-      setTimeout(() => setStatus(null), 5000);
-    }
-  };
-
-  const handleDeleteClick = async (memberId: number) => {
-    if (window.confirm('آیا از حذف این عضو اطمینان دارید؟')) {
-      try {
-        const response = await fetch(`/api/commuting-members?id=${memberId}`, {
-          method: 'DELETE',
-        });
-        if (!response.ok) {
-          const errData = await response.json();
-          throw new Error(errData.error || 'خطا در حذف');
-        }
-        setStatus({ type: 'success', message: 'عضو با موفقیت حذف شد.' });
-        fetchMembers();
-      } catch (err) {
-        setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در حذف' });
-      } finally {
-        setTimeout(() => setStatus(null), 5000);
-      }
-    }
-  };
-
-  const handleDeleteAll = async () => {
-    if (window.confirm('!!اخطار!!\nآیا از حذف تمام کارمندان عضو تردد اطمینان دارید؟ این عمل غیرقابل بازگشت است.')) {
-      try {
-        const response = await fetch(`/api/commuting-members?action=deleteAll`, {
-          method: 'DELETE',
-        });
-        if (!response.ok) {
-          const errData = await response.json();
-          throw new Error(errData.error || 'خطا در حذف کامل اطلاعات');
-        }
-        setStatus({ type: 'success', message: 'تمام اعضا با موفقیت حذف شدند.' });
-        fetchMembers();
-      } catch (err) {
-        setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در حذف کامل اطلاعات' });
-      } finally {
-        setTimeout(() => setStatus(null), 5000);
-      }
-    }
-  };
-
   const statusColor = {
     info: 'bg-blue-100 text-blue-800',
     success: 'bg-green-100 text-green-800',
@@ -222,7 +150,6 @@ const CommutingMembersPage: React.FC = () => {
             <input type="file" accept=".xlsx, .xls" ref={fileInputRef} onChange={handleFileImport} className="hidden" id="excel-import-commuting" />
             <label htmlFor="excel-import-commuting" className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 cursor-pointer">ورود از اکسل</label>
             <button onClick={handleExport} disabled={members.length === 0} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400">خروجی اکسل</button>
-            <button onClick={handleDeleteAll} disabled={members.length === 0} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-red-400">حذف کامل اطلاعات</button>
         </div>
       </div>
       
@@ -233,28 +160,18 @@ const CommutingMembersPage: React.FC = () => {
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200 border">
           <thead className="bg-gray-100">
-            <tr>{TABLE_HEADERS.map(h => <th key={h} className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider whitespace-nowrap">{h}</th>)}</tr>
+            <tr>{TABLE_HEADERS.map(h => <th key={h} className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">{h}</th>)}</tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {loading && <tr><td colSpan={TABLE_HEADERS.length} className="text-center p-4">در حال بارگذاری...</td></tr>}
             {error && <tr><td colSpan={TABLE_HEADERS.length} className="text-center p-4 text-red-500">{error}</td></tr>}
             {!loading && !error && members.map((m) => (
               <tr key={m.id} className="hover:bg-slate-50">
-                {Object.keys(HEADER_MAP).map(header => (
+                {TABLE_HEADERS.map(header => (
                   <td key={header} className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
-                    {toPersianDigits(m[HEADER_MAP[header] as keyof Omit<CommutingMember, 'id'>])}
+                    {toPersianDigits(m[HEADER_MAP[header]])}
                   </td>
                 ))}
-                <td className="px-4 py-3 whitespace-nowrap text-sm">
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => handleEditClick(m)} className="p-1 text-blue-600 hover:text-blue-800" title="ویرایش">
-                      <PencilIcon className="w-5 h-5"/>
-                    </button>
-                    <button onClick={() => handleDeleteClick(m.id)} className="p-1 text-red-600 hover:text-red-800" title="حذف">
-                      <TrashIcon className="w-5 h-5"/>
-                    </button>
-                  </div>
-                </td>
               </tr>
             ))}
             {!loading && !error && members.length === 0 && (
@@ -265,7 +182,6 @@ const CommutingMembersPage: React.FC = () => {
       </div>
       
       {isAddModalOpen && <AddCommutingMemberModal onClose={() => setIsAddModalOpen(false)} onSave={handleSaveNewMember} />}
-      {isEditModalOpen && editingMember && <EditCommutingMemberModal member={editingMember} onClose={() => setIsEditModalOpen(false)} onSave={handleSaveEditedMember} />}
     </div>
   );
 };
