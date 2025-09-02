@@ -5,6 +5,7 @@ const TABLES_IN_ORDER = [
     'personnel',
     'commuting_members',
     'dependents',
+    'app_users', // Add users to backup
     'commute_logs',
     'hourly_commute_logs',
     'commute_edit_logs',
@@ -22,6 +23,7 @@ const TABLE_COLUMNS: Record<string, string[]> = {
       'personnel_code', 'relation_type', 'first_name', 'last_name', 
       'national_id', 'birth_date', 'gender'
     ],
+    app_users: ['username', 'password', 'permissions'], // Add user columns
     commute_logs: ['personnel_code', 'guard_name', 'entry_time', 'exit_time', 'created_at', 'updated_at'],
     hourly_commute_logs: [
       'personnel_code', 'full_name', 'guard_name', 'exit_time', 'entry_time', 
@@ -42,7 +44,6 @@ async function handleGet(response: VercelResponse, client: VercelPoolClient) {
         }
         return response.status(200).json(backupData);
     } catch (error) {
-        console.error('Backup GET failed:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         return response.status(500).json({ error: 'Failed to create backup.', details: errorMessage });
     }
@@ -50,8 +51,6 @@ async function handleGet(response: VercelResponse, client: VercelPoolClient) {
 
 async function handlePost(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
     const backupData = request.body;
-    
-    // Basic validation
     for(const table of TABLES_IN_ORDER) {
         if (!backupData[table] || !Array.isArray(backupData[table])) {
             return response.status(400).json({ error: `داده‌های پشتیبان ناقص است. بخش "${table}" یافت نشد.` });
@@ -60,17 +59,12 @@ async function handlePost(request: VercelRequest, response: VercelResponse, clie
 
     try {
         await client.query('BEGIN');
-        
-        // Truncate all tables. CASCADE handles dependencies, RESTART IDENTITY resets sequences.
         await client.query(`TRUNCATE ${TABLES_IN_ORDER.join(', ')} RESTART IDENTITY CASCADE`);
-
-        // Insert data in order
         for (const table of TABLES_IN_ORDER) {
             const rows = backupData[table];
             if (rows.length === 0) continue;
 
             const columns = TABLE_COLUMNS[table];
-            // Vercel Postgres doesn't like "position" without quotes, so we handle that
             const columnNames = columns.map(c => c === 'position' ? `"${c}"` : c).join(', ');
             
             const values: any[] = [];
@@ -85,18 +79,31 @@ async function handlePost(request: VercelRequest, response: VercelResponse, clie
                 }
                 valuePlaceholders.push(`(${recordPlaceholders.join(', ')})`);
             }
-
-            const query = `INSERT INTO ${table} (${columnNames}) VALUES ${valuePlaceholders.join(', ')}`;
-            await client.query(query, values);
+            if (values.length > 0) {
+                 const query = `INSERT INTO ${table} (${columnNames}) VALUES ${valuePlaceholders.join(', ')}`;
+                 await client.query(query, values);
+            }
         }
 
         await client.query('COMMIT');
         return response.status(200).json({ message: 'اطلاعات با موفقیت بازیابی شد.' });
     } catch (error) {
         await client.query('ROLLBACK').catch(rbError => console.error('Rollback failed:', rbError));
-        console.error('Backup POST failed:', error);
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         return response.status(500).json({ error: 'Failed to restore from backup.', details: errorMessage });
+    }
+}
+
+async function handleDelete(response: VercelResponse, client: VercelPoolClient) {
+    try {
+        await client.query('BEGIN');
+        await client.query(`TRUNCATE ${TABLES_IN_ORDER.join(', ')} RESTART IDENTITY CASCADE`);
+        await client.query('COMMIT');
+        return response.status(200).json({ message: 'تمام اطلاعات با موفقیت پاک شد.' });
+    } catch(error) {
+        await client.query('ROLLBACK').catch(rbError => console.error('Rollback failed:', rbError));
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return response.status(500).json({ error: 'Failed to delete all data.', details: errorMessage });
     }
 }
 
@@ -114,8 +121,10 @@ export default async function handler(request: VercelRequest, response: VercelRe
                 return await handleGet(response, client);
             case 'POST':
                 return await handlePost(request, response, client);
+            case 'DELETE':
+                return await handleDelete(response, client);
             default:
-                response.setHeader('Allow', ['GET', 'POST']);
+                response.setHeader('Allow', ['GET', 'POST', 'DELETE']);
                 return response.status(405).json({ error: `Method ${request.method} Not Allowed` });
         }
     } finally {
