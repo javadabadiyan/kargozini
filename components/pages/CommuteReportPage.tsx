@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import type { CommutingMember, CommuteReportRow, PresentMember, HourlyCommuteReportRow } from '../../types';
+import type { CommutingMember, CommuteReportRow, PresentMember, HourlyCommuteReportRow, CommuteEditLog } from '../../types';
 
 declare const XLSX: any;
 
@@ -60,7 +60,7 @@ const DatePicker: React.FC<{ date: any, setDate: (date: any) => void }> = ({ dat
 };
 
 const CommuteReportPage: React.FC = () => {
-    const [activeTab, setActiveTab] = useState('general');
+    const [activeTab, setActiveTab] = useState('edits');
     const [reportData, setReportData] = useState<CommuteReportRow[]>([]);
     const [commutingMembers, setCommutingMembers] = useState<CommutingMember[]>([]);
     const [loading, setLoading] = useState(false);
@@ -88,6 +88,11 @@ const CommuteReportPage: React.FC = () => {
     
     // State for Monthly Report
     const [monthlyExportStatus, setMonthlyExportStatus] = useState<{ type: 'info' | 'success' | 'error'; message: string } | null>(null);
+    
+    // States for Edit Logs Report
+    const [editLogs, setEditLogs] = useState<CommuteEditLog[]>([]);
+    const [editLogsLoading, setEditLogsLoading] = useState(false);
+    const [editLogsError, setEditLogsError] = useState<string | null>(null);
 
 
     const filterOptions = useMemo(() => {
@@ -193,16 +198,35 @@ const CommuteReportPage: React.FC = () => {
         }
     }, [buildFilterParams]);
 
+    const fetchEditLogsData = useCallback(async () => {
+        setEditLogsLoading(true);
+        setEditLogsError(null);
+        try {
+            const response = await fetch(`/api/edit-logs?${buildFilterParams()}`);
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.details || errData.error || 'خطا در دریافت گزارش ویرایش‌ها');
+            }
+            const data = await response.json();
+            setEditLogs(data.logs || []);
+        } catch (err) {
+            setEditLogsError(err instanceof Error ? err.message : 'یک خطای ناشناخته رخ داد.');
+        } finally {
+            setEditLogsLoading(false);
+        }
+    }, [buildFilterParams]);
+
     useEffect(() => {
-        // Shared data fetch for general and analysis
         if (activeTab === 'general' || activeTab === 'analysis') {
             fetchReportData();
         } else if (activeTab === 'present') {
             fetchPresentReportData();
         } else if (activeTab === 'hourly') {
             fetchHourlyReportData();
+        } else if (activeTab === 'edits') {
+            fetchEditLogsData();
         }
-    }, [activeTab, fetchReportData, fetchPresentReportData, fetchHourlyReportData]);
+    }, [activeTab, fetchReportData, fetchPresentReportData, fetchHourlyReportData, fetchEditLogsData]);
 
     const calculateDifference = useCallback((isoString: string | null, standardHour: string, standardMinute: string, type: 'late' | 'early'): string | null => {
         if (!isoString) return null;
@@ -418,6 +442,22 @@ const CommuteReportPage: React.FC = () => {
             setTimeout(() => setMonthlyExportStatus(null), 5000);
         }
     };
+    
+    const handleEditsExport = () => {
+        const dataToExport = editLogs.map(log => ({
+            'پرسنل': log.full_name,
+            'تاریخ رکورد': toPersianDigits(new Date(log.record_date).toLocaleDateString('fa-IR', { timeZone: 'Asia/Tehran' })),
+            'کاربر ویرایشگر': log.editor_name,
+            'زمان ویرایش': toPersianDigits(new Date(log.edit_timestamp).toLocaleString('fa-IR', { timeZone: 'Asia/Tehran' })),
+            'فیلد': log.field_name,
+            'مقدار قبلی': toPersianDigits(log.old_value),
+            'مقدار جدید': toPersianDigits(log.new_value)
+        }));
+        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'گزارش ویرایش‌ها');
+        XLSX.writeFile(workbook, 'Edits_Report.xlsx');
+    };
 
     const analysisFilteredPersonnel = useMemo(() => {
         if (!analysisSearchTerm) return [];
@@ -627,7 +667,47 @@ const CommuteReportPage: React.FC = () => {
                 </div>
             )}
 
-            {activeTab === 'edits' && <div className="text-center p-10 text-gray-500">این بخش از گزارش‌گیری در حال ساخت است.</div>}
+            {activeTab === 'edits' && (
+            <div className="space-y-4">
+                <div className="overflow-x-auto border rounded-lg">
+                    <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-100">
+                            <tr>
+                                {['پرسنل', 'تاریخ رکورد', 'کاربر ویرایشگر', 'زمان ویرایش', 'فیلد', 'مقدار قبلی', 'مقدار جدید'].map(h => 
+                                    <th key={h} className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                                )}
+                            </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                            {editLogsLoading ? (
+                                <tr><td colSpan={7} className="text-center p-4">در حال بارگذاری گزارش...</td></tr>
+                            ) : editLogsError ? (
+                                <tr><td colSpan={7} className="text-center p-4 text-red-500">{editLogsError}</td></tr>
+                            ) : editLogs.length === 0 ? (
+                                <tr><td colSpan={7} className="text-center p-4 text-gray-500">هیچ ویرایشی مطابق با فیلترهای شما یافت نشد.</td></tr>
+                            ) : (
+                                editLogs.map(log => (
+                                    <tr key={log.id} className="hover:bg-slate-50">
+                                        <td className="px-4 py-3 whitespace-nowrap text-sm font-medium">{log.full_name} ({toPersianDigits(log.personnel_code)})</td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-sm">{toPersianDigits(new Date(log.record_date).toLocaleDateString('fa-IR', { timeZone: 'Asia/Tehran' }))}</td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-sm">{log.editor_name}</td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-sm">{toPersianDigits(new Date(log.edit_timestamp).toLocaleString('fa-IR', { timeZone: 'Asia/Tehran' }))}</td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-sm">{log.field_name}</td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{toPersianDigits(log.old_value) || '---'}</td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-blue-600">{toPersianDigits(log.new_value) || '---'}</td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+                <div className="flex justify-end">
+                    <button onClick={handleEditsExport} disabled={editLogs.length === 0} className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 transition-colors">
+                        خروجی اکسل
+                    </button>
+                </div>
+            </div>
+            )}
 
 
             <style>{`.form-select { appearance: none; background-image: url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="%236b7280" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 8l4 4 4-4"/></svg>'); background-position: left 0.5rem center; background-repeat: no-repeat; background-size: 1.5em 1.5em; padding-left: 2.5rem; }.form-select, .form-select-sm { width: 100%; padding: 0.5rem 0.75rem; border: 1px solid #d1d5db; border-radius: 0.375rem; background-color: #fff; font-family: inherit; }.form-select-sm { font-size: 0.875rem; padding: 0.25rem 0.5rem; }`}</style>

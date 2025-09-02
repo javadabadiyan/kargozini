@@ -101,3 +101,16 @@ export interface HourlyCommuteReportRow {
   reason: string | null;
   guard_name: string;
 }
+
+export interface CommuteEditLog {
+  id: number;
+  commute_log_id: number;
+  personnel_code: string;
+  full_name: string;
+  editor_name: string;
+  edit_timestamp: string;
+  field_name: string;
+  old_value: string | null;
+  new_value: string | null;
+  record_date: string;
+}

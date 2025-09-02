@@ -1,4 +1,4 @@
-import { createPool, VercelPool } from '@vercel/postgres';
+import { createPool, VercelPool, VercelPoolClient } from '@vercel/postgres';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 // --- GET Handler ---
@@ -100,24 +100,68 @@ async function handlePost(request: VercelRequest, response: VercelResponse, pool
   }
 }
 
+const formatTimeForLog = (iso: string | null): string | null => {
+    if (!iso) return null;
+    return new Date(iso).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tehran' });
+};
+
 // --- PUT Handler (Update) ---
 async function handlePut(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
   const { id, entry_time, exit_time } = request.body;
   if (!id || !entry_time) {
     return response.status(400).json({ error: 'شناسه و زمان ورود برای ویرایش الزامی است.' });
   }
+
+  const client = await pool.connect();
   try {
-    const { rows } = await pool.sql`
-      UPDATE commute_logs 
-      SET entry_time = ${entry_time}, exit_time = ${exit_time}
-      WHERE id = ${id}
-      RETURNING id;
+    await client.query('BEGIN');
+
+    // 1. Get the current state of the log before updating
+    const { rows: oldLogs } = await (client as VercelPoolClient).sql`
+      SELECT personnel_code, entry_time, exit_time 
+      FROM commute_logs 
+      WHERE id = ${id} 
+      FOR UPDATE;
     `;
-    if (rows.length === 0) {
+
+    if (oldLogs.length === 0) {
+      await client.query('ROLLBACK');
       return response.status(404).json({ error: 'رکوردی برای ویرایش یافت نشد.' });
     }
-    
-    const { rows: updatedLogWithDetails } = await pool.sql`
+    const oldLog = oldLogs[0];
+    const editorName = 'نگهبانی'; // Based on the screenshot, editor is hardcoded.
+
+    // 2. Compare and log changes
+    const oldEntryTimeStr = formatTimeForLog(oldLog.entry_time);
+    const newEntryTimeStr = formatTimeForLog(entry_time);
+    const oldExitTimeStr = formatTimeForLog(oldLog.exit_time);
+    const newExitTimeStr = formatTimeForLog(exit_time);
+
+    if (oldEntryTimeStr !== newEntryTimeStr) {
+      await (client as VercelPoolClient).sql`
+        INSERT INTO commute_edit_logs (commute_log_id, personnel_code, editor_name, field_name, old_value, new_value)
+        VALUES (${id}, ${oldLog.personnel_code}, ${editorName}, 'ساعت ورود', ${oldEntryTimeStr}, ${newEntryTimeStr});
+      `;
+    }
+
+    if (oldExitTimeStr !== newExitTimeStr) {
+       await (client as VercelPoolClient).sql`
+        INSERT INTO commute_edit_logs (commute_log_id, personnel_code, editor_name, field_name, old_value, new_value)
+        VALUES (${id}, ${oldLog.personnel_code}, ${editorName}, 'ساعت خروج', ${oldExitTimeStr}, ${newExitTimeStr});
+      `;
+    }
+
+    // 3. Update the main log
+    await (client as VercelPoolClient).sql`
+      UPDATE commute_logs 
+      SET entry_time = ${entry_time}, exit_time = ${exit_time}
+      WHERE id = ${id};
+    `;
+
+    await client.query('COMMIT');
+
+    // 4. Fetch the updated log with details to return to the client
+    const { rows: updatedLogWithDetails } = await (client as VercelPoolClient).sql`
         SELECT 
             cl.id, cl.personnel_code, cm.full_name, cl.guard_name, cl.entry_time, cl.exit_time 
         FROM commute_logs cl
@@ -126,10 +170,15 @@ async function handlePut(request: VercelRequest, response: VercelResponse, pool:
     `;
 
     return response.status(200).json({ message: 'رکورد با موفقیت ویرایش شد.', log: updatedLogWithDetails[0] });
+  
   } catch (error) {
+    await client.query('ROLLBACK');
     console.error('Database PUT for commute_logs failed:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     return response.status(500).json({ error: 'خطا در به‌روزرسانی اطلاعات در پایگاه داده.', details: errorMessage });
+  
+  } finally {
+    client.release();
   }
 }
 

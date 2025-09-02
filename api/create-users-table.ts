@@ -155,6 +155,20 @@ export default async function handler(
     `);
     messages.push('تریگر به‌روزرسانی خودکار برای جدول "hourly_commute_logs" ایجاد شد.');
 
+    // Create commute_edit_logs table
+    await client.sql`
+      CREATE TABLE IF NOT EXISTS commute_edit_logs (
+        id SERIAL PRIMARY KEY,
+        commute_log_id INTEGER NOT NULL,
+        personnel_code VARCHAR(50) NOT NULL,
+        editor_name VARCHAR(255) NOT NULL,
+        edit_timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        field_name VARCHAR(100) NOT NULL,
+        old_value VARCHAR(100),
+        new_value VARCHAR(100)
+      );
+    `;
+    messages.push('جدول "commute_edit_logs" برای ثبت ویرایش‌ها با موفقیت ایجاد یا تایید شد.');
 
     // Create extensions and indexes for personnel table
     try {
