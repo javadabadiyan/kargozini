@@ -65,7 +65,7 @@ export interface HourlyCommuteLog {
   id: number;
   personnel_code: string;
   full_name: string;
-  exit_time: string; // ISO string from DB
+  exit_time: string | null; // ISO string from DB
   entry_time: string | null; // ISO string from DB or null
   reason: string | null;
   guard_name: string;

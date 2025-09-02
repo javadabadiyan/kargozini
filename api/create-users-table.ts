@@ -122,7 +122,7 @@ export default async function handler(
         personnel_code VARCHAR(50) NOT NULL,
         full_name VARCHAR(200) NOT NULL,
         guard_name VARCHAR(255) NOT NULL,
-        exit_time TIMESTAMPTZ NOT NULL,
+        exit_time TIMESTAMPTZ,
         entry_time TIMESTAMPTZ,
         reason TEXT,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

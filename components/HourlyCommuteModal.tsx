@@ -84,8 +84,12 @@ const HourlyCommuteModal: React.FC<HourlyCommuteModalProps> = ({ log, guardName,
 
   const handleEditClick = (hLog: HourlyCommuteLog) => {
     setEditingLog(hLog);
-    const exit = new Date(hLog.exit_time);
-    setExitTime({ hour: String(exit.getHours()), minute: String(exit.getMinutes()) });
+    if (hLog.exit_time) {
+      const exit = new Date(hLog.exit_time);
+      setExitTime({ hour: String(exit.getHours()), minute: String(exit.getMinutes()) });
+    } else {
+      setExitTime({ hour: '', minute: '' });
+    }
     if (hLog.entry_time) {
         const entry = new Date(hLog.entry_time);
         setEntryTime({ hour: String(entry.getHours()), minute: String(entry.getMinutes()) });
@@ -99,6 +103,8 @@ const HourlyCommuteModal: React.FC<HourlyCommuteModalProps> = ({ log, guardName,
     e.preventDefault();
 
     if (editingLog) {
+        // When editing, exit time can be null if it was an entry-only record, but let's enforce it for simplicity.
+        // Or we can allow editing one or the other. For now, let's assume exit is required for an edit to make sense.
         if (!exitTime.hour || !exitTime.minute) {
             setStatus({ type: 'error', message: 'ساعت خروج برای ویرایش الزامی است.' });
             return;
@@ -200,7 +206,8 @@ const HourlyCommuteModal: React.FC<HourlyCommuteModalProps> = ({ log, guardName,
     return toPersianDigits(new Date(isoString).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tehran' }));
   };
 
-  const calculateDuration = (exit: string, entry: string | null): string => {
+  const calculateDuration = (exit: string | null, entry: string | null): string => {
+    if (!exit) return '---';
     if (!entry) return 'در حال انجام';
     const diff = (new Date(entry).getTime() - new Date(exit).getTime()) / 60000;
     if (diff < 0) return 'نامعتبر';
