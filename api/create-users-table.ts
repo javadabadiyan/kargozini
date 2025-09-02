@@ -88,6 +88,7 @@ export default async function handler(
         guard_name VARCHAR(255) NOT NULL,
         entry_time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         exit_time TIMESTAMPTZ,
+        description TEXT,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );

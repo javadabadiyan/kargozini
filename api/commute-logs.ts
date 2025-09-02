@@ -4,31 +4,38 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 // --- GET Handler ---
 async function handleGet(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
   try {
-    // Get today's date in 'Asia/Tehran' timezone to use as a default
-    const todayInTehran = new Intl.DateTimeFormat('en-CA', { // 'en-CA' format is YYYY-MM-DD
+    const todayInTehran = new Intl.DateTimeFormat('en-CA', {
       timeZone: 'Asia/Tehran',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
+      year: 'numeric', month: '2-digit', day: '2-digit'
     }).format(new Date());
 
     const searchDate = (request.query.date as string) || todayInTehran;
+    const personnelCode = request.query.personnel_code as string;
 
-    // This query correctly converts the stored UTC timestamp to a date in the 'Asia/Tehran' timezone
-    // before comparing it with the provided date string.
-    const result = await pool.sql`
+    let query = `
         SELECT 
             cl.id, 
             cl.personnel_code, 
             cm.full_name, 
             cl.guard_name, 
             cl.entry_time, 
-            cl.exit_time 
+            cl.exit_time,
+            cl.description
         FROM commute_logs cl
         LEFT JOIN commuting_members cm ON cl.personnel_code = cm.personnel_code
-        WHERE DATE(cl.entry_time AT TIME ZONE 'Asia/Tehran') = ${searchDate}
-        ORDER BY cl.entry_time DESC;
+        WHERE DATE(cl.entry_time AT TIME ZONE 'Asia/Tehran') = $1
     `;
+    const params: string[] = [searchDate];
+
+    if (personnelCode) {
+        query += ` AND cl.personnel_code = $2`;
+        params.push(personnelCode);
+    }
+
+    query += ` ORDER BY cl.entry_time DESC;`;
+
+    const result = await pool.query(query, params);
+    
     return response.status(200).json({ logs: result.rows });
   } catch (error) {
     console.error('Database GET for commute_logs failed:', error);
@@ -46,7 +53,7 @@ async function handleGet(request: VercelRequest, response: VercelResponse, pool:
 
 // --- POST Handler (Log Commute) ---
 async function handlePost(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
-  const { personnelCode, guardName, action, timestampOverride } = request.body;
+  const { personnelCode, guardName, action, timestampOverride, description } = request.body;
 
   if (!personnelCode || !guardName || !action || !['entry', 'exit'].includes(action)) {
     return response.status(400).json({ error: 'اطلاعات ارسالی ناقص یا نامعتبر است.' });
@@ -55,7 +62,6 @@ async function handlePost(request: VercelRequest, response: VercelResponse, pool
   const effectiveTime = timestampOverride ? new Date(timestampOverride).toISOString() : 'NOW()';
 
   try {
-    // Find the latest open log for this person, regardless of day, to support multiple entries/exits.
     const { rows: openLogs } = await pool.sql`
         SELECT id FROM commute_logs 
         WHERE 
@@ -84,7 +90,7 @@ async function handlePost(request: VercelRequest, response: VercelResponse, pool
         }
         const { rows: updatedLog } = await pool.sql`
             UPDATE commute_logs 
-            SET exit_time = ${effectiveTime}
+            SET exit_time = ${effectiveTime}, description = ${description || null}
             WHERE id = ${openLog.id}
             RETURNING *;
         `;
@@ -93,7 +99,8 @@ async function handlePost(request: VercelRequest, response: VercelResponse, pool
     
     return response.status(400).json({ error: 'عملیات نامعتبر است.' });
 
-  } catch (error) {
+  } catch (error)
+ {
     console.error('Database POST for commute_logs failed:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     return response.status(500).json({ error: 'عملیات پایگاه داده با شکست مواجه شد.', details: errorMessage });
@@ -102,14 +109,14 @@ async function handlePost(request: VercelRequest, response: VercelResponse, pool
 
 // --- PUT Handler (Update) ---
 async function handlePut(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
-  const { id, entry_time, exit_time } = request.body;
+  const { id, entry_time, exit_time, description } = request.body;
   if (!id || !entry_time) {
     return response.status(400).json({ error: 'شناسه و زمان ورود برای ویرایش الزامی است.' });
   }
   try {
     const { rows } = await pool.sql`
       UPDATE commute_logs 
-      SET entry_time = ${entry_time}, exit_time = ${exit_time}
+      SET entry_time = ${entry_time}, exit_time = ${exit_time}, description = ${description || null}
       WHERE id = ${id}
       RETURNING id;
     `;
@@ -119,7 +126,7 @@ async function handlePut(request: VercelRequest, response: VercelResponse, pool:
     
     const { rows: updatedLogWithDetails } = await pool.sql`
         SELECT 
-            cl.id, cl.personnel_code, cm.full_name, cl.guard_name, cl.entry_time, cl.exit_time 
+            cl.id, cl.personnel_code, cm.full_name, cl.guard_name, cl.entry_time, cl.exit_time, cl.description 
         FROM commute_logs cl
         LEFT JOIN commuting_members cm ON cl.personnel_code = cm.personnel_code
         WHERE cl.id = ${id};
