@@ -22,6 +22,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
 
         const { rows } = await pool.sql`
             SELECT 
+                cl.id as log_id,
                 cm.full_name,
                 cl.personnel_code,
                 cm.department,

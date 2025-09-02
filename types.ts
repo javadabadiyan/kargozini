@@ -83,6 +83,7 @@ export interface CommuteReportRow {
 }
 
 export interface PresentMember {
+  log_id: number;
   full_name: string;
   personnel_code: string;
   department: string | null;

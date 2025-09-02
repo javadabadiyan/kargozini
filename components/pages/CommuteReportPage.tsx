@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import type { CommutingMember, CommuteReportRow, PresentMember, HourlyCommuteReportRow, CommuteEditLog } from '../../types';
+import type { CommutingMember, CommuteReportRow, PresentMember, HourlyCommuteReportRow, CommuteEditLog, CommuteLog } from '../../types';
+import { PencilIcon, TrashIcon } from '../icons/Icons';
+import EditCommuteLogModal from '../EditCommuteLogModal';
+import EditHourlyLogModal from '../EditHourlyLogModal';
 
 declare const XLSX: any;
 
@@ -60,7 +63,7 @@ const DatePicker: React.FC<{ date: any, setDate: (date: any) => void }> = ({ dat
 };
 
 const CommuteReportPage: React.FC = () => {
-    const [activeTab, setActiveTab] = useState('edits');
+    const [activeTab, setActiveTab] = useState('general');
     const [reportData, setReportData] = useState<CommuteReportRow[]>([]);
     const [commutingMembers, setCommutingMembers] = useState<CommutingMember[]>([]);
     const [loading, setLoading] = useState(false);
@@ -94,6 +97,11 @@ const CommuteReportPage: React.FC = () => {
     const [editLogsLoading, setEditLogsLoading] = useState(false);
     const [editLogsError, setEditLogsError] = useState<string | null>(null);
 
+    // States for Modals
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [editingLog, setEditingLog] = useState<CommuteLog | null>(null);
+    const [isHourlyEditModalOpen, setIsHourlyEditModalOpen] = useState(false);
+    const [editingHourlyLog, setEditingHourlyLog] = useState<HourlyCommuteReportRow | null>(null);
 
     const filterOptions = useMemo(() => {
         const departments = [...new Set(commutingMembers.map(m => m.department).filter(Boolean))].sort((a,b) => a.localeCompare(b, 'fa'));
@@ -227,6 +235,94 @@ const CommuteReportPage: React.FC = () => {
             fetchEditLogsData();
         }
     }, [activeTab, fetchReportData, fetchPresentReportData, fetchHourlyReportData, fetchEditLogsData]);
+    
+    // --- Modal and CRUD Handlers ---
+
+    const handleCloseModals = () => {
+        setIsEditModalOpen(false);
+        setEditingLog(null);
+        setIsHourlyEditModalOpen(false);
+        setEditingHourlyLog(null);
+    };
+
+    const handleOpenEditModal = (log: CommuteReportRow | PresentMember) => {
+        const modalLog: CommuteLog = {
+            id: log.log_id,
+            personnel_code: log.personnel_code,
+            full_name: log.full_name,
+            entry_time: log.entry_time,
+            exit_time: (log as CommuteReportRow).exit_time || null,
+            guard_name: (log as CommuteReportRow).guard_name || '',
+        };
+        setEditingLog(modalLog);
+        setIsEditModalOpen(true);
+    };
+
+    const handleDeleteLog = async (logId: number) => {
+        if (!window.confirm('آیا از حذف این رکورد تردد اطمینان دارید؟ این عمل قابل بازگشت نیست.')) return;
+        try {
+            const response = await fetch('/api/commute-logs', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: logId }),
+            });
+            if (!response.ok) throw new Error((await response.json()).error || 'خطا در حذف رکورد');
+            if (activeTab === 'general') fetchReportData();
+            if (activeTab === 'present') fetchPresentReportData();
+        } catch (err) {
+            alert(err instanceof Error ? err.message : 'خطای ناشناخته');
+        }
+    };
+
+    const handleSaveLog = async (updatedLog: CommuteLog) => {
+        try {
+            const response = await fetch('/api/commute-logs', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updatedLog),
+            });
+            if (!response.ok) throw new Error((await response.json()).error || 'خطا در ذخیره تغییرات');
+            handleCloseModals();
+            if (activeTab === 'general') fetchReportData();
+            if (activeTab === 'present') fetchPresentReportData();
+        } catch (err) {
+            alert(err instanceof Error ? err.message : 'خطای ناشناخته');
+        }
+    };
+    
+    const handleOpenHourlyEditModal = (log: HourlyCommuteReportRow) => {
+        setEditingHourlyLog(log);
+        setIsHourlyEditModalOpen(true);
+    };
+    
+    const handleDeleteHourlyLog = async (logId: number) => {
+        if (!window.confirm('آیا از حذف این تردد ساعتی اطمینان دارید؟')) return;
+        try {
+            const response = await fetch(`/api/hourly-commute?id=${logId}`, { method: 'DELETE' });
+            if (!response.ok) throw new Error((await response.json()).error || 'خطا در حذف رکورد');
+            fetchHourlyReportData();
+        } catch (err) {
+             alert(err instanceof Error ? err.message : 'خطای ناشناخته');
+        }
+    };
+
+    const handleSaveHourlyLog = async (updatedData: Partial<HourlyCommuteReportRow>) => {
+        const { log_id, ...payload } = updatedData;
+        try {
+            const response = await fetch(`/api/hourly-commute?id=${log_id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            if (!response.ok) throw new Error((await response.json()).error || 'خطا در ذخیره');
+            handleCloseModals();
+            fetchHourlyReportData();
+        } catch (err) {
+            alert(err instanceof Error ? err.message : 'خطای ناشناخته');
+        }
+    };
+
+    // --- Calculation and Formatting ---
 
     const calculateDifference = useCallback((isoString: string | null, standardHour: string, standardMinute: string, type: 'late' | 'early'): string | null => {
         if (!isoString) return null;
@@ -528,10 +624,10 @@ const CommuteReportPage: React.FC = () => {
                 <div className="overflow-x-auto border rounded-lg">
                     <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-100">
-                            <tr>{['نام پرسنل', 'کد', 'واحد', 'تاریخ', 'ورود', 'خروج', 'شیفت کاری', 'تاخیر', 'تعجیل', 'ماموریت', 'مرخصی'].map(h => <th key={h} className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider whitespace-nowrap">{h}</th>)}</tr>
+                            <tr>{['نام پرسنل', 'کد', 'واحد', 'تاریخ', 'ورود', 'خروج', 'شیفت کاری', 'تاخیر', 'تعجیل', 'ماموریت', 'مرخصی', 'عملیات'].map(h => <th key={h} className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider whitespace-nowrap">{h}</th>)}</tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                            {loading ? <tr><td colSpan={11} className="text-center p-4">در حال بارگذاری گزارش...</td></tr> : error ? <tr><td colSpan={11} className="text-center p-4 text-red-500">{error}</td></tr> : reportData.length === 0 ? <tr><td colSpan={11} className="text-center p-4 text-gray-500">هیچ داده‌ای مطابق با فیلترهای شما یافت نشد.</td></tr> : reportData.map(row => { const late = calculateDifference(row.entry_time, standardTimes.entry.hour, standardTimes.entry.minute, 'late'); const early = calculateDifference(row.exit_time, standardTimes.exit.hour, standardTimes.exit.minute, 'early'); return (<tr key={row.log_id} className="hover:bg-slate-50"><td className="px-4 py-3 whitespace-nowrap text-sm font-medium">{row.full_name}</td><td className="px-4 py-3 whitespace-nowrap text-sm">{toPersianDigits(row.personnel_code)}</td><td className="px-4 py-3 whitespace-nowrap text-sm">{row.department}</td><td className="px-4 py-3 whitespace-nowrap text-sm">{toPersianDigits(new Date(row.entry_time).toLocaleDateString('fa-IR', { timeZone: 'Asia/Tehran' }))}</td><td className="px-4 py-3 whitespace-nowrap text-sm">{toPersianDigits(new Date(row.entry_time).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tehran' }))}</td><td className="px-4 py-3 whitespace-nowrap text-sm">{row.exit_time ? toPersianDigits(new Date(row.exit_time).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tehran' })) : '---'}</td><td className="px-4 py-3 whitespace-nowrap text-sm">{row.guard_name}</td><td className={`px-4 py-3 whitespace-nowrap text-sm font-bold ${late ? 'text-red-600' : ''}`}>{late || '۰'}</td><td className={`px-4 py-3 whitespace-nowrap text-sm font-bold ${early ? 'text-red-600' : ''}`}>{early || '۰'}</td><td className="px-4 py-3 whitespace-nowrap text-sm">۰</td><td className="px-4 py-3 whitespace-nowrap text-sm">۰</td></tr>)})}
+                            {loading ? <tr><td colSpan={12} className="text-center p-4">در حال بارگذاری گزارش...</td></tr> : error ? <tr><td colSpan={12} className="text-center p-4 text-red-500">{error}</td></tr> : reportData.length === 0 ? <tr><td colSpan={12} className="text-center p-4 text-gray-500">هیچ داده‌ای مطابق با فیلترهای شما یافت نشد.</td></tr> : reportData.map(row => { const late = calculateDifference(row.entry_time, standardTimes.entry.hour, standardTimes.entry.minute, 'late'); const early = calculateDifference(row.exit_time, standardTimes.exit.hour, standardTimes.exit.minute, 'early'); return (<tr key={row.log_id} className="hover:bg-slate-50"><td className="px-4 py-3 whitespace-nowrap text-sm font-medium">{row.full_name}</td><td className="px-4 py-3 whitespace-nowrap text-sm">{toPersianDigits(row.personnel_code)}</td><td className="px-4 py-3 whitespace-nowrap text-sm">{row.department}</td><td className="px-4 py-3 whitespace-nowrap text-sm">{toPersianDigits(new Date(row.entry_time).toLocaleDateString('fa-IR', { timeZone: 'Asia/Tehran' }))}</td><td className="px-4 py-3 whitespace-nowrap text-sm">{toPersianDigits(new Date(row.entry_time).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tehran' }))}</td><td className="px-4 py-3 whitespace-nowrap text-sm">{row.exit_time ? toPersianDigits(new Date(row.exit_time).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tehran' })) : '---'}</td><td className="px-4 py-3 whitespace-nowrap text-sm">{row.guard_name}</td><td className={`px-4 py-3 whitespace-nowrap text-sm font-bold ${late ? 'text-red-600' : ''}`}>{late || '۰'}</td><td className={`px-4 py-3 whitespace-nowrap text-sm font-bold ${early ? 'text-red-600' : ''}`}>{early || '۰'}</td><td className="px-4 py-3 whitespace-nowrap text-sm">۰</td><td className="px-4 py-3 whitespace-nowrap text-sm">۰</td><td className="px-4 py-3 whitespace-nowrap text-sm"><div className="flex items-center justify-center gap-1"><button onClick={() => handleOpenEditModal(row)} className="p-1 text-blue-600 hover:bg-blue-100 rounded-full" title="ویرایش"><PencilIcon className="w-5 h-5" /></button><button onClick={() => handleDeleteLog(row.log_id)} className="p-1 text-red-600 hover:bg-red-100 rounded-full" title="حذف"><TrashIcon className="w-5 h-5" /></button></div></td></tr>)})}
                         </tbody>
                     </table>
                 </div>
@@ -548,10 +644,10 @@ const CommuteReportPage: React.FC = () => {
                 <div className="overflow-x-auto border rounded-lg">
                     <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-100">
-                            <tr>{['نام کامل', 'کد پرسنلی', 'واحد', 'سمت', 'ساعت ورود'].map(h => <th key={h} className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider whitespace-nowrap">{h}</th>)}</tr>
+                            <tr>{['نام کامل', 'کد پرسنلی', 'واحد', 'سمت', 'ساعت ورود', 'عملیات'].map(h => <th key={h} className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider whitespace-nowrap">{h}</th>)}</tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                            {presentReportLoading ? <tr><td colSpan={5} className="text-center p-4">در حال بارگذاری گزارش...</td></tr> : presentReportError ? <tr><td colSpan={5} className="text-center p-4 text-red-500">{presentReportError}</td></tr> : presentReportData.length === 0 ? <tr><td colSpan={5} className="text-center p-4 text-gray-500">هیچ فردی در تاریخ انتخابی حاضر نمی‌باشد.</td></tr> : presentReportData.map(row => (<tr key={row.personnel_code} className="hover:bg-slate-50"><td className="px-4 py-3 whitespace-nowrap text-sm font-medium">{row.full_name}</td><td className="px-4 py-3 whitespace-nowrap text-sm">{toPersianDigits(row.personnel_code)}</td><td className="px-4 py-3 whitespace-nowrap text-sm">{row.department}</td><td className="px-4 py-3 whitespace-nowrap text-sm">{row.position}</td><td className="px-4 py-3 whitespace-nowrap text-sm">{toPersianDigits(new Date(row.entry_time).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tehran' }))}</td></tr>))}
+                            {presentReportLoading ? <tr><td colSpan={6} className="text-center p-4">در حال بارگذاری گزارش...</td></tr> : presentReportError ? <tr><td colSpan={6} className="text-center p-4 text-red-500">{presentReportError}</td></tr> : presentReportData.length === 0 ? <tr><td colSpan={6} className="text-center p-4 text-gray-500">هیچ فردی در تاریخ انتخابی حاضر نمی‌باشد.</td></tr> : presentReportData.map(row => (<tr key={row.log_id} className="hover:bg-slate-50"><td className="px-4 py-3 whitespace-nowrap text-sm font-medium">{row.full_name}</td><td className="px-4 py-3 whitespace-nowrap text-sm">{toPersianDigits(row.personnel_code)}</td><td className="px-4 py-3 whitespace-nowrap text-sm">{row.department}</td><td className="px-4 py-3 whitespace-nowrap text-sm">{row.position}</td><td className="px-4 py-3 whitespace-nowrap text-sm">{toPersianDigits(new Date(row.entry_time).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tehran' }))}</td><td className="px-4 py-3 whitespace-nowrap text-sm"><div className="flex items-center justify-center gap-1"><button onClick={() => handleOpenEditModal(row)} className="p-1 text-blue-600 hover:bg-blue-100 rounded-full" title="ویرایش"><PencilIcon className="w-5 h-5" /></button><button onClick={() => handleDeleteLog(row.log_id)} className="p-1 text-red-600 hover:bg-red-100 rounded-full" title="حذف"><TrashIcon className="w-5 h-5" /></button></div></td></tr>))}
                         </tbody>
                     </table>
                 </div>
@@ -564,10 +660,10 @@ const CommuteReportPage: React.FC = () => {
                 <div className="overflow-x-auto border rounded-lg">
                     <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-100">
-                            <tr>{['نام پرسنل', 'کد', 'واحد', 'تاریخ', 'خروج', 'ورود', 'مدت', 'شرح', 'ثبت کننده'].map(h => <th key={h} className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider whitespace-nowrap">{h}</th>)}</tr>
+                            <tr>{['نام پرسنل', 'کد', 'واحد', 'تاریخ', 'خروج', 'ورود', 'مدت', 'شرح', 'ثبت کننده', 'عملیات'].map(h => <th key={h} className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider whitespace-nowrap">{h}</th>)}</tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                            {hourlyReportLoading ? <tr><td colSpan={9} className="text-center p-4">در حال بارگذاری گزارش...</td></tr> : hourlyReportError ? <tr><td colSpan={9} className="text-center p-4 text-red-500">{hourlyReportError}</td></tr> : hourlyReportData.length === 0 ? <tr><td colSpan={9} className="text-center p-4 text-gray-500">هیچ تردد بین ساعتی مطابق با فیلترهای شما یافت نشد.</td></tr> : hourlyReportData.map(row => (<tr key={row.log_id} className="hover:bg-slate-50"><td className="px-4 py-3 whitespace-nowrap text-sm font-medium">{row.full_name}</td><td className="px-4 py-3 whitespace-nowrap text-sm">{toPersianDigits(row.personnel_code)}</td><td className="px-4 py-3 whitespace-nowrap text-sm">{row.department}</td><td className="px-4 py-3 whitespace-nowrap text-sm">{toPersianDigits(new Date(row.exit_time || row.entry_time!).toLocaleDateString('fa-IR', { timeZone: 'Asia/Tehran' }))}</td><td className="px-4 py-3 whitespace-nowrap text-sm">{formatTime(row.exit_time)}</td><td className="px-4 py-3 whitespace-nowrap text-sm">{formatTime(row.entry_time)}</td><td className="px-4 py-3 whitespace-nowrap text-sm">{calculateDuration(row.exit_time, row.entry_time)}</td><td className="px-4 py-3 whitespace-nowrap text-sm">{row.reason || '---'}</td><td className="px-4 py-3 whitespace-nowrap text-sm">{row.guard_name}</td></tr>))}
+                            {hourlyReportLoading ? <tr><td colSpan={10} className="text-center p-4">در حال بارگذاری گزارش...</td></tr> : hourlyReportError ? <tr><td colSpan={10} className="text-center p-4 text-red-500">{hourlyReportError}</td></tr> : hourlyReportData.length === 0 ? <tr><td colSpan={10} className="text-center p-4 text-gray-500">هیچ تردد بین ساعتی مطابق با فیلترهای شما یافت نشد.</td></tr> : hourlyReportData.map(row => (<tr key={row.log_id} className="hover:bg-slate-50"><td className="px-4 py-3 whitespace-nowrap text-sm font-medium">{row.full_name}</td><td className="px-4 py-3 whitespace-nowrap text-sm">{toPersianDigits(row.personnel_code)}</td><td className="px-4 py-3 whitespace-nowrap text-sm">{row.department}</td><td className="px-4 py-3 whitespace-nowrap text-sm">{toPersianDigits(new Date(row.exit_time || row.entry_time!).toLocaleDateString('fa-IR', { timeZone: 'Asia/Tehran' }))}</td><td className="px-4 py-3 whitespace-nowrap text-sm">{formatTime(row.exit_time)}</td><td className="px-4 py-3 whitespace-nowrap text-sm">{formatTime(row.entry_time)}</td><td className="px-4 py-3 whitespace-nowrap text-sm">{calculateDuration(row.exit_time, row.entry_time)}</td><td className="px-4 py-3 whitespace-nowrap text-sm">{row.reason || '---'}</td><td className="px-4 py-3 whitespace-nowrap text-sm">{row.guard_name}</td><td className="px-4 py-3 whitespace-nowrap text-sm"><div className="flex items-center justify-center gap-1"><button onClick={() => handleOpenHourlyEditModal(row)} className="p-1 text-blue-600 hover:bg-blue-100 rounded-full" title="ویرایش"><PencilIcon className="w-5 h-5" /></button><button onClick={() => handleDeleteHourlyLog(row.log_id)} className="p-1 text-red-600 hover:bg-red-100 rounded-full" title="حذف"><TrashIcon className="w-5 h-5" /></button></div></td></tr>))}
                         </tbody>
                     </table>
                 </div>
@@ -709,6 +805,12 @@ const CommuteReportPage: React.FC = () => {
             </div>
             )}
 
+            {isEditModalOpen && editingLog && (
+                <EditCommuteLogModal log={editingLog} onClose={handleCloseModals} onSave={handleSaveLog} />
+            )}
+            {isHourlyEditModalOpen && editingHourlyLog && (
+                <EditHourlyLogModal log={editingHourlyLog} onClose={handleCloseModals} onSave={handleSaveHourlyLog} />
+            )}
 
             <style>{`.form-select { appearance: none; background-image: url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="%236b7280" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 8l4 4 4-4"/></svg>'); background-position: left 0.5rem center; background-repeat: no-repeat; background-size: 1.5em 1.5em; padding-left: 2.5rem; }.form-select, .form-select-sm { width: 100%; padding: 0.5rem 0.75rem; border: 1px solid #d1d5db; border-radius: 0.375rem; background-color: #fff; font-family: inherit; }.form-select-sm { font-size: 0.875rem; padding: 0.25rem 0.5rem; }`}</style>
         </div>
