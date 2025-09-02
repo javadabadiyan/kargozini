@@ -239,6 +239,29 @@ const LogCommutePage: React.FC = () => {
         fetchLogs();
         setTimeout(() => setStatus(null), 5000);
     };
+    
+    const handleMidDayExit = async (personnelCode: string) => {
+        setStatus({ type: 'info', message: 'در حال ثبت خروج بین ساعتی...' });
+        try {
+            const response = await fetch('/api/commute-logs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ personnelCode, guardName: selectedGuard, action: 'exit' }) // Let backend handle timestamp
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'خطا در ثبت خروج');
+            }
+            
+            setStatus({ type: 'success', message: 'خروج بین ساعتی با موفقیت ثبت شد.' });
+            fetchLogs();
+        } catch (err) {
+            setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطای ناشناخته' });
+        } finally {
+            setTimeout(() => setStatus(null), 5000);
+        }
+    };
 
     const handleEditClick = (log: CommuteLog) => {
         setEditingLog(log);
@@ -430,6 +453,11 @@ const LogCommutePage: React.FC = () => {
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 tabular-nums">{formatTime(log.exit_time)}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm">
                         <div className="flex items-center justify-center gap-1">
+                          {!log.exit_time && (
+                            <button onClick={() => handleMidDayExit(log.personnel_code)} className="p-2 text-green-600 hover:bg-green-100 rounded-md" title="ثبت خروج بین ساعتی">
+                              <ArrowRightOnRectangleIcon className="w-5 h-5" />
+                            </button>
+                          )}
                           <button onClick={() => handleEditClick(log)} className="p-2 text-blue-600 hover:bg-blue-100 rounded-md" title="ویرایش"><PencilIcon className="w-5 h-5" /></button>
                           <button onClick={() => handleDeleteLog(log.id)} className="p-2 text-red-600 hover:bg-red-100 rounded-md" title="حذف"><TrashIcon className="w-5 h-5" /></button>
                         </div>
