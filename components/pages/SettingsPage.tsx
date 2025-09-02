@@ -340,7 +340,7 @@ const SettingsPage: React.FC = () => {
                              <div className="flex items-center gap-2">
                                 <button onClick={() => handleBackup(item.id as any)} className="px-3 py-1.5 text-xs bg-blue-100 text-blue-800 rounded hover:bg-blue-200 dark:bg-blue-900/40 dark:text-blue-200">تهیه پشتیبان</button>
                                 <input type="file" ref={el => { individualBackupRefs.current[item.id] = el; }} onChange={(e) => handleRestore(e, item.id as any)} accept=".json" className="hidden" id={`import-${item.id}`}/>
-                                <label htmlFor={`import-${item.id}`} className="px-3 py-1.5 text-xs bg-green-100 text-green-800 rounded hover:bg-green-200 dark:bg-green-900/40 dark:text-green-200 cursor-pointer">بازیابی</button>
+                                <label htmlFor={`import-${item.id}`} className="px-3 py-1.5 text-xs bg-green-100 text-green-800 rounded hover:bg-green-200 dark:bg-green-900/40 dark:text-green-200 cursor-pointer">بازیابی</label>
                              </div>
                         </div>
                     ))}
