@@ -20,29 +20,29 @@ const BonusManagementPage = () => <PlaceholderPage title="مدیریت کارا�
 const ALL_MENU_ITEMS: MenuItem[] = [
   { id: 'dashboard', label: 'داشبورد', icon: HomeIcon, page: DashboardPage },
   { 
-    id: 'personnel', label: 'مدیریت پرسنل', icon: UsersIcon,
+    id: 'personnel_management', label: 'مدیریت پرسنل', icon: UsersIcon,
     children: [
-      { id: 'personnel', label: 'لیست پرسنل', icon: CircleIcon, page: PersonnelListPage },
-      { id: 'personnel', label: 'اطلاعات بستگان', icon: CircleIcon, page: DependentsInfoPage },
-      { id: 'personnel', label: 'بارگذاری مدارک', icon: DocumentTextIcon, page: DocumentUploadPage }
+      { id: 'personnel_list', label: 'لیست پرسنل', icon: CircleIcon, page: PersonnelListPage },
+      { id: 'dependents_info', label: 'اطلاعات بستگان', icon: CircleIcon, page: DependentsInfoPage },
+      { id: 'document_upload', label: 'بارگذاری مدارک', icon: DocumentTextIcon, page: DocumentUploadPage }
     ]
   },
   { 
     id: 'recruitment', label: 'کارگزینی', icon: BriefcaseIcon,
     children: [
-      { id: 'recruitment', label: 'نامه تعهد حسابداری', icon: CircleIcon, page: AccountingCommitmentPage },
-      { id: 'recruitment', label: 'کمیته تشویق و انضباطی', icon: CircleIcon, page: DisciplinaryCommitteePage },
-      { id: 'recruitment', label: 'ارزیابی عملکرد', icon: CircleIcon, page: PerformanceReviewPage },
-      { id: 'recruitment', label: 'گروه شغلی پرسنل', icon: CircleIcon, page: JobGroupPage },
-      { id: 'recruitment', label: 'مدیریت کارانه', icon: CircleIcon, page: BonusManagementPage }
+      { id: 'accounting_commitment', label: 'نامه تعهد حسابداری', icon: CircleIcon, page: AccountingCommitmentPage },
+      { id: 'disciplinary_committee', label: 'کمیته تشویق و انضباطی', icon: CircleIcon, page: DisciplinaryCommitteePage },
+      { id: 'performance_review', label: 'ارزیابی عملکرد', icon: CircleIcon, page: PerformanceReviewPage },
+      { id: 'job_group', label: 'گروه شغلی پرسنل', icon: CircleIcon, page: JobGroupPage },
+      { id: 'bonus_management', label: 'مدیریت کارانه', icon: CircleIcon, page: BonusManagementPage }
     ]
   },
   {
     id: 'security', label: 'حراست', icon: ShieldCheckIcon,
     children: [
-      { id: 'security', label: 'کارمندان عضو تردد', icon: CircleIcon, page: CommutingMembersPage },
-      { id: 'security', label: 'ثبت تردد', icon: CircleIcon, page: LogCommutePage },
-      { id: 'security', label: 'گزارش گیری تردد', icon: DocumentReportIcon, page: CommuteReportPage }
+      { id: 'commuting_members', label: 'کارمندان عضو تردد', icon: CircleIcon, page: CommutingMembersPage },
+      { id: 'log_commute', label: 'ثبت تردد', icon: CircleIcon, page: LogCommutePage },
+      { id: 'commute_report', label: 'گزارش گیری تردد', icon: DocumentReportIcon, page: CommuteReportPage }
     ]
   },
   { id: 'settings', label: 'تنظیمات', icon: CogIcon, page: SettingsPage }
@@ -172,13 +172,28 @@ export const Sidebar: React.FC<{
   user: { permissions: UserPermissions };
 }> = ({ setActivePage, isOpen, onClose, user }) => {
   const { permissions } = user;
+  
   const menuItems = useMemo(() => {
-    return ALL_MENU_ITEMS.filter(item => permissions[item.id]);
+    const filterItems = (items: MenuItem[]): MenuItem[] => {
+      return items.reduce((acc: MenuItem[], item) => {
+        if (item.children) {
+          const visibleChildren = filterItems(item.children);
+          if (visibleChildren.length > 0) {
+            acc.push({ ...item, children: visibleChildren });
+          }
+        } else if (permissions[item.id]) {
+          acc.push(item);
+        }
+        return acc;
+      }, []);
+    };
+    return filterItems(ALL_MENU_ITEMS);
   }, [permissions]);
+
 
   const [activeItem, setActiveItem] = useState<string>('لیست پرسنل');
   const [openItems, setOpenItems] = useState<Record<string, boolean>>({
-      personnel: true,
+      personnel_management: true,
       recruitment: false,
       security: true
   });

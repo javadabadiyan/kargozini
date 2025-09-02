@@ -1,20 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import type { AppUser, UserPermissions } from '../types';
+import { PERMISSION_STRUCTURE } from '../types';
 
 interface UserEditModalProps {
   user: AppUser | null;
   onClose: () => void;
   onSave: (user: AppUser) => Promise<void>;
 }
-
-const PERMISSION_KEYS: { key: keyof UserPermissions, label: string }[] = [
-    { key: 'dashboard', label: 'داشبورد' },
-    { key: 'personnel', label: 'مدیریت پرسنل' },
-    { key: 'recruitment', label: 'کارگزینی' },
-    { key: 'security', label: 'حراست' },
-    { key: 'settings', label: 'تنظیمات' },
-    { key: 'user_management', label: 'مدیریت کاربران (در تنظیمات)' },
-];
 
 const UserEditModal: React.FC<UserEditModalProps> = ({ user, onClose, onSave }) => {
   const [formData, setFormData] = useState<Partial<AppUser>>({});
@@ -91,19 +83,24 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, onClose, onSave }) 
             </div>
             <div>
                 <h4 className="text-md font-semibold text-gray-700 dark:text-gray-300 mb-2">دسترسی‌ها</h4>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 p-4 border rounded-lg bg-slate-50 dark:bg-slate-700/50 dark:border-slate-600">
-                    {PERMISSION_KEYS.map(perm => (
-                        <label key={perm.key} className="flex items-center space-x-2 space-x-reverse cursor-pointer">
-                            <input
-                                type="checkbox"
-                                checked={!!formData.permissions?.[perm.key]}
-                                onChange={() => handlePermissionChange(perm.key)}
-                                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                            />
-                            <span className="text-sm text-gray-700 dark:text-gray-200">{perm.label}</span>
-                        </label>
-                    ))}
-                </div>
+                {PERMISSION_STRUCTURE.map(group => (
+                    <div key={group.id} className="mb-3">
+                        <h5 className="font-semibold text-gray-600 dark:text-gray-400 mb-2">{group.label}</h5>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3 p-4 border rounded-lg bg-slate-50 dark:bg-slate-700/50 dark:border-slate-600">
+                            {group.permissions.map(perm => (
+                                <label key={perm.key} className="flex items-center space-x-2 space-x-reverse cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={!!formData.permissions?.[perm.key as keyof UserPermissions]}
+                                        onChange={() => handlePermissionChange(perm.key as keyof UserPermissions)}
+                                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                    />
+                                    <span className="text-sm text-gray-700 dark:text-gray-200">{perm.label}</span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+                ))}
             </div>
           </div>
           

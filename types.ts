@@ -19,6 +19,49 @@ export interface AppUser {
   permissions: UserPermissions;
 }
 
+export const PERMISSION_STRUCTURE = [
+    {
+        id: 'dashboard_group',
+        label: 'داشبورد',
+        permissions: [{ key: 'dashboard', label: 'دسترسی به داشبورد' }]
+    },
+    {
+        id: 'personnel_group',
+        label: 'مدیریت پرسنل',
+        permissions: [
+            { key: 'personnel_list', label: 'لیست پرسنل' },
+            { key: 'dependents_info', label: 'اطلاعات بستگان' },
+            { key: 'document_upload', label: 'بارگذاری مدارک' }
+        ]
+    },
+    {
+        id: 'recruitment_group',
+        label: 'کارگزینی',
+        permissions: [
+            { key: 'accounting_commitment', label: 'نامه تعهد حسابداری' },
+            { key: 'disciplinary_committee', label: 'کمیته تشویق و انضباطی' },
+            { key: 'performance_review', label: 'ارزیابی عملکرد' },
+            { key: 'job_group', label: 'گروه شغلی پرسنل' },
+            { key: 'bonus_management', label: 'مدیریت کارانه' }
+        ]
+    },
+    {
+        id: 'security_group',
+        label: 'حراست',
+        permissions: [
+            { key: 'commuting_members', label: 'کارمندان عضو تردد' },
+            { key: 'log_commute', label: 'ثبت تردد' },
+            { key: 'commute_report', label: 'گزارش گیری تردد' }
+        ]
+    },
+    {
+        id: 'settings_group',
+        label: 'تنظیمات',
+        permissions: [{ key: 'settings', label: 'دسترسی به تنظیمات و مدیریت کاربران' }]
+    }
+];
+
+
 export interface Personnel {
   id: number;
   personnel_code: string;
