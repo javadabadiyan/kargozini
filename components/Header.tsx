@@ -9,20 +9,20 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({ onLogout, onMenuClick }) => {
   return (
-    <header className="bg-white shadow-md p-4 flex justify-between items-center sticky top-0 z-10">
+    <header className="bg-white dark:bg-slate-800 shadow-md dark:shadow-slate-700/50 p-4 flex justify-between items-center sticky top-0 z-10 border-b border-gray-200 dark:border-slate-700">
       <div className="flex items-center">
         <button 
           onClick={onMenuClick} 
-          className="lg:hidden text-gray-600 hover:text-gray-800 mr-4"
+          className="lg:hidden text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white mr-4"
           aria-label="باز کردن منو"
         >
           <MenuIcon className="w-6 h-6" />
         </button>
-        <h1 className="text-lg font-semibold text-gray-700 hidden sm:block">خوش آمدید, مدیر سیستم</h1>
+        <h1 className="text-lg font-semibold text-gray-700 dark:text-gray-200 hidden sm:block">خوش آمدید, مدیر سیستم</h1>
       </div>
       <button 
         onClick={onLogout}
-        className="flex items-center px-4 py-2 text-sm font-medium text-red-600 bg-red-100 rounded-lg hover:bg-red-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
+        className="flex items-center px-4 py-2 text-sm font-medium text-red-600 bg-red-100 dark:bg-red-900/20 dark:text-red-400 rounded-lg hover:bg-red-200 dark:hover:bg-red-900/40 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
       >
         <LogoutIcon className="w-5 h-5 ml-2" />
         خروج

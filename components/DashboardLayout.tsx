@@ -17,7 +17,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout }) => {
   const closeSidebar = () => setIsSidebarOpen(false);
 
   return (
-    <div className="flex h-screen bg-slate-50 relative lg:overflow-hidden">
+    <div className="flex h-screen bg-slate-50 dark:bg-slate-900 relative lg:overflow-hidden">
       <Sidebar setActivePage={setActivePage} isOpen={isSidebarOpen} onClose={closeSidebar} />
       {/* Overlay for mobile to close sidebar on click outside */}
       {isSidebarOpen && (
@@ -32,8 +32,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout }) => {
         <div className="p-4 sm:p-6 flex-1">
             <ActivePage />
         </div>
-        <footer className="text-center py-4 bg-slate-50 border-t border-slate-200">
-            <p className="text-sm text-slate-500">طراح و کدنویسی جواد آبادیان</p>
+        <footer className="text-center py-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">
+            <p className="text-sm text-slate-500 dark:text-slate-400">طراح و کدنویسی جواد آبادیان</p>
         </footer>
       </main>
     </div>

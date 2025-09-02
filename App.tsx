@@ -28,7 +28,7 @@ const App: React.FC = () => {
   }, []);
 
   return (
-    <div className="bg-slate-100 min-h-screen">
+    <div className="bg-slate-100 dark:bg-slate-900 min-h-screen">
       {isAuthenticated ? (
         <DashboardLayout onLogout={handleLogout} />
       ) : (

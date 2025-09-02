@@ -180,6 +180,16 @@ export const Sidebar: React.FC<{
       recruitment: false,
       security: true
   });
+
+  const [appName, setAppName] = useState('سیستم جامع کارگزینی');
+  const [appLogo, setAppLogo] = useState<string | null>(null);
+
+  useEffect(() => {
+    const savedName = localStorage.getItem('appName');
+    const savedLogo = localStorage.getItem('appLogo');
+    if (savedName) setAppName(savedName);
+    if (savedLogo) setAppLogo(savedLogo);
+  }, []);
   
   const handleSetActiveItem = useCallback((id: string, page: React.ComponentType) => {
     setActiveItem(id);
@@ -194,7 +204,10 @@ export const Sidebar: React.FC<{
   return (
     <aside className={`w-72 bg-slate-800 text-white flex flex-col shadow-2xl fixed lg:static inset-y-0 right-0 z-30 transform transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : 'translate-x-full'} lg:translate-x-0`}>
       <div className="flex items-center justify-between p-6 border-b border-slate-700">
-        <h2 className="text-xl font-bold">سیستم جامع کارگزینی</h2>
+        <div className="flex items-center gap-3">
+          {appLogo && <img src={appLogo} alt="لوگو" className="w-9 h-9 rounded-md object-cover" />}
+          <h2 className="text-xl font-bold">{appName}</h2>
+        </div>
          <button onClick={onClose} className="lg:hidden text-gray-400 hover:text-white" aria-label="بستن منو">
             <XIcon className="w-6 h-6" />
         </button>
