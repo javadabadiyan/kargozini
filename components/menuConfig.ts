@@ -8,9 +8,9 @@ import CommutingMembersPage from './pages/CommutingMembersPage';
 import LogCommutePage from './pages/LogCommutePage';
 import CommuteReportPage from './pages/CommuteReportPage';
 import SettingsPage from './pages/SettingsPage';
+import DashboardPage from './pages/DashboardPage';
 
 // FIX: Replaced JSX syntax with React.createElement to be valid in a .ts file. This resolves the parsing errors.
-const DashboardPage: React.FC = () => React.createElement(PlaceholderPage, { title: "داشبورد" });
 const DocumentUploadPage: React.FC = () => React.createElement(PlaceholderPage, { title: "بارگذاری مدارک" });
 const AccountingCommitmentPage: React.FC = () => React.createElement(PlaceholderPage, { title: "نامه تعهد حسابداری" });
 const DisciplinaryCommitteePage: React.FC = () => React.createElement(PlaceholderPage, { title: "کمیته تشویق و انضباطی" });
