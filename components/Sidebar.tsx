@@ -1,69 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, memo, useMemo } from 'react';
 import type { MenuItem, UserPermissions } from '../types';
-import { ChevronDownIcon, ChevronUpIcon, CircleIcon, HomeIcon, DocumentTextIcon, BriefcaseIcon, ShieldCheckIcon, UsersIcon, XIcon, DocumentReportIcon, CogIcon } from './icons/Icons';
-import DependentsInfoPage from './pages/DependentsInfoPage';
-import PlaceholderPage from './pages/PlaceholderPage';
-import PersonnelListPage from './pages/PersonnelListPage';
-import CommutingMembersPage from './pages/CommutingMembersPage';
-import LogCommutePage from './pages/LogCommutePage';
-import CommuteReportPage from './pages/CommuteReportPage';
-import SettingsPage from './pages/SettingsPage';
-
-const DashboardPage = () => <PlaceholderPage title="داشبورد" />;
-const DocumentUploadPage = () => <PlaceholderPage title="بارگذاری مدارک" />;
-const AccountingCommitmentPage = () => <PlaceholderPage title="نامه تعهد حسابداری" />;
-const DisciplinaryCommitteePage = () => <PlaceholderPage title="کمیته تشویق و انضباطی" />;
-const PerformanceReviewPage = () => <PlaceholderPage title="ارزیابی عملکرد" />;
-const JobGroupPage = () => <PlaceholderPage title="گروه شغلی پرسنل" />;
-const BonusManagementPage = () => <PlaceholderPage title="مدیریت کارانه" />;
-
-const ALL_MENU_ITEMS: MenuItem[] = [
-  { id: 'dashboard', label: 'داشبورد', icon: HomeIcon, page: DashboardPage },
-  { 
-    id: 'personnel', label: 'مدیریت پرسنل', icon: UsersIcon,
-    children: [
-      { id: 'personnel_list', label: 'لیست پرسنل', icon: CircleIcon, page: PersonnelListPage },
-      { id: 'dependents_info', label: 'اطلاعات بستگان', icon: CircleIcon, page: DependentsInfoPage },
-      { id: 'document_upload', label: 'بارگذاری مدارک', icon: DocumentTextIcon, page: DocumentUploadPage }
-    ]
-  },
-  { 
-    id: 'recruitment', label: 'کارگزینی', icon: BriefcaseIcon,
-    children: [
-      { id: 'accounting_commitment', label: 'نامه تعهد حسابداری', icon: CircleIcon, page: AccountingCommitmentPage },
-      { id: 'disciplinary_committee', label: 'کمیته تشویق و انضباطی', icon: CircleIcon, page: DisciplinaryCommitteePage },
-      { id: 'performance_review', label: 'ارزیابی عملکرد', icon: CircleIcon, page: PerformanceReviewPage },
-      { id: 'job_group', label: 'گروه شغلی پرسنل', icon: CircleIcon, page: JobGroupPage },
-      { id: 'bonus_management', label: 'مدیریت کارانه', icon: CircleIcon, page: BonusManagementPage }
-    ]
-  },
-  {
-    id: 'security', label: 'حراست', icon: ShieldCheckIcon,
-    children: [
-      { id: 'commuting_members', label: 'کارمندان عضو تردد', icon: CircleIcon, page: CommutingMembersPage },
-      { id: 'log_commute', label: 'ثبت تردد', icon: CircleIcon, page: LogCommutePage },
-      { id: 'commute_report', label: 'گزارش گیری تردد', icon: DocumentReportIcon, page: CommuteReportPage }
-    ]
-  },
-  { id: 'settings', label: 'تنظیمات', icon: CogIcon, page: SettingsPage }
-];
-
-const findFirstAccessiblePage = (permissions: UserPermissions): { page: React.ComponentType, id: string } | null => {
-    for (const item of ALL_MENU_ITEMS) {
-        if (item.page && permissions[item.id]) {
-            return { page: item.page, id: item.id };
-        }
-        if (item.children) {
-            for (const child of item.children) {
-                if (child.page && permissions[child.id]) {
-                    return { page: child.page, id: child.id };
-                }
-            }
-        }
-    }
-    return null;
-};
-
+import { ChevronDownIcon, ChevronUpIcon, XIcon } from './icons/Icons';
+import { ALL_MENU_ITEMS } from './menuConfig';
 
 const SidebarMenuItem: React.FC<{
   item: MenuItem;
@@ -183,22 +121,18 @@ const Clock: React.FC = () => {
 
 
 export const Sidebar: React.FC<{ 
-  setActivePage: React.Dispatch<React.SetStateAction<React.ComponentType | null>>;
+  setActivePage: (id: string, page: React.ComponentType) => void;
+  activePageId: string;
   isOpen: boolean;
   onClose: () => void;
   user: { permissions: UserPermissions };
-}> = ({ setActivePage, isOpen, onClose, user }) => {
+}> = ({ setActivePage, activePageId, isOpen, onClose, user }) => {
   const { permissions } = user;
   const menuItems = useMemo(() => {
     return ALL_MENU_ITEMS.filter(item => 
       permissions[item.id] || (item.children && item.children.some(child => permissions[child.id]))
     );
   }, [permissions]);
-
-  const [activeItem, setActiveItem] = useState<string>(() => {
-    const firstPage = findFirstAccessiblePage(permissions);
-    return firstPage ? firstPage.id : '';
-  });
 
   const [openItems, setOpenItems] = useState<Record<string, boolean>>({
       personnel: true,
@@ -208,17 +142,6 @@ export const Sidebar: React.FC<{
 
   const [appName, setAppName] = useState('سیستم جامع کارگزینی');
   const [appLogo, setAppLogo] = useState<string | null>(null);
-  
-  useEffect(() => {
-    const firstPage = findFirstAccessiblePage(permissions);
-    if (firstPage) {
-        setActivePage(() => firstPage.page);
-    } else {
-        // No accessible page, show a placeholder
-        setActivePage(() => () => <PlaceholderPage title="دسترسی به هیچ صفحه‌ای وجود ندارد" />);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [permissions]);
 
   useEffect(() => {
     const savedName = localStorage.getItem('appName');
@@ -228,8 +151,7 @@ export const Sidebar: React.FC<{
   }, []);
   
   const handleSetActiveItem = useCallback((id: string, page: React.ComponentType) => {
-    setActiveItem(id);
-    setActivePage(() => page);
+    setActivePage(id, page);
     onClose(); // Close sidebar on mobile after selection
   }, [setActivePage, onClose]);
 
@@ -253,7 +175,7 @@ export const Sidebar: React.FC<{
           <SidebarMenuItem 
             key={item.id}
             item={item}
-            activeItem={activeItem}
+            activeItem={activePageId}
             setActiveItem={handleSetActiveItem}
             openItems={openItems}
             toggleItem={toggleItem}
