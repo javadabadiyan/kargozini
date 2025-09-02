@@ -46,6 +46,12 @@ export const LockClosedIcon: React.FC<IconProps> = (props) => (
   </svg>
 );
 
+export const CogIcon: React.FC<IconProps> = (props) => (
+    <svg {...props} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12a7.5 7.5 0 0015 0m-15 0a7.5 7.5 0 1115 0m-15 0H3m18 0h-1.5m-15 0a7.5 7.5 0 1115 0m-15 0H3m18 0h-1.5m-15 0a7.5 7.5 0 1115 0m-15 0H3m18 0h-1.5M12 4.5v-3m0 18v-3m7.5-7.5h3M4.5 12h-3m15-3.75l-2.12 2.12M9.38 15.88l-2.12 2.12M15.88 9.38l-2.12-2.12M8.62 8.62l-2.12-2.12" />
+    </svg>
+);
+
 export const CircleIcon: React.FC<IconProps> = (props) => (
   <svg {...props} xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24" strokeWidth={1.5} stroke="none" className={props.className}>
     <circle cx="12" cy="12" r="4" />
