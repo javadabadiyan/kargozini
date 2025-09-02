@@ -20,7 +20,7 @@ const BonusManagementPage = () => <PlaceholderPage title="مدیریت کارا�
 const ALL_MENU_ITEMS: MenuItem[] = [
   { id: 'dashboard', label: 'داشبورد', icon: HomeIcon, page: DashboardPage },
   { 
-    id: 'personnel_management', label: 'مدیریت پرسنل', icon: UsersIcon,
+    id: 'personnel_parent', label: 'مدیریت پرسنل', icon: UsersIcon,
     children: [
       { id: 'personnel_list', label: 'لیست پرسنل', icon: CircleIcon, page: PersonnelListPage },
       { id: 'dependents_info', label: 'اطلاعات بستگان', icon: CircleIcon, page: DependentsInfoPage },
@@ -28,7 +28,7 @@ const ALL_MENU_ITEMS: MenuItem[] = [
     ]
   },
   { 
-    id: 'recruitment', label: 'کارگزینی', icon: BriefcaseIcon,
+    id: 'recruitment_parent', label: 'کارگزینی', icon: BriefcaseIcon,
     children: [
       { id: 'accounting_commitment', label: 'نامه تعهد حسابداری', icon: CircleIcon, page: AccountingCommitmentPage },
       { id: 'disciplinary_committee', label: 'کمیته تشویق و انضباطی', icon: CircleIcon, page: DisciplinaryCommitteePage },
@@ -38,7 +38,7 @@ const ALL_MENU_ITEMS: MenuItem[] = [
     ]
   },
   {
-    id: 'security', label: 'حراست', icon: ShieldCheckIcon,
+    id: 'security_parent', label: 'حراست', icon: ShieldCheckIcon,
     children: [
       { id: 'commuting_members', label: 'کارمندان عضو تردد', icon: CircleIcon, page: CommutingMembersPage },
       { id: 'log_commute', label: 'ثبت تردد', icon: CircleIcon, page: LogCommutePage },
@@ -57,7 +57,7 @@ const SidebarMenuItem: React.FC<{
   toggleItem: (id: string) => void;
 }> = ({ item, activeItem, setActiveItem, openItems, toggleItem }) => {
   const isParent = !!item.children;
-  const isActive = activeItem === item.id || item.children?.some(child => child.label === activeItem); // Match by label for children
+  const isActive = activeItem === item.id || item.children?.some(child => child.id === activeItem);
   const isOpen = openItems[item.id] ?? false;
 
   const handleClick = () => {
@@ -70,7 +70,7 @@ const SidebarMenuItem: React.FC<{
   
   const handleChildClick = (child: MenuItem) => {
      if(child.page) {
-       setActiveItem(child.label, child.page);
+       setActiveItem(child.id, child.page);
      }
   }
 
@@ -92,9 +92,9 @@ const SidebarMenuItem: React.FC<{
         <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? 'max-h-96' : 'max-h-0'}`}>
           <div className="mr-6 border-r-2 border-slate-600 pr-4">
           {item.children?.map(child => (
-            <div key={child.label} onClick={() => handleChildClick(child)} 
-              className={`flex items-center p-2 my-1 rounded-lg transition-colors duration-200 cursor-pointer text-sm ${activeItem === child.label ? 'text-blue-400 font-semibold' : 'text-gray-400 hover:text-white'}`}>
-              <child.icon className={`w-5 h-5 ms-2 ${activeItem === child.label ? 'text-blue-400' : ''}`} />
+            <div key={child.id} onClick={() => handleChildClick(child)} 
+              className={`flex items-center p-2 my-1 rounded-lg transition-colors duration-200 cursor-pointer text-sm ${activeItem === child.id ? 'text-blue-400 font-semibold' : 'text-gray-400 hover:text-white'}`}>
+              <child.icon className={`w-5 h-5 ms-2 ${activeItem === child.id ? 'text-blue-400' : ''}`} />
               <span className="mr-2">{child.label}</span>
             </div>
           ))}
@@ -172,30 +172,28 @@ export const Sidebar: React.FC<{
   user: { permissions: UserPermissions };
 }> = ({ setActivePage, isOpen, onClose, user }) => {
   const { permissions } = user;
-  
   const menuItems = useMemo(() => {
     const filterItems = (items: MenuItem[]): MenuItem[] => {
-      return items.reduce((acc: MenuItem[], item) => {
-        if (item.children) {
-          const visibleChildren = filterItems(item.children);
-          if (visibleChildren.length > 0) {
-            acc.push({ ...item, children: visibleChildren });
-          }
-        } else if (permissions[item.id]) {
-          acc.push(item);
-        }
-        return acc;
-      }, []);
+        return items.reduce<MenuItem[]>((acc, item) => {
+            if (item.children) {
+                const visibleChildren = filterItems(item.children);
+                if (visibleChildren.length > 0) {
+                    acc.push({ ...item, children: visibleChildren });
+                }
+            } else if (permissions[item.id]) {
+                acc.push(item);
+            }
+            return acc;
+        }, []);
     };
     return filterItems(ALL_MENU_ITEMS);
   }, [permissions]);
 
-
-  const [activeItem, setActiveItem] = useState<string>('لیست پرسنل');
+  const [activeItem, setActiveItem] = useState<string>('personnel_list');
   const [openItems, setOpenItems] = useState<Record<string, boolean>>({
-      personnel_management: true,
-      recruitment: false,
-      security: true
+      personnel_parent: true,
+      recruitment_parent: false,
+      security_parent: true
   });
 
   const [appName, setAppName] = useState('سیستم جامع کارگزینی');

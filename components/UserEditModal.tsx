@@ -1,12 +1,53 @@
 import React, { useState, useEffect } from 'react';
 import type { AppUser, UserPermissions } from '../types';
-import { PERMISSION_STRUCTURE } from '../types';
 
 interface UserEditModalProps {
   user: AppUser | null;
   onClose: () => void;
   onSave: (user: AppUser) => Promise<void>;
 }
+
+const PERMISSION_GROUPS = [
+    {
+        group: 'داشبورد',
+        permissions: [
+            { key: 'dashboard', label: 'دسترسی به داشبورد' },
+        ],
+    },
+    {
+        group: 'مدیریت پرسنل',
+        permissions: [
+            { key: 'personnel_list', label: 'لیست پرسنل' },
+            { key: 'dependents_info', label: 'اطلاعات بستگان' },
+            { key: 'document_upload', label: 'بارگذاری مدارک' },
+        ],
+    },
+    {
+        group: 'کارگزینی',
+        permissions: [
+            { key: 'accounting_commitment', label: 'نامه تعهد حسابداری' },
+            { key: 'disciplinary_committee', label: 'کمیته تشویق و انضباطی' },
+            { key: 'performance_review', label: 'ارزیابی عملکرد' },
+            { key: 'job_group', label: 'گروه شغلی پرسنل' },
+            { key: 'bonus_management', label: 'مدیریت کارانه' },
+        ],
+    },
+    {
+        group: 'حراست',
+        permissions: [
+            { key: 'commuting_members', label: 'کارمندان عضو تردد' },
+            { key: 'log_commute', label: 'ثبت تردد' },
+            { key: 'commute_report', label: 'گزارش گیری تردد' },
+        ],
+    },
+    {
+        group: 'تنظیمات',
+        permissions: [
+            { key: 'settings', label: 'دسترسی به تنظیمات' },
+            { key: 'user_management', label: 'مدیریت کاربران' },
+        ],
+    },
+];
 
 const UserEditModal: React.FC<UserEditModalProps> = ({ user, onClose, onSave }) => {
   const [formData, setFormData] = useState<Partial<AppUser>>({});
@@ -81,17 +122,16 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, onClose, onSave }) 
                   <input type="password" id="password" name="password" value={formData.password || ''} onChange={handleChange} className={inputClass} required={isNew} />
                 </div>
             </div>
-            <div>
-                <h4 className="text-md font-semibold text-gray-700 dark:text-gray-300 mb-2">دسترسی‌ها</h4>
-                {PERMISSION_STRUCTURE.map(group => (
-                    <div key={group.id} className="mb-3">
-                        <h5 className="font-semibold text-gray-600 dark:text-gray-400 mb-2">{group.label}</h5>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3 p-4 border rounded-lg bg-slate-50 dark:bg-slate-700/50 dark:border-slate-600">
+            <div className="space-y-4">
+                {PERMISSION_GROUPS.map(group => (
+                    <div key={group.group}>
+                        <h4 className="text-md font-semibold text-gray-700 dark:text-gray-300 mb-2">{group.group}</h4>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 p-4 border rounded-lg bg-slate-50 dark:bg-slate-700/50 dark:border-slate-600">
                             {group.permissions.map(perm => (
                                 <label key={perm.key} className="flex items-center space-x-2 space-x-reverse cursor-pointer">
                                     <input
                                         type="checkbox"
-                                        checked={!!formData.permissions?.[perm.key as keyof UserPermissions]}
+                                        checked={!!formData.permissions?.[perm.key]}
                                         onChange={() => handlePermissionChange(perm.key as keyof UserPermissions)}
                                         className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                                     />
