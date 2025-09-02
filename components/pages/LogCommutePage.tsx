@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import type { CommutingMember, CommuteLog } from '../../types';
-import { PencilIcon, TrashIcon, ArrowRightOnRectangleIcon, ChevronDownIcon, SearchIcon } from '../icons/Icons';
+import { PencilIcon, TrashIcon, ClockIcon, ChevronDownIcon, SearchIcon } from '../icons/Icons';
 import EditCommuteLogModal from '../EditCommuteLogModal';
+import MidDayLeaveModal from '../MidDayLeaveModal';
 
 const GUARDS = [
   'شیفت A | محسن صادقی گوغری',
@@ -68,6 +69,8 @@ const LogCommutePage: React.FC = () => {
     const [status, setStatus] = useState<{ type: 'info' | 'success' | 'error'; message: string } | null>(null);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editingLog, setEditingLog] = useState<CommuteLog | null>(null);
+    const [isMidDayModalOpen, setIsMidDayModalOpen] = useState(false);
+    const [selectedLogForLeave, setSelectedLogForLeave] = useState<CommuteLog | null>(null);
     const [openUnits, setOpenUnits] = useState<Set<string>>(new Set());
 
     const getTodayPersian = useCallback(() => {
@@ -226,7 +229,6 @@ const LogCommutePage: React.FC = () => {
                     successCount++;
                 } else {
                     const errorData = await response.json();
-                    // Optionally show individual errors, for now, we just count success
                     console.error(`Failed for ${personnelCode}:`, errorData.error);
                 }
             } catch (err) {
@@ -239,28 +241,10 @@ const LogCommutePage: React.FC = () => {
         fetchLogs();
         setTimeout(() => setStatus(null), 5000);
     };
-    
-    const handleMidDayExit = async (personnelCode: string) => {
-        setStatus({ type: 'info', message: 'در حال ثبت خروج بین ساعتی...' });
-        try {
-            const response = await fetch('/api/commute-logs', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ personnelCode, guardName: selectedGuard, action: 'exit' }) // Let backend handle timestamp
-            });
 
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'خطا در ثبت خروج');
-            }
-            
-            setStatus({ type: 'success', message: 'خروج بین ساعتی با موفقیت ثبت شد.' });
-            fetchLogs();
-        } catch (err) {
-            setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطای ناشناخته' });
-        } finally {
-            setTimeout(() => setStatus(null), 5000);
-        }
+    const handleOpenMidDayModal = (log: CommuteLog) => {
+        setSelectedLogForLeave(log);
+        setIsMidDayModalOpen(true);
     };
 
     const handleEditClick = (log: CommuteLog) => {
@@ -363,7 +347,7 @@ const LogCommutePage: React.FC = () => {
             </div>
 
             <button onClick={handleSubmit} disabled={selectedPersonnel.size === 0} className="w-full py-3 text-lg font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-gray-400">
-                {actionType === 'entry' ? 'ثبت ورود' : 'ثبت خروج'} برای {toPersianDigits(selectedPersonnel.size)} نفر
+                ثبت نهایی ورود/خروج برای {toPersianDigits(selectedPersonnel.size)} نفر
             </button>
             
             <div className="border rounded-lg">
@@ -400,7 +384,7 @@ const LogCommutePage: React.FC = () => {
                 </div>
             </div>
             <button onClick={handleSubmit} disabled={selectedPersonnel.size === 0} className="w-full py-3 text-lg font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-gray-400">
-                {actionType === 'entry' ? 'ثبت ورود' : 'ثبت خروج'} برای {toPersianDigits(selectedPersonnel.size)} نفر
+                ثبت نهایی ورود/خروج برای {toPersianDigits(selectedPersonnel.size)} نفر
             </button>
           </div>
         </div>
@@ -454,8 +438,8 @@ const LogCommutePage: React.FC = () => {
                       <td className="px-4 py-3 whitespace-nowrap text-sm">
                         <div className="flex items-center justify-center gap-1">
                           {!log.exit_time && (
-                            <button onClick={() => handleMidDayExit(log.personnel_code)} className="p-2 text-green-600 hover:bg-green-100 rounded-md" title="ثبت خروج بین ساعتی">
-                              <ArrowRightOnRectangleIcon className="w-5 h-5" />
+                            <button onClick={() => handleOpenMidDayModal(log)} className="p-2 text-yellow-600 hover:bg-yellow-100 rounded-md" title="ثبت تردد بین ساعتی">
+                              <ClockIcon className="w-5 h-5" />
                             </button>
                           )}
                           <button onClick={() => handleEditClick(log)} className="p-2 text-blue-600 hover:bg-blue-100 rounded-md" title="ویرایش"><PencilIcon className="w-5 h-5" /></button>
@@ -471,6 +455,19 @@ const LogCommutePage: React.FC = () => {
       </div>
       {isEditModalOpen && editingLog && (
         <EditCommuteLogModal log={editingLog} onClose={() => setIsEditModalOpen(false)} onSave={handleSaveLog} />
+      )}
+      {isMidDayModalOpen && selectedLogForLeave && (
+        <MidDayLeaveModal 
+            personLog={selectedLogForLeave} 
+            viewDate={viewDate}
+            guardName={selectedGuard}
+            onClose={() => setIsMidDayModalOpen(false)} 
+            onUpdate={() => {
+                fetchLogs();
+                setStatus({ type: 'success', message: 'تردد بین ساعتی با موفقیت ثبت شد.' });
+                setTimeout(() => setStatus(null), 4000);
+            }} 
+        />
       )}
     </>
   );
