@@ -1,8 +1,10 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import type { CommutingMember, CommuteLog } from '../../types';
 import { PencilIcon, TrashIcon, ClockIcon, ChevronDownIcon, SearchIcon, RefreshIcon } from '../icons/Icons';
 import EditCommuteLogModal from '../EditCommuteLogModal';
 import HourlyCommuteModal from '../HourlyCommuteModal';
+
+declare const XLSX: any;
 
 const GUARDS = [
   'شیفت A | محسن صادقی گوغری',
@@ -72,6 +74,7 @@ const LogCommutePage: React.FC = () => {
     const [isHourlyModalOpen, setIsHourlyModalOpen] = useState(false);
     const [selectedLogForHourly, setSelectedLogForHourly] = useState<CommuteLog | null>(null);
     const [openUnits, setOpenUnits] = useState<Set<string>>(new Set());
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const getTodayPersian = useCallback(() => {
         const today = new Date();
@@ -286,6 +289,82 @@ const LogCommutePage: React.FC = () => {
         }
     };
 
+    const handleDownloadSample = () => {
+        const headers = ['کد پرسنلی', 'نگهبان ثبت کننده', 'تاریخ (مثال: 1403/05/21)', 'ساعت ورود (مثال: 08:30)', 'ساعت خروج (مثال: 16:45)'];
+        const ws = XLSX.utils.aoa_to_sheet([headers]);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'نمونه');
+        XLSX.writeFile(wb, 'Sample_Commute_Logs.xlsx');
+    };
+
+    const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        setStatus({ type: 'info', message: 'در حال پردازش فایل اکسل...' });
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                const workbook = XLSX.read(new Uint8Array(e.target?.result as ArrayBuffer), { type: 'array' });
+                const json: any[] = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+
+                const mappedData = json.map(row => {
+                    const dateStr = String(row['تاریخ (مثال: 1403/05/21)'] || '');
+                    const entryTimeStr = String(row['ساعت ورود (مثال: 08:30)'] || '');
+                    const exitTimeStr = String(row['ساعت خروج (مثال: 16:45)'] || '');
+
+                    const dateParts = dateStr.split(/[\/-]/).map(p => parseInt(p, 10));
+                    if (dateParts.length !== 3 || dateParts.some(isNaN)) return null;
+
+                    const [gYear, gMonth, gDay] = jalaliToGregorian(dateParts[0], dateParts[1], dateParts[2]);
+
+                    let entryTimestamp = null;
+                    if (entryTimeStr) {
+                        const entryTimeParts = entryTimeStr.split(':').map(p => parseInt(p, 10));
+                        if (entryTimeParts.length === 2 && !entryTimeParts.some(isNaN)) {
+                            entryTimestamp = new Date(gYear, gMonth - 1, gDay, entryTimeParts[0], entryTimeParts[1]).toISOString();
+                        }
+                    }
+
+                    let exitTimestamp = null;
+                    if (exitTimeStr) {
+                        const exitTimeParts = exitTimeStr.split(':').map(p => parseInt(p, 10));
+                        if (exitTimeParts.length === 2 && !exitTimeParts.some(isNaN)) {
+                            exitTimestamp = new Date(gYear, gMonth - 1, gDay, exitTimeParts[0], exitTimeParts[1]).toISOString();
+                        }
+                    }
+
+                    return {
+                        personnel_code: String(row['کد پرسنلی'] || ''),
+                        guard_name: String(row['نگهبان ثبت کننده'] || selectedGuard),
+                        entry_time: entryTimestamp,
+                        exit_time: exitTimestamp,
+                    };
+                }).filter(Boolean);
+
+                if (mappedData.length === 0) throw new Error('هیچ رکورد معتبری در فایل یافت نشد. لطفاً فرمت تاریخ و ساعت را بررسی کنید.');
+
+                const response = await fetch('/api/commute-logs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(mappedData),
+                });
+
+                const resData = await response.json();
+                if (!response.ok) throw new Error(resData.details || resData.error || 'خطا در ورود اطلاعات');
+                
+                setStatus({ type: 'success', message: resData.message });
+                fetchLogs();
+            } catch (err) {
+                setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در پردازش فایل' });
+            } finally {
+                if(fileInputRef.current) fileInputRef.current.value = "";
+                setTimeout(() => setStatus(null), 5000);
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    };
+
     const formatTime = (isoString: string | null) => {
         if (!isoString) return '---';
         return toPersianDigits(new Date(isoString).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tehran' }));
@@ -419,15 +498,22 @@ const LogCommutePage: React.FC = () => {
                 </select>
              </div>
           </div>
-          <div className="relative mb-4">
-            <input
-              type="text"
-              placeholder="جستجو در لیست روزانه (نام یا کد پرسنلی)..."
-              value={logSearchTerm}
-              onChange={e => setLogSearchTerm(e.target.value)}
-              className="w-full pr-10 pl-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
-            />
-            <SearchIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+          <div className="flex flex-col sm:flex-row gap-4 mb-4">
+            <div className="relative flex-grow">
+                <input
+                  type="text"
+                  placeholder="جستجو در لیست روزانه (نام یا کد پرسنلی)..."
+                  value={logSearchTerm}
+                  onChange={e => setLogSearchTerm(e.target.value)}
+                  className="w-full pr-10 pl-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                />
+                <SearchIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+                <button onClick={handleDownloadSample} className="px-4 py-2 bg-gray-100 text-gray-700 border border-gray-300 text-sm rounded-lg hover:bg-gray-200 transition-colors">دانلود نمونه</button>
+                <input type="file" accept=".xlsx, .xls" ref={fileInputRef} onChange={handleFileImport} className="hidden" id="excel-import-logs" />
+                <label htmlFor="excel-import-logs" className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 cursor-pointer transition-colors">ورود از اکسل</label>
+            </div>
           </div>
           <div className="overflow-x-auto border rounded-lg">
             <table className="min-w-full divide-y divide-gray-200">

@@ -44,8 +44,8 @@ async function handleGet(request: VercelRequest, response: VercelResponse, pool:
   }
 }
 
-// --- POST Handler (Log Commute) ---
-async function handlePost(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+// --- POST Handler (Log Commute - Single) ---
+async function handleSinglePost(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
   const { personnelCode, guardName, action, timestampOverride } = request.body;
 
   if (!personnelCode || !guardName || !action || !['entry', 'exit'].includes(action)) {
@@ -99,6 +99,49 @@ async function handlePost(request: VercelRequest, response: VercelResponse, pool
     return response.status(500).json({ error: 'عملیات پایگاه داده با شکست مواجه شد.', details: errorMessage });
   }
 }
+
+
+// --- POST Handler (Bulk Import from Excel) ---
+async function handleBulkPost(logs: any[], response: VercelResponse, client: VercelPoolClient) {
+  const validLogs = logs.filter(log => log.personnel_code && log.guard_name && log.entry_time);
+  if (validLogs.length === 0) {
+    return response.status(400).json({ error: 'هیچ رکورد معتبری برای ورود یافت نشد. کد پرسنلی، نگهبان و ساعت ورود الزامی هستند.' });
+  }
+
+  try {
+    await (client as any).query('BEGIN');
+
+    const columns = ['personnel_code', 'guard_name', 'entry_time', 'exit_time'];
+    const values: (string | null)[] = [];
+    const valuePlaceholders: string[] = [];
+    let paramIndex = 1;
+
+    for (const log of validLogs) {
+      const recordPlaceholders: string[] = [];
+      values.push(log.personnel_code, log.guard_name, log.entry_time, log.exit_time || null);
+      recordPlaceholders.push(`$${paramIndex++}`, `$${paramIndex++}`, `$${paramIndex++}`, `$${paramIndex++}`);
+      valuePlaceholders.push(`(${recordPlaceholders.join(', ')})`);
+    }
+
+    const query = `
+      INSERT INTO commute_logs (${columns.join(', ')})
+      VALUES ${valuePlaceholders.join(', ')}
+    `;
+
+    await (client as any).query(query, values);
+
+    await (client as any).query('COMMIT');
+
+    return response.status(200).json({ message: `عملیات موفق. ${validLogs.length} رکورد تردد وارد شد.` });
+
+  } catch (error) {
+    await (client as any).query('ROLLBACK').catch((rbError: any) => console.error('Rollback failed:', rbError));
+    console.error('Database bulk insert for commute_logs failed:', error);
+    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+    return response.status(500).json({ error: 'عملیات پایگاه داده با شکست مواجه شد.', details: errorMessage });
+  }
+}
+
 
 const formatTimeForLog = (iso: string | null): string | null => {
     if (!iso) return null;
@@ -216,8 +259,19 @@ export default async function handler(request: VercelRequest, response: VercelRe
   switch (request.method) {
     case 'GET':
       return await handleGet(request, response, pool);
-    case 'POST':
-      return await handlePost(request, response, pool);
+    case 'POST': {
+        const body = request.body;
+        if (Array.isArray(body)) {
+            const client = await pool.connect();
+            try {
+                return await handleBulkPost(body, response, client);
+            } finally {
+                client.release();
+            }
+        } else {
+            return await handleSinglePost(request, response, pool);
+        }
+    }
     case 'PUT':
       return await handlePut(request, response, pool);
     case 'DELETE':
