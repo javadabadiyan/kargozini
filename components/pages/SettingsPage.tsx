@@ -48,6 +48,15 @@ const SettingsPage: React.FC = () => {
     const [isUserModalOpen, setIsUserModalOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<AppUser | null>(null);
 
+    // New state for inline add-user form
+    const [showAddUserForm, setShowAddUserForm] = useState(false);
+    const [newUser, setNewUser] = useState<Omit<AppUser, 'id'>>({
+        username: '',
+        password: '',
+        permissions: {},
+    });
+
+
     const fetchUsers = useCallback(async () => {
         if (!userPermissions.user_management) return;
         setLoadingUsers(true);
@@ -145,18 +154,30 @@ const SettingsPage: React.FC = () => {
             setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در پاک کردن داده‌ها' });
         }
     };
-
-    const handleSaveUser = async (user: AppUser) => {
+    
+    const handleSaveUser = async (user: Partial<AppUser>) => {
         const isNew = !user.id;
         const method = isNew ? 'POST' : 'PUT';
         const url = '/api/users';
+
+        if (isNew && (!user.username || !user.password)) {
+            setStatus({ type: 'error', message: 'نام کاربری و رمز عبور برای کاربر جدید الزامی است.' });
+            return;
+        }
+
         try {
             const response = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(user) });
             const data = await response.json();
             if (!response.ok) throw new Error(data.error);
+
             setStatus({ type: 'success', message: data.message });
-            setIsUserModalOpen(false);
-            setEditingUser(null);
+            if (isNew) {
+                setShowAddUserForm(false);
+                setNewUser({ username: '', password: '', permissions: {} });
+            } else {
+                setIsUserModalOpen(false);
+                setEditingUser(null);
+            }
             fetchUsers();
         } catch (err) {
             setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در ذخیره کاربر' });
@@ -217,6 +238,26 @@ const SettingsPage: React.FC = () => {
         };
         reader.readAsArrayBuffer(file);
     };
+
+    const handleNewUserFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        setNewUser(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleNewUserPermissionChange = (key: keyof UserPermissions) => {
+        setNewUser(prev => ({
+            ...prev,
+            permissions: {
+                ...prev.permissions,
+                [key]: !prev.permissions?.[key],
+            },
+        }));
+    };
+
+    const handleAddNewUserSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        handleSaveUser(newUser);
+    };
     
     const statusColor = { info: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300', success: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300', error: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' };
     const inputClass = "w-full px-3 py-2 text-gray-700 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-slate-700 dark:border-slate-600 dark:text-gray-200";
@@ -260,12 +301,45 @@ const SettingsPage: React.FC = () => {
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b dark:border-slate-700 pb-3 mb-4">
                         <h2 className="text-xl font-bold text-gray-700 dark:text-gray-200">مدیریت کاربران</h2>
                         <div className="flex items-center gap-2 flex-wrap">
-                            <button onClick={() => { setEditingUser(null); setIsUserModalOpen(true); }} className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">افزودن کاربر</button>
+                            <button onClick={() => setShowAddUserForm(prev => !prev)} className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
+                                {showAddUserForm ? 'انصراف' : 'افزودن کاربر'}
+                            </button>
                             <button onClick={handleUserExcelSample} className="px-4 py-2 text-sm bg-gray-100 dark:bg-slate-600 dark:text-gray-200 border border-gray-300 dark:border-slate-500 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-500">دانلود نمونه</button>
                             <input type="file" ref={userImportRef} onChange={handleUserExcelImport} accept=".xlsx, .xls" className="hidden" id="user-import"/>
                             <label htmlFor="user-import" className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 cursor-pointer">ورود از اکسل</label>
                         </div>
                     </div>
+                    
+                    {showAddUserForm && (
+                        <form onSubmit={handleAddNewUserSubmit} className="p-4 mb-4 border rounded-lg bg-slate-50 dark:bg-slate-700/50 space-y-4 transition-all duration-300 ease-in-out">
+                            <h3 className="text-lg font-bold text-gray-700 dark:text-gray-200">افزودن کاربر جدید</h3>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                <div>
+                                    <label htmlFor="new-username" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">نام کاربری</label>
+                                    <input type="text" id="new-username" name="username" value={newUser.username} onChange={handleNewUserFormChange} className={inputClass} required />
+                                </div>
+                                <div>
+                                    <label htmlFor="new-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">رمز عبور</label>
+                                    <input type="password" id="new-password" name="password" value={newUser.password || ''} onChange={handleNewUserFormChange} className={inputClass} required />
+                                </div>
+                            </div>
+                            <div>
+                                <h4 className="text-md font-semibold text-gray-700 dark:text-gray-300 mb-2">دسترسی‌ها</h4>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 p-4 border rounded-lg bg-white dark:bg-slate-700 dark:border-slate-600">
+                                    {PERMISSION_KEYS.map(perm => (
+                                        <label key={perm.key} className="flex items-center space-x-2 space-x-reverse cursor-pointer">
+                                            <input type="checkbox" checked={!!newUser.permissions?.[perm.key]} onChange={() => handleNewUserPermissionChange(perm.key)} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"/>
+                                            <span className="text-sm text-gray-700 dark:text-gray-200">{perm.label}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                            <div className="flex justify-end">
+                                <button type="submit" className="px-6 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700">افزودن</button>
+                            </div>
+                        </form>
+                    )}
+
                     <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700">
                             <thead className="bg-gray-50 dark:bg-slate-700">
@@ -297,7 +371,7 @@ const SettingsPage: React.FC = () => {
                     </div>
                 </div>
             )}
-             {isUserModalOpen && <UserEditModal user={editingUser} onClose={() => { setIsUserModalOpen(false); setEditingUser(null); }} onSave={handleSaveUser} />}
+             {isUserModalOpen && editingUser && <UserEditModal user={editingUser} onClose={() => { setIsUserModalOpen(false); setEditingUser(null); }} onSave={handleSaveUser} />}
 
             <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-lg">
                 <h2 className="text-xl font-bold text-gray-700 dark:text-gray-200 border-b dark:border-slate-700 pb-3 mb-4">تغییر ظاهر</h2>
@@ -342,7 +416,6 @@ const SettingsPage: React.FC = () => {
                             </div>
                              <div className="flex items-center gap-2">
                                 <button className="px-3 py-1.5 text-xs bg-blue-100 text-blue-800 rounded hover:bg-blue-200 dark:bg-blue-900/40 dark:text-blue-200">خروجی اکسل</button>
-                                {/* FIX: Wrap ref assignment in a block to ensure void return type. */}
                                 <input type="file" ref={el => { individualImportRefs.current[item.id] = el; }} accept=".xlsx, .xls" className="hidden" id={`import-${item.id}`}/>
                                 <label htmlFor={`import-${item.id}`} className="px-3 py-1.5 text-xs bg-green-100 text-green-800 rounded hover:bg-green-200 dark:bg-green-900/40 dark:text-green-200 cursor-pointer">ورود از اکسل</label>
                              </div>
