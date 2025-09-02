@@ -115,6 +115,32 @@ export default async function handler(
     `);
     messages.push('تریگر به‌روزرسانی خودکار برای جدول "commute_logs" ایجاد شد.');
 
+    // Create hourly_commute_logs table
+    await client.sql`
+      CREATE TABLE IF NOT EXISTS hourly_commute_logs (
+        id SERIAL PRIMARY KEY,
+        personnel_code VARCHAR(50) NOT NULL,
+        full_name VARCHAR(200) NOT NULL,
+        guard_name VARCHAR(255) NOT NULL,
+        exit_time TIMESTAMPTZ NOT NULL,
+        entry_time TIMESTAMPTZ,
+        reason TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `;
+    messages.push('جدول "hourly_commute_logs" با موفقیت ایجاد یا تایید شد.');
+
+    // Create trigger for hourly_commute_logs
+    await (client as any).query(`
+        DROP TRIGGER IF EXISTS update_hourly_commute_logs_updated_at ON hourly_commute_logs;
+        CREATE TRIGGER update_hourly_commute_logs_updated_at
+        BEFORE UPDATE ON hourly_commute_logs
+        FOR EACH ROW
+        EXECUTE FUNCTION update_updated_at_column();
+    `);
+    messages.push('تریگر به‌روزرسانی خودکار برای جدول "hourly_commute_logs" ایجاد شد.');
+
 
     // Create extensions and indexes for personnel table
     try {

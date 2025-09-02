@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import type { CommutingMember, CommuteLog } from '../../types';
-import { PencilIcon, TrashIcon, ArrowRightOnRectangleIcon, ChevronDownIcon, SearchIcon } from '../icons/Icons';
+import { PencilIcon, TrashIcon, ClockIcon, ChevronDownIcon, SearchIcon } from '../icons/Icons';
 import EditCommuteLogModal from '../EditCommuteLogModal';
+import HourlyCommuteModal from '../HourlyCommuteModal';
 
 const GUARDS = [
   'شیفت A | محسن صادقی گوغری',
@@ -68,6 +69,8 @@ const LogCommutePage: React.FC = () => {
     const [status, setStatus] = useState<{ type: 'info' | 'success' | 'error'; message: string } | null>(null);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editingLog, setEditingLog] = useState<CommuteLog | null>(null);
+    const [isHourlyModalOpen, setIsHourlyModalOpen] = useState(false);
+    const [selectedLogForHourly, setSelectedLogForHourly] = useState<CommuteLog | null>(null);
     const [openUnits, setOpenUnits] = useState<Set<string>>(new Set());
 
     const getTodayPersian = useCallback(() => {
@@ -243,6 +246,11 @@ const LogCommutePage: React.FC = () => {
     const handleEditClick = (log: CommuteLog) => {
         setEditingLog(log);
         setIsEditModalOpen(true);
+    };
+
+    const handleHourlyClick = (log: CommuteLog) => {
+        setSelectedLogForHourly(log);
+        setIsHourlyModalOpen(true);
     };
 
     const handleDeleteLog = async (id: number) => {
@@ -430,6 +438,7 @@ const LogCommutePage: React.FC = () => {
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 tabular-nums">{formatTime(log.exit_time)}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm">
                         <div className="flex items-center justify-center gap-1">
+                           <button onClick={() => handleHourlyClick(log)} className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md" title="تردد ساعتی"><ClockIcon className="w-5 h-5" /></button>
                           <button onClick={() => handleEditClick(log)} className="p-2 text-blue-600 hover:bg-blue-100 rounded-md" title="ویرایش"><PencilIcon className="w-5 h-5" /></button>
                           <button onClick={() => handleDeleteLog(log.id)} className="p-2 text-red-600 hover:bg-red-100 rounded-md" title="حذف"><TrashIcon className="w-5 h-5" /></button>
                         </div>
@@ -443,6 +452,14 @@ const LogCommutePage: React.FC = () => {
       </div>
       {isEditModalOpen && editingLog && (
         <EditCommuteLogModal log={editingLog} onClose={() => setIsEditModalOpen(false)} onSave={handleSaveLog} />
+      )}
+      {isHourlyModalOpen && selectedLogForHourly && (
+        <HourlyCommuteModal
+            log={selectedLogForHourly}
+            guardName={selectedGuard}
+            date={viewDate}
+            onClose={() => setIsHourlyModalOpen(false)}
+        />
       )}
     </>
   );
