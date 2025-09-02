@@ -85,6 +85,9 @@ const CommuteReportPage: React.FC = () => {
     // States for Analysis Report
     const [analysisSearchTerm, setAnalysisSearchTerm] = useState('');
     const [selectedAnalysisPersonnel, setSelectedAnalysisPersonnel] = useState<CommutingMember | null>(null);
+    
+    // State for Monthly Report
+    const [monthlyExportStatus, setMonthlyExportStatus] = useState<{ type: 'info' | 'success' | 'error'; message: string } | null>(null);
 
 
     const filterOptions = useMemo(() => {
@@ -304,6 +307,117 @@ const CommuteReportPage: React.FC = () => {
         XLSX.utils.book_append_sheet(workbook, worksheet, 'تحلیل تاخیر و تعجیل');
         XLSX.writeFile(workbook, 'Analysis_Report.xlsx');
     };
+    
+    const handleMonthlyExport = async () => {
+        if (!fromDate.year || !fromDate.month) {
+            setMonthlyExportStatus({ type: 'error', message: 'لطفا ابتدا یک تاریخ در فیلتر "از تاریخ" انتخاب کنید تا ماه گزارش مشخص شود.' });
+            setTimeout(() => setMonthlyExportStatus(null), 5000);
+            return;
+        }
+    
+        setMonthlyExportStatus({ type: 'info', message: 'در حال آماده‌سازی گزارش جامع ماهانه... این عملیات ممکن است چند لحظه طول بکشد.' });
+    
+        try {
+            const year = parseInt(fromDate.year, 10);
+            const month = parseInt(fromDate.month, 10);
+            const firstDayOfMonthJalali = { year, month, day: 1 };
+            const daysInMonth = month <= 6 ? 31 : (month <= 11 ? 30 : 29);
+            const lastDayOfMonthJalali = { year, month, day: daysInMonth };
+    
+            const gregFrom = jalaliToGregorian(firstDayOfMonthJalali.year, firstDayOfMonthJalali.month, firstDayOfMonthJalali.day);
+            const gregTo = jalaliToGregorian(lastDayOfMonthJalali.year, lastDayOfMonthJalali.month, lastDayOfMonthJalali.day);
+    
+            const monthParams = new URLSearchParams();
+            if (gregFrom) monthParams.append('startDate', gregFrom);
+            if (gregTo) monthParams.append('endDate', gregTo);
+            if (filters.personnelCode) monthParams.append('personnelCode', filters.personnelCode);
+            if (filters.department) monthParams.append('department', filters.department);
+            if (filters.position) monthParams.append('position', filters.position);
+            const paramsString = monthParams.toString();
+    
+            const [generalRes, hourlyRes] = await Promise.all([
+                fetch(`/api/commute-reports?${paramsString}`),
+                fetch(`/api/hourly-report?${paramsString}`)
+            ]);
+    
+            if (!generalRes.ok || !hourlyRes.ok) throw new Error('خطا در دریافت اطلاعات ماهانه از سرور.');
+    
+            const generalData: { reports: CommuteReportRow[] } = await generalRes.json();
+            const hourlyData: { reports: HourlyCommuteReportRow[] } = await hourlyRes.json();
+            const generalReports = generalData.reports || [];
+            const hourlyReports = hourlyData.reports || [];
+    
+            const summary: { [key: string]: any } = {};
+    
+            generalReports.forEach(row => {
+                const code = row.personnel_code;
+                if (!summary[code]) {
+                    summary[code] = { 'کد پرسنلی': toPersianDigits(code), 'نام پرسنل': row.full_name, 'واحد': row.department || '', 'تعداد روز کاری': 0, 'جمع تاخیر (دقیقه)': 0, 'جمع تعجیل (دقیقه)': 0, 'جمع تردد ساعتی (دقیقه)': 0, processed_days: new Set() };
+                }
+                const dayKey = new Date(row.entry_time).toLocaleDateString('fa-IR');
+                if (!summary[code].processed_days.has(dayKey)) {
+                    summary[code]['تعداد روز کاری']++;
+                    summary[code].processed_days.add(dayKey);
+                }
+                summary[code]['جمع تاخیر (دقیقه)'] += calculateDifferenceInMinutes(row.entry_time, standardTimes.entry.hour, standardTimes.entry.minute, 'late');
+                summary[code]['جمع تعجیل (دقیقه)'] += calculateDifferenceInMinutes(row.exit_time, standardTimes.exit.hour, standardTimes.exit.minute, 'early');
+            });
+    
+            hourlyReports.forEach(row => {
+                const code = row.personnel_code;
+                if (!summary[code]) {
+                     summary[code] = { 'کد پرسنلی': toPersianDigits(code), 'نام پرسنل': row.full_name, 'واحد': row.department || '', 'تعداد روز کاری': 0, 'جمع تاخیر (دقیقه)': 0, 'جمع تعجیل (دقیقه)': 0, 'جمع تردد ساعتی (دقیقه)': 0 };
+                }
+                if(row.exit_time && row.entry_time){
+                    const duration = (new Date(row.entry_time).getTime() - new Date(row.exit_time).getTime()) / 60000;
+                    if(duration > 0) summary[code]['جمع تردد ساعتی (دقیقه)'] += Math.round(duration);
+                }
+            });
+            
+            const summaryDataToExport = Object.values(summary).map(s => {
+                const { processed_days, ...rest } = s;
+                rest['تعداد روز کاری'] = toPersianDigits(rest['تعداد روز کاری']);
+                rest['جمع تاخیر (دقیقه)'] = toPersianDigits(rest['جمع تاخیر (دقیقه)']);
+                rest['جمع تعجیل (دقیقه)'] = toPersianDigits(rest['جمع تعجیل (دقیقه)']);
+                rest['جمع تردد ساعتی (دقیقه)'] = toPersianDigits(rest['جمع تردد ساعتی (دقیقه)']);
+                return rest;
+            });
+    
+            if (summaryDataToExport.length === 0 && generalReports.length === 0 && hourlyReports.length === 0) {
+                throw new Error('هیچ داده‌ای برای ایجاد گزارش ماهانه یافت نشد.');
+            }
+            
+            // --- Create Sheets ---
+            const workbook = XLSX.utils.book_new();
+
+            // 1. Summary Sheet
+            const summaryWorksheet = XLSX.utils.json_to_sheet(summaryDataToExport);
+            XLSX.utils.book_append_sheet(workbook, summaryWorksheet, 'خلاصه ماهانه');
+
+            // 2. Daily Log Sheet
+            const dailyLogData = generalReports.map(row => ({ 'نام پرسنل': row.full_name, 'کد': toPersianDigits(row.personnel_code), 'واحد': row.department || '', 'تاریخ': toPersianDigits(new Date(row.entry_time).toLocaleDateString('fa-IR', { timeZone: 'Asia/Tehran' })), 'ورود': formatTime(row.entry_time), 'خروج': formatTime(row.exit_time), 'شیفت کاری': row.guard_name }));
+            const dailyLogWorksheet = XLSX.utils.json_to_sheet(dailyLogData);
+            XLSX.utils.book_append_sheet(workbook, dailyLogWorksheet, 'گزارش روزانه');
+    
+            // 3. Hourly Log Sheet
+            const hourlyLogData = hourlyReports.map(row => ({ 'نام پرسنل': row.full_name, 'کد': toPersianDigits(row.personnel_code), 'واحد': row.department || '', 'تاریخ': toPersianDigits(new Date(row.exit_time || row.entry_time!).toLocaleDateString('fa-IR', { timeZone: 'Asia/Tehran' })), 'خروج': formatTime(row.exit_time), 'ورود': formatTime(row.entry_time), 'مدت': calculateDuration(row.exit_time, row.entry_time), 'شرح': row.reason || '', 'ثبت کننده': row.guard_name }));
+            const hourlyLogWorksheet = XLSX.utils.json_to_sheet(hourlyLogData);
+            XLSX.utils.book_append_sheet(workbook, hourlyLogWorksheet, 'گزارش بین ساعتی');
+    
+            // 4. Analysis Sheet
+            const analysisData = generalReports.map(row => ({ 'نام پرسنل': row.full_name, 'کد پرسنلی': toPersianDigits(row.personnel_code), 'تاریخ': toPersianDigits(new Date(row.entry_time).toLocaleDateString('fa-IR', { timeZone: 'Asia/Tehran' })), 'میزان تاخیر (دقیقه)': toPersianDigits(calculateDifferenceInMinutes(row.entry_time, standardTimes.entry.hour, standardTimes.entry.minute, 'late')), 'میزان تعجیل (دقیقه)': toPersianDigits(calculateDifferenceInMinutes(row.exit_time, standardTimes.exit.hour, standardTimes.exit.minute, 'early')) }));
+            const analysisWorksheet = XLSX.utils.json_to_sheet(analysisData);
+            XLSX.utils.book_append_sheet(workbook, analysisWorksheet, 'تحلیل تاخیر-تعجیل');
+
+            XLSX.writeFile(workbook, `Monthly_Report_${fromDate.year}-${fromDate.month}.xlsx`);
+            setMonthlyExportStatus({ type: 'success', message: 'فایل اکسل جامع ماهانه با موفقیت ایجاد شد.' });
+    
+        } catch (err) {
+            setMonthlyExportStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در ایجاد فایل اکسل.' });
+        } finally {
+            setTimeout(() => setMonthlyExportStatus(null), 5000);
+        }
+    };
 
     const analysisFilteredPersonnel = useMemo(() => {
         if (!analysisSearchTerm) return [];
@@ -325,6 +439,8 @@ const CommuteReportPage: React.FC = () => {
             }))
             .sort((a, b) => a.date.localeCompare(b.date, 'fa'));
     }, [selectedAnalysisPersonnel, reportData, standardTimes, calculateDifferenceInMinutes]);
+    
+    const statusColor = { info: 'bg-blue-100 text-blue-800', success: 'bg-green-100 text-green-800', error: 'bg-red-100 text-red-800' };
 
     return (
         <div className="bg-white p-6 rounded-lg shadow-lg space-y-6">
@@ -485,7 +601,34 @@ const CommuteReportPage: React.FC = () => {
                 </div>
             )}
             
-            {activeTab !== 'general' && activeTab !== 'present' && activeTab !== 'hourly' && activeTab !== 'analysis' && <div className="text-center p-10 text-gray-500">این بخش از گزارش‌گیری در حال ساخت است.</div>}
+            {activeTab === 'monthly' && (
+                <div className="space-y-4">
+                    {monthlyExportStatus && (
+                        <div className={`p-4 mb-4 text-sm rounded-lg ${statusColor[monthlyExportStatus.type]}`} role="alert">
+                          {monthlyExportStatus.message}
+                        </div>
+                    )}
+                    <div className="p-4 border rounded-lg bg-slate-50 space-y-3">
+                        <h3 className="font-bold text-gray-700">راهنمای گزارش ماهانه:</h3>
+                        <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
+                            <li>برای ایجاد گزارش ماهانه، حتما فیلتر "از تاریخ" را با روزی از ماه مورد نظر خود تنظیم کنید.</li>
+                            <li>این گزارش یک فایل اکسل جامع با شیت‌های مختلف (خلاصه، کارکرد، تردد بین ساعتی، و تحلیل) ایجاد می‌کند.</li>
+                            <li>می‌توانید با استفاده از فیلترهای "پرسنل" و "واحد"، گزارش را برای افراد یا واحدهای خاصی محدود کنید.</li>
+                        </ul>
+                    </div>
+                    <div className="flex justify-center pt-4">
+                        <button 
+                            onClick={handleMonthlyExport}
+                            className="px-8 py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 disabled:bg-gray-400 transition-colors shadow-md"
+                        >
+                            خروجی اکسل جامع ماهانه
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {activeTab === 'edits' && <div className="text-center p-10 text-gray-500">این بخش از گزارش‌گیری در حال ساخت است.</div>}
+
 
             <style>{`.form-select { appearance: none; background-image: url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="%236b7280" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 8l4 4 4-4"/></svg>'); background-position: left 0.5rem center; background-repeat: no-repeat; background-size: 1.5em 1.5em; padding-left: 2.5rem; }.form-select, .form-select-sm { width: 100%; padding: 0.5rem 0.75rem; border: 1px solid #d1d5db; border-radius: 0.375rem; background-color: #fff; font-family: inherit; }.form-select-sm { font-size: 0.875rem; padding: 0.25rem 0.5rem; }`}</style>
         </div>
