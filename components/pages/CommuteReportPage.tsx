@@ -81,6 +81,11 @@ const CommuteReportPage: React.FC = () => {
     const [hourlyReportData, setHourlyReportData] = useState<HourlyCommuteReportRow[]>([]);
     const [hourlyReportLoading, setHourlyReportLoading] = useState(false);
     const [hourlyReportError, setHourlyReportError] = useState<string | null>(null);
+    
+    // States for Analysis Report
+    const [analysisSearchTerm, setAnalysisSearchTerm] = useState('');
+    const [selectedAnalysisPersonnel, setSelectedAnalysisPersonnel] = useState<CommutingMember | null>(null);
+
 
     const filterOptions = useMemo(() => {
         const departments = [...new Set(commutingMembers.map(m => m.department).filter(Boolean))].sort((a,b) => a.localeCompare(b, 'fa'));
@@ -186,7 +191,8 @@ const CommuteReportPage: React.FC = () => {
     }, [buildFilterParams]);
 
     useEffect(() => {
-        if (activeTab === 'general') {
+        // Shared data fetch for general and analysis
+        if (activeTab === 'general' || activeTab === 'analysis') {
             fetchReportData();
         } else if (activeTab === 'present') {
             fetchPresentReportData();
@@ -214,6 +220,22 @@ const CommuteReportPage: React.FC = () => {
         if (hours > 0) result.push(`${toPersianDigits(hours)} ساعت`);
         if (minutes > 0) result.push(`${toPersianDigits(minutes)} دقیقه`);
         return result.join(' و ');
+    }, []);
+
+    const calculateDifferenceInMinutes = useCallback((isoString: string | null, standardHour: string, standardMinute: string, type: 'late' | 'early'): number => {
+        if (!isoString) return 0;
+        const logTime = new Date(isoString);
+        const standardTime = new Date(logTime);
+        standardTime.setHours(parseInt(standardHour, 10), parseInt(standardMinute, 10), 0, 0);
+    
+        let diffMinutes: number;
+        if (type === 'late') {
+            diffMinutes = (logTime.getTime() - standardTime.getTime()) / 60000;
+        } else { // 'early'
+            diffMinutes = (standardTime.getTime() - logTime.getTime()) / 60000;
+        }
+    
+        return diffMinutes > 0 ? Math.round(diffMinutes) : 0;
     }, []);
     
     const calculateDuration = (exit: string | null, entry: string | null): string => {
@@ -264,6 +286,45 @@ const CommuteReportPage: React.FC = () => {
         XLSX.utils.book_append_sheet(workbook, worksheet, 'گزارش بین ساعتی');
         XLSX.writeFile(workbook, 'Hourly_Commute_Report.xlsx');
     };
+    
+    const handleAnalysisExport = () => {
+        const dataToExport = reportData.map(row => {
+            const lateMinutes = calculateDifferenceInMinutes(row.entry_time, standardTimes.entry.hour, standardTimes.entry.minute, 'late');
+            const earlyMinutes = calculateDifferenceInMinutes(row.exit_time, standardTimes.exit.hour, standardTimes.exit.minute, 'early');
+            return {
+                'نام پرسنل': row.full_name,
+                'کد پرسنلی': toPersianDigits(row.personnel_code),
+                'تاریخ': toPersianDigits(new Date(row.entry_time).toLocaleDateString('fa-IR', { timeZone: 'Asia/Tehran' })),
+                'میزان تاخیر (دقیقه)': toPersianDigits(lateMinutes),
+                'میزان تعجیل (دقیقه)': toPersianDigits(earlyMinutes),
+            };
+        });
+        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'تحلیل تاخیر و تعجیل');
+        XLSX.writeFile(workbook, 'Analysis_Report.xlsx');
+    };
+
+    const analysisFilteredPersonnel = useMemo(() => {
+        if (!analysisSearchTerm) return [];
+        const lowercasedTerm = analysisSearchTerm.toLowerCase().trim();
+        return commutingMembers.filter(m => 
+            m.full_name.toLowerCase().includes(lowercasedTerm) || 
+            m.personnel_code.includes(lowercasedTerm)
+        ).slice(0, 5);
+    }, [analysisSearchTerm, commutingMembers]);
+
+    const analysisChartData = useMemo(() => {
+        if (!selectedAnalysisPersonnel) return [];
+        return reportData
+            .filter(row => row.personnel_code === selectedAnalysisPersonnel.personnel_code)
+            .map(row => ({
+                date: new Date(row.entry_time).toLocaleDateString('fa-IR', { timeZone: 'Asia/Tehran' }),
+                lateness: calculateDifferenceInMinutes(row.entry_time, standardTimes.entry.hour, standardTimes.entry.minute, 'late'),
+                earliness: calculateDifferenceInMinutes(row.exit_time, standardTimes.exit.hour, standardTimes.exit.minute, 'early'),
+            }))
+            .sort((a, b) => a.date.localeCompare(b.date, 'fa'));
+    }, [selectedAnalysisPersonnel, reportData, standardTimes, calculateDifferenceInMinutes]);
 
     return (
         <div className="bg-white p-6 rounded-lg shadow-lg space-y-6">
@@ -358,7 +419,73 @@ const CommuteReportPage: React.FC = () => {
             </div>
             )}
             
-            {activeTab !== 'general' && activeTab !== 'present' && activeTab !== 'hourly' && <div className="text-center p-10 text-gray-500">این بخش از گزارش‌گیری در حال ساخت است.</div>}
+            {activeTab === 'analysis' && (
+                <div className="space-y-4">
+                    <div className="p-4 border rounded-lg bg-slate-50 space-y-4">
+                         <h3 className="font-bold text-gray-700">تنظیمات تحلیل</h3>
+                        <div className="flex items-center gap-6">
+                            <div className="flex items-center gap-2">
+                                <label className="text-sm">ساعت موظفی ورود:</label>
+                                <select value={standardTimes.entry.hour} onChange={e => setStandardTimes(s=>({...s, entry: {...s.entry, hour: e.target.value}}))} className="form-select-sm"><option value="">ساعت</option>{HOURS.map(h => <option key={h} value={h}>{toPersianDigits(String(h).padStart(2,'0'))}</option>)}</select>
+                                <select value={standardTimes.entry.minute} onChange={e => setStandardTimes(s=>({...s, entry: {...s.entry, minute: e.target.value}}))} className="form-select-sm"><option value="">دقیقه</option>{MINUTES.map(m => <option key={m} value={m}>{toPersianDigits(String(m).padStart(2,'0'))}</option>)}</select>
+                            </div>
+                             <div className="flex items-center gap-2">
+                                <label className="text-sm">ساعت موظفی خروج:</label>
+                                <select value={standardTimes.exit.hour} onChange={e => setStandardTimes(s=>({...s, exit: {...s.exit, hour: e.target.value}}))} className="form-select-sm"><option value="">ساعت</option>{HOURS.map(h => <option key={h} value={h}>{toPersianDigits(String(h).padStart(2,'0'))}</option>)}</select>
+                                <select value={standardTimes.exit.minute} onChange={e => setStandardTimes(s=>({...s, exit: {...s.exit, minute: e.target.value}}))} className="form-select-sm"><option value="">دقیقه</option>{MINUTES.map(m => <option key={m} value={m}>{toPersianDigits(String(m).padStart(2,'0'))}</option>)}</select>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="p-4 border rounded-lg bg-slate-50 space-y-2 relative">
+                        <label htmlFor="analysis-search" className="font-bold text-gray-700">جستجوی پرسنل برای نمودار</label>
+                        <input id="analysis-search" type="text" value={analysisSearchTerm} onChange={e => setAnalysisSearchTerm(e.target.value)} placeholder="نام، کد یا واحد..." className="form-select"/>
+                        {analysisFilteredPersonnel.length > 0 && (
+                            <div className="absolute top-full right-0 left-0 bg-white border border-gray-300 rounded-b-lg shadow-lg z-10 max-h-60 overflow-y-auto">
+                                {analysisFilteredPersonnel.map(p => (
+                                    <button key={p.id} onClick={() => { setSelectedAnalysisPersonnel(p); setAnalysisSearchTerm(p.full_name); }} className="block w-full text-right px-4 py-2 hover:bg-gray-100">{p.full_name} ({toPersianDigits(p.personnel_code)})</button>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                    <div className="p-4 border rounded-lg min-h-[300px]">
+                        {loading ? <div className="text-center p-4">در حال بارگذاری داده‌ها...</div> : !selectedAnalysisPersonnel ? (
+                            <div className="flex items-center justify-center h-full text-center text-gray-500">
+                                <p>برای مشاهده نمودار، لطفا یک پرسنل را از لیست بالا انتخاب و جستجو کنید.</p>
+                            </div>
+                        ) : (
+                            <div>
+                                <h3 className="text-lg font-bold mb-4">نمودار تحلیل برای: {selectedAnalysisPersonnel.full_name}</h3>
+                                {analysisChartData.length === 0 ? <p>داده ترددی برای این پرسنل در بازه انتخابی یافت نشد.</p> : (
+                                <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
+                                    {analysisChartData.map(data => (
+                                    <div key={data.date} className="grid grid-cols-12 items-center gap-2 text-sm">
+                                        <div className="col-span-2 font-semibold">{toPersianDigits(data.date)}</div>
+                                        <div className="col-span-5 flex items-center">
+                                            <span className="w-12">تاخیر:</span>
+                                            <div className="w-full bg-gray-200 rounded-full h-4 relative">
+                                                <div className="bg-red-500 h-4 rounded-full" style={{width: `${Math.min(100, (data.lateness/60)*100)}%`}}></div>
+                                            </div>
+                                            <span className="w-24 text-right pr-2">{data.lateness > 0 ? `${toPersianDigits(data.lateness)} دقیقه` : '۰'}</span>
+                                        </div>
+                                         <div className="col-span-5 flex items-center">
+                                            <span className="w-12">تعجیل:</span>
+                                            <div className="w-full bg-gray-200 rounded-full h-4">
+                                                <div className="bg-orange-400 h-4 rounded-full" style={{width: `${Math.min(100, (data.earliness/60)*100)}%`}}></div>
+                                            </div>
+                                            <span className="w-24 text-right pr-2">{data.earliness > 0 ? `${toPersianDigits(data.earliness)} دقیقه` : '۰'}</span>
+                                        </div>
+                                    </div>
+                                    ))}
+                                </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                    <div className="flex justify-end"><button onClick={handleAnalysisExport} disabled={reportData.length === 0} className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 transition-colors">خروجی اکسل کل گزارش</button></div>
+                </div>
+            )}
+            
+            {activeTab !== 'general' && activeTab !== 'present' && activeTab !== 'hourly' && activeTab !== 'analysis' && <div className="text-center p-10 text-gray-500">این بخش از گزارش‌گیری در حال ساخت است.</div>}
 
             <style>{`.form-select { appearance: none; background-image: url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="%236b7280" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 8l4 4 4-4"/></svg>'); background-position: left 0.5rem center; background-repeat: no-repeat; background-size: 1.5em 1.5em; padding-left: 2.5rem; }.form-select, .form-select-sm { width: 100%; padding: 0.5rem 0.75rem; border: 1px solid #d1d5db; border-radius: 0.375rem; background-color: #fff; font-family: inherit; }.form-select-sm { font-size: 0.875rem; padding: 0.25rem 0.5rem; }`}</style>
         </div>
