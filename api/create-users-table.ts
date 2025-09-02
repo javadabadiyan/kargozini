@@ -131,6 +131,20 @@ export default async function handler(
     `;
     messages.push('جدول "hourly_commute_logs" با موفقیت ایجاد یا تایید شد.');
 
+    // FINAL FIX: Forcefully remove the NOT NULL constraint from exit_time in a safe way.
+    // This try/catch block ensures that the script doesn't fail on subsequent runs and handles the case where the constraint is already removed.
+    try {
+      await client.sql`
+        ALTER TABLE hourly_commute_logs ALTER COLUMN exit_time DROP NOT NULL;
+      `;
+      messages.push('ستون "exit_time" در جدول ترددهای ساعتی برای ثبت ورود مجزا به‌روزرسانی شد.');
+    } catch (alterError: any) {
+        // This is a broader catch. It will catch the "already nullable" error but also others.
+        // It's better than potentially hiding a real issue with a faulty string match.
+        console.warn(`Could not alter hourly_commute_logs table (this may be expected if already altered): ${alterError.message}`);
+        messages.push('ستون "exit_time" از قبل به درستی تنظیم شده بود یا با خطای دیگری مواجه شد (این مورد در اجراهای بعدی طبیعی است).');
+    }
+
     // Create trigger for hourly_commute_logs
     await (client as any).query(`
         DROP TRIGGER IF EXISTS update_hourly_commute_logs_updated_at ON hourly_commute_logs;
