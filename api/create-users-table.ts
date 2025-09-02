@@ -115,6 +115,22 @@ export default async function handler(
     `);
     messages.push('تریگر به‌روزرسانی خودکار برای جدول "commute_logs" ایجاد شد.');
 
+    // Create hourly_commute_logs table
+    await client.sql`
+      CREATE TABLE IF NOT EXISTS hourly_commute_logs (
+        id SERIAL PRIMARY KEY,
+        personnel_code VARCHAR(50) NOT NULL,
+        full_name VARCHAR(200),
+        reason TEXT,
+        exit_time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        return_time TIMESTAMPTZ,
+        guard_name VARCHAR(255) NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `;
+    messages.push('جدول "hourly_commute_logs" با موفقیت ایجاد یا تایید شد.');
+    await client.sql`CREATE INDEX IF NOT EXISTS hourly_commute_logs_personnel_code_idx ON hourly_commute_logs (personnel_code);`;
+    messages.push('ایندکس برای جدول تردد ساعتی ایجاد شد.');
 
     // Create extensions and indexes for personnel table
     try {

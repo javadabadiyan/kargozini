@@ -2,12 +2,13 @@
 import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import type { MenuItem } from '../types';
 // Fix: Removed `UserGroupIcon` as it's not exported from Icons.tsx.
-import { ChevronDownIcon, ChevronUpIcon, CircleIcon, HomeIcon, DocumentTextIcon, BriefcaseIcon, ShieldCheckIcon, LockClosedIcon, UsersIcon, XIcon } from './icons/Icons';
+import { ChevronDownIcon, ChevronUpIcon, CircleIcon, HomeIcon, DocumentTextIcon, BriefcaseIcon, ShieldCheckIcon, LockClosedIcon, UsersIcon, XIcon, ClockIcon } from './icons/Icons';
 import DependentsInfoPage from './pages/DependentsInfoPage';
 import PlaceholderPage from './pages/PlaceholderPage';
 import PersonnelListPage from './pages/PersonnelListPage';
 import CommutingMembersPage from './pages/CommutingMembersPage';
 import LogCommutePage from './pages/LogCommutePage';
+import HourlyCommutePage from './pages/HourlyCommutePage';
 
 // Define placeholder pages as stable, named components to prevent re-creation on every render.
 const DashboardPage = () => <PlaceholderPage title="داشبورد" />;
@@ -44,7 +45,8 @@ const menuItems: MenuItem[] = [
     id: 'security', label: 'حراست', icon: ShieldCheckIcon,
     children: [
       { id: 'commuting-members', label: 'کارمندان عضو تردد', icon: CircleIcon, page: CommutingMembersPage },
-      { id: 'log-commute', label: 'ثبت تردد', icon: CircleIcon, page: LogCommutePage },
+      { id: 'log-commute', label: 'ثبت تردد روزانه', icon: CircleIcon, page: LogCommutePage },
+      { id: 'hourly-commute', label: 'تردد ساعتی', icon: ClockIcon, page: HourlyCommutePage },
       { id: 'commute-report', label: 'گزارش گیری تردد', icon: CircleIcon, page: CommuteReportPage }
     ]
   },
