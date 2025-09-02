@@ -21,15 +21,17 @@ const EditCommuteLogModal: React.FC<EditCommuteLogModalProps> = ({ log, onClose,
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
+    // When the modal opens, parse the ISO string from the DB (which is in UTC)
+    // and use getHours/getMinutes to get the time in the user's LOCAL timezone.
     if (log.entry_time) {
       const date = new Date(log.entry_time);
-      setEntryTime({ hour: String(date.getUTCHours()), minute: String(date.getUTCMinutes()) });
+      setEntryTime({ hour: String(date.getHours()), minute: String(date.getMinutes()) });
     } else {
       setEntryTime({ hour: '', minute: '' });
     }
     if (log.exit_time) {
       const date = new Date(log.exit_time);
-      setExitTime({ hour: String(date.getUTCHours()), minute: String(date.getUTCMinutes()) });
+      setExitTime({ hour: String(date.getHours()), minute: String(date.getMinutes()) });
     } else {
       setExitTime({ hour: '', minute: '' });
     }
@@ -44,20 +46,23 @@ const EditCommuteLogModal: React.FC<EditCommuteLogModalProps> = ({ log, onClose,
     
     setIsSaving(true);
     
-    const baseEntryDate = new Date(log.entry_time);
-    baseEntryDate.setUTCHours(parseInt(entryTime.hour), parseInt(entryTime.minute), 0, 0);
+    // Use the original entry time to get the correct date (day, month, year)
+    const baseDate = new Date(log.entry_time);
+    
+    // Create a new Date object for the entry time, preserving the original date but using the new LOCAL hours/minutes.
+    const newEntryDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), parseInt(entryTime.hour), parseInt(entryTime.minute));
 
-    let exitDate = null;
+    let newExitDate = null;
     if (exitTime.hour && exitTime.minute) {
-        // Assume exit is on the same day as entry
-        exitDate = new Date(log.entry_time);
-        exitDate.setUTCHours(parseInt(exitTime.hour), parseInt(exitTime.minute), 0, 0);
+        // Create a new Date for the exit time, also based on the original entry day's date.
+        newExitDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), parseInt(exitTime.hour), parseInt(exitTime.minute));
     }
     
+    // toISOString() will correctly convert the local date object to a UTC timestamp for storage.
     const updatedLog: CommuteLog = {
       ...log,
-      entry_time: baseEntryDate.toISOString(),
-      exit_time: exitDate ? exitDate.toISOString() : null,
+      entry_time: newEntryDate.toISOString(),
+      exit_time: newExitDate ? newExitDate.toISOString() : null,
     };
     
     try {

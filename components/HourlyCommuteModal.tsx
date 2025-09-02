@@ -109,15 +109,16 @@ const HourlyCommuteModal: React.FC<HourlyCommuteModalProps> = ({ log, guardName,
 
   const handleEditClick = (hLog: HourlyCommuteLog) => {
     setEditingLog(hLog);
+    // When editing, get the LOCAL time parts from the stored ISO string.
     if (hLog.exit_time) {
       const exit = new Date(hLog.exit_time);
-      setExitTime({ hour: String(exit.getUTCHours()), minute: String(exit.getUTCMinutes()) });
+      setExitTime({ hour: String(exit.getHours()), minute: String(exit.getMinutes()) });
     } else {
       setExitTime({ hour: '', minute: '' });
     }
     if (hLog.entry_time) {
         const entry = new Date(hLog.entry_time);
-        setEntryTime({ hour: String(entry.getUTCHours()), minute: String(entry.getUTCMinutes()) });
+        setEntryTime({ hour: String(entry.getHours()), minute: String(entry.getMinutes()) });
     } else {
         setEntryTime({ hour: '', minute: '' });
     }
@@ -127,10 +128,13 @@ const HourlyCommuteModal: React.FC<HourlyCommuteModalProps> = ({ log, guardName,
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const [gYear, gMonth, gDay] = jalaliToGregorian(parseInt(date.year), parseInt(date.month), parseInt(date.day));
+    // This function creates a Date object in the user's LOCAL timezone,
+    // then toISOString() converts it to the correct UTC timestamp for storage.
     const getTimestamp = (time: {hour: string, minute: string}) => {
         if (!time.hour || !time.minute) return null;
-        return new Date(Date.UTC(gYear, gMonth - 1, gDay, parseInt(time.hour), parseInt(time.minute))).toISOString();
+        const [gYear, gMonth, gDay] = jalaliToGregorian(parseInt(date.year), parseInt(date.month), parseInt(date.day));
+        const localDate = new Date(gYear, gMonth - 1, gDay, parseInt(time.hour), parseInt(time.minute));
+        return localDate.toISOString();
     }
 
     let url: string;
@@ -181,6 +185,7 @@ const HourlyCommuteModal: React.FC<HourlyCommuteModalProps> = ({ log, guardName,
   
   const handleLogReturn = async (hLog: HourlyCommuteLog) => {
       try {
+        // Create a new local date and convert to ISO string.
         const response = await fetch(`/api/hourly-commute?id=${hLog.id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -214,6 +219,7 @@ const HourlyCommuteModal: React.FC<HourlyCommuteModalProps> = ({ log, guardName,
 
   const formatTime = (isoString: string | null) => {
     if (!isoString) return '-';
+    // Display the stored UTC time in the user's local timezone (fa-IR/Asia/Tehran)
     return toPersianDigits(new Date(isoString).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tehran' }));
   };
 
