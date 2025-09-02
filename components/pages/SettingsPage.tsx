@@ -5,56 +5,20 @@ import { PencilIcon, TrashIcon, DownloadIcon, UploadIcon, DocumentReportIcon, Us
 
 declare const XLSX: any;
 
-const PERMISSION_GROUPS = [
-    {
-        group: 'داشبورد',
-        permissions: [
-            { key: 'dashboard', label: 'دسترسی به داشبورد' },
-        ],
-    },
-    {
-        group: 'مدیریت پرسنل',
-        permissions: [
-            { key: 'personnel_list', label: 'لیست پرسنل' },
-            { key: 'dependents_info', label: 'اطلاعات بستگان' },
-            { key: 'document_upload', label: 'بارگذاری مدارک' },
-        ],
-    },
-    {
-        group: 'کارگزینی',
-        permissions: [
-            { key: 'accounting_commitment', label: 'نامه تعهد حسابداری' },
-            { key: 'disciplinary_committee', label: 'کمیته تشویق و انضباطی' },
-            { key: 'performance_review', label: 'ارزیابی عملکرد' },
-            { key: 'job_group', label: 'گروه شغلی پرسنل' },
-            { key: 'bonus_management', label: 'مدیریت کارانه' },
-        ],
-    },
-    {
-        group: 'حراست',
-        permissions: [
-            { key: 'commuting_members', label: 'کارمندان عضو تردد' },
-            { key: 'log_commute', label: 'ثبت تردد' },
-            { key: 'commute_report', label: 'گزارش گیری تردد' },
-        ],
-    },
-    {
-        group: 'تنظیمات',
-        permissions: [
-            { key: 'settings', label: 'دسترسی به تنظیمات' },
-            { key: 'user_management', label: 'مدیریت کاربران' },
-        ],
-    },
+const PERMISSION_KEYS: { key: keyof UserPermissions, label: string }[] = [
+    { key: 'dashboard', label: 'داشبورد' },
+    { key: 'personnel', label: 'مدیریت پرسنل' },
+    { key: 'recruitment', label: 'کارگزینی' },
+    { key: 'security', label: 'حراست' },
+    { key: 'settings', label: 'تنظیمات' },
+    { key: 'user_management', label: 'مدیریت کاربران' },
 ];
-
-const ALL_PERMISSIONS = PERMISSION_GROUPS.flatMap(g => g.permissions);
-
 
 const INDIVIDUAL_BACKUP_ITEMS = [
     { id: 'personnel', label: 'پرسنل', icon: UsersIcon, api: '/api/personnel?type=personnel', headers: ['کد پرسنلی', 'نام', 'نام خانوادگی', 'نام پدر', 'کد ملی', 'شماره شناسنامه', 'تاریخ تولد', 'محل تولد', 'تاریخ صدور', 'محل صدور', 'وضعیت تاهل', 'وضعیت نظام وظیفه', 'شغل', 'سمت', 'نوع استخدام', 'واحد', 'محل خدمت', 'تاریخ استخدام', 'مدرک تحصیلی', 'رشته تحصیلی', 'وضعیت'] },
     { id: 'dependents', label: 'بستگان', icon: UsersIcon, api: '/api/personnel?type=dependents', headers: ['کد پرسنلی', 'نوع وابستگی', 'نام', 'نام خانوادگی', 'کد ملی', 'تاریخ تولد', 'جنسیت'] },
     { id: 'commuting_members', label: 'اعضای تردد', icon: UsersIcon, api: '/api/personnel?type=commuting_members', headers: ['نام و نام خانوادگی', 'کد پرسنلی', 'واحد', 'سمت'] },
-    { id: 'users', label: 'کاربران', icon: UsersIcon, api: '/api/users', headers: ['username', 'password', ...ALL_PERMISSIONS.map(p => `perm_${p.key}`)] }
+    { id: 'users', label: 'کاربران', icon: UsersIcon, api: '/api/users', headers: ['username', 'password', ...PERMISSION_KEYS.map(p => `perm_${p.key}`)] }
 ];
 
 // Helper to export data to Excel
@@ -235,8 +199,8 @@ const SettingsPage: React.FC = () => {
     };
 
     const handleUserExcelSample = () => {
-        const headers = ['username', 'password', ...ALL_PERMISSIONS.map(p => `perm_${p.key}`)];
-        const sampleRow = ['newuser', 'password123', ...ALL_PERMISSIONS.map(() => 'FALSE')];
+        const headers = ['username', 'password', ...PERMISSION_KEYS.map(p => `perm_${p.key}`)];
+        const sampleRow = ['newuser', 'password123', ...PERMISSION_KEYS.map(() => 'FALSE')];
         const ws = XLSX.utils.aoa_to_sheet([headers, sampleRow]);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, wb.SheetNames.length ? wb.SheetNames[0] : 'Users', 'Users');
@@ -255,7 +219,7 @@ const SettingsPage: React.FC = () => {
                 const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
                 const usersToImport = json.map((row: any) => {
                     const permissions: UserPermissions = {};
-                    ALL_PERMISSIONS.forEach(p => {
+                    PERMISSION_KEYS.forEach(p => {
                         permissions[p.key] = String(row[`perm_${p.key}`]).toUpperCase() === 'TRUE';
                     });
                     return { username: row.username, password: row.password, permissions };
@@ -359,20 +323,16 @@ const SettingsPage: React.FC = () => {
                                     <input type="password" id="new-password" name="password" value={newUser.password || ''} onChange={handleNewUserFormChange} className={inputClass} required />
                                 </div>
                             </div>
-                            <div className="space-y-4">
-                                {PERMISSION_GROUPS.map(group => (
-                                    <div key={group.group}>
-                                        <h4 className="text-md font-semibold text-gray-700 dark:text-gray-300 mb-2">{group.group}</h4>
-                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 p-4 border rounded-lg bg-white dark:bg-slate-700 dark:border-slate-600">
-                                            {group.permissions.map(perm => (
-                                                <label key={perm.key} className="flex items-center space-x-2 space-x-reverse cursor-pointer">
-                                                    <input type="checkbox" checked={!!newUser.permissions?.[perm.key]} onChange={() => handleNewUserPermissionChange(perm.key as keyof UserPermissions)} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"/>
-                                                    <span className="text-sm text-gray-700 dark:text-gray-200">{perm.label}</span>
-                                                </label>
-                                            ))}
-                                        </div>
-                                    </div>
-                                ))}
+                            <div>
+                                <h4 className="text-md font-semibold text-gray-700 dark:text-gray-300 mb-2">دسترسی‌ها</h4>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 p-4 border rounded-lg bg-white dark:bg-slate-700 dark:border-slate-600">
+                                    {PERMISSION_KEYS.map(perm => (
+                                        <label key={perm.key} className="flex items-center space-x-2 space-x-reverse cursor-pointer">
+                                            <input type="checkbox" checked={!!newUser.permissions?.[perm.key]} onChange={() => handleNewUserPermissionChange(perm.key)} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"/>
+                                            <span className="text-sm text-gray-700 dark:text-gray-200">{perm.label}</span>
+                                        </label>
+                                    ))}
+                                </div>
                             </div>
                             <div className="flex justify-end">
                                 <button type="submit" className="px-6 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700">افزودن</button>
@@ -397,7 +357,7 @@ const SettingsPage: React.FC = () => {
                                         <tr key={user.id}>
                                             <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-800 dark:text-gray-100">{user.username}</td>
                                             <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">
-                                                {ALL_PERMISSIONS.filter(p => user.permissions[p.key]).map(p => p.label).join('، ')}
+                                                {PERMISSION_KEYS.filter(p => user.permissions[p.key]).map(p => p.label).join('، ')}
                                             </td>
                                             <td className="px-4 py-3 whitespace-nowrap text-sm text-center">
                                                 <button onClick={() => { setEditingUser(user); setIsUserModalOpen(true); }} className="p-1 text-blue-600 hover:text-blue-800" title="ویرایش"><PencilIcon className="w-5 h-5"/></button>
@@ -456,7 +416,7 @@ const SettingsPage: React.FC = () => {
                             </div>
                              <div className="flex items-center gap-2">
                                 <button className="px-3 py-1.5 text-xs bg-blue-100 text-blue-800 rounded hover:bg-blue-200 dark:bg-blue-900/40 dark:text-blue-200">خروجی اکسل</button>
-                                <input type="file" ref={el => { if(el) individualImportRefs.current[item.id] = el; }} accept=".xlsx, .xls" className="hidden" id={`import-${item.id}`}/>
+                                <input type="file" ref={el => { individualImportRefs.current[item.id] = el; }} accept=".xlsx, .xls" className="hidden" id={`import-${item.id}`}/>
                                 <label htmlFor={`import-${item.id}`} className="px-3 py-1.5 text-xs bg-green-100 text-green-800 rounded hover:bg-green-200 dark:bg-green-900/40 dark:text-green-200 cursor-pointer">ورود از اکسل</label>
                              </div>
                         </div>
