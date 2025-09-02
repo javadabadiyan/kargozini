@@ -1,13 +1,13 @@
-
 import React, { useState, useEffect, useCallback, useRef, memo } from 'react';
 import type { MenuItem } from '../types';
 // Fix: Removed `UserGroupIcon` as it's not exported from Icons.tsx.
-import { ChevronDownIcon, ChevronUpIcon, CircleIcon, HomeIcon, DocumentTextIcon, BriefcaseIcon, ShieldCheckIcon, LockClosedIcon, UsersIcon, XIcon } from './icons/Icons';
+import { ChevronDownIcon, ChevronUpIcon, CircleIcon, HomeIcon, DocumentTextIcon, BriefcaseIcon, ShieldCheckIcon, LockClosedIcon, UsersIcon, XIcon, DocumentReportIcon } from './icons/Icons';
 import DependentsInfoPage from './pages/DependentsInfoPage';
 import PlaceholderPage from './pages/PlaceholderPage';
 import PersonnelListPage from './pages/PersonnelListPage';
 import CommutingMembersPage from './pages/CommutingMembersPage';
 import LogCommutePage from './pages/LogCommutePage';
+import CommuteReportPage from './pages/CommuteReportPage';
 
 // Define placeholder pages as stable, named components to prevent re-creation on every render.
 const DashboardPage = () => <PlaceholderPage title="داشبورد" />;
@@ -17,7 +17,6 @@ const DisciplinaryCommitteePage = () => <PlaceholderPage title="کمیته تش�
 const PerformanceReviewPage = () => <PlaceholderPage title="ارزیابی عملکرد" />;
 const JobGroupPage = () => <PlaceholderPage title="گروه شغلی پرسنل" />;
 const BonusManagementPage = () => <PlaceholderPage title="مدیریت کارانه" />;
-const CommuteReportPage = () => <PlaceholderPage title="گزارش گیری تردد" />;
 const UserManagementPage = () => <PlaceholderPage title="مدیریت کاربران" />;
 
 const menuItems: MenuItem[] = [
@@ -45,7 +44,7 @@ const menuItems: MenuItem[] = [
     children: [
       { id: 'commuting-members', label: 'کارمندان عضو تردد', icon: CircleIcon, page: CommutingMembersPage },
       { id: 'log-commute', label: 'ثبت تردد', icon: CircleIcon, page: LogCommutePage },
-      { id: 'commute-report', label: 'گزارش گیری تردد', icon: CircleIcon, page: CommuteReportPage }
+      { id: 'commute-report', label: 'گزارش گیری تردد', icon: DocumentReportIcon, page: CommuteReportPage }
     ]
   },
   { id: 'user-management', label: 'مدیریت کاربران', icon: LockClosedIcon, page: UserManagementPage }

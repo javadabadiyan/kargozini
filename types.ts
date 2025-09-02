@@ -70,3 +70,14 @@ export interface HourlyCommuteLog {
   reason: string | null;
   guard_name: string;
 }
+
+export interface CommuteReportRow {
+  log_id: number;
+  personnel_code: string;
+  full_name: string;
+  department: string | null;
+  position: string | null;
+  entry_time: string;
+  exit_time: string | null;
+  guard_name: string;
+}
