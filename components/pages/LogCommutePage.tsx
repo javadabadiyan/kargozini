@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import type { CommutingMember, CommuteLog } from '../../types';
-import { PencilIcon, TrashIcon, ArrowRightOnRectangleIcon, ChevronDownIcon, SearchIcon } from '../icons/Icons';
+import { PencilIcon, TrashIcon, ClockIcon, WalkingIcon, ChevronDownIcon, SearchIcon } from '../icons/Icons';
 import EditCommuteLogModal from '../EditCommuteLogModal';
 
 const GUARDS = [
@@ -240,6 +241,36 @@ const LogCommutePage: React.FC = () => {
         setTimeout(() => setStatus(null), 5000);
     };
 
+    const handleLeaveClick = useCallback(async (personnelCode: string) => {
+        if (!window.confirm(`آیا میخواهید خروج بین ساعتی برای این پرسنل ثبت کنید؟`)) return;
+
+        setStatus({ type: 'info', message: 'در حال ثبت خروج بین ساعتی...' });
+
+        try {
+            const response = await fetch('/api/commute-logs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    personnelCode, 
+                    guardName: selectedGuard, 
+                    action: 'exit', 
+                    timestampOverride: null // Use server time
+                })
+            });
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'خطا در ثبت خروج');
+            }
+            setStatus({ type: 'success', message: 'خروج بین ساعتی با موفقیت ثبت شد.' });
+            fetchLogs();
+        } catch (err) {
+            setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در ثبت خروج.' });
+        } finally {
+            setTimeout(() => setStatus(null), 5000);
+        }
+    }, [selectedGuard, fetchLogs]);
+
+
     const handleEditClick = (log: CommuteLog) => {
         setEditingLog(log);
         setIsEditModalOpen(true);
@@ -339,8 +370,8 @@ const LogCommutePage: React.FC = () => {
               </div>
             </div>
 
-            <button onClick={handleSubmit} disabled={selectedPersonnel.size === 0} className="w-full py-3 text-lg font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-gray-400">
-                {actionType === 'entry' ? 'ثبت ورود' : 'ثبت خروج'} برای {toPersianDigits(selectedPersonnel.size)} نفر
+            <button onClick={handleSubmit} disabled={selectedPersonnel.size === 0} className="w-full py-2 text-md font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-gray-400">
+                ثبت نهایی ورود و خروج
             </button>
             
             <div className="border rounded-lg">
@@ -415,19 +446,27 @@ const LogCommutePage: React.FC = () => {
                   <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">پرسنل</th>
                   <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">شیفت کاری</th>
                   <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">ورود</th>
-                  <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">خروج</th>
+                  <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase flex items-center gap-1">خروج <ClockIcon className="w-4 h-4" /></th>
+                  <th className="px-4 py-3 text-center text-xs font-bold text-gray-600 uppercase flex items-center justify-center gap-1"><WalkingIcon className="w-4 h-4" /> بین ساعتی</th>
                   <th className="px-4 py-3 text-center text-xs font-bold text-gray-600 uppercase">عملیات</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {loadingLogs ? <tr><td colSpan={5} className="text-center p-4">در حال بارگذاری...</td></tr> :
-                 filteredLogs.length === 0 ? <tr><td colSpan={5} className="text-center p-4 text-gray-500">{logSearchTerm ? 'موردی با این مشخصات یافت نشد.' : 'هیچ ترددی برای این روز ثبت نشده است.'}</td></tr> :
+                {loadingLogs ? <tr><td colSpan={6} className="text-center p-4">در حال بارگذاری...</td></tr> :
+                 filteredLogs.length === 0 ? <tr><td colSpan={6} className="text-center p-4 text-gray-500">{logSearchTerm ? 'موردی با این مشخصات یافت نشد.' : 'هیچ ترددی برای این روز ثبت نشده است.'}</td></tr> :
                  filteredLogs.map(log => (
                     <tr key={log.id} className="hover:bg-slate-50">
                       <td className="px-4 py-3 whitespace-nowrap"><div className="text-sm font-medium text-gray-900">{log.full_name}</div><div className="text-xs text-gray-500">کد: {toPersianDigits(log.personnel_code)}</div></td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{log.guard_name}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 tabular-nums">{formatTime(log.entry_time)}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 tabular-nums">{formatTime(log.exit_time)}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-center">
+                        {!log.exit_time && (
+                            <button onClick={() => handleLeaveClick(log.personnel_code)} className="p-2 text-orange-600 hover:bg-orange-100 rounded-md transition-colors" title="ثبت خروج بین ساعتی">
+                                <WalkingIcon className="w-5 h-5" />
+                            </button>
+                        )}
+                      </td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm">
                         <div className="flex items-center justify-center gap-1">
                           <button onClick={() => handleEditClick(log)} className="p-2 text-blue-600 hover:bg-blue-100 rounded-md" title="ویرایش"><PencilIcon className="w-5 h-5" /></button>
