@@ -32,6 +32,9 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout }) => {
         <div className="p-4 sm:p-6 flex-1">
             <ActivePage />
         </div>
+        <footer className="text-center py-4 bg-slate-50 border-t border-slate-200">
+            <p className="text-sm text-slate-500">طراح و کدنویسی جواد آبادیان</p>
+        </footer>
       </main>
     </div>
   );

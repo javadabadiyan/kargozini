@@ -21,7 +21,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-900 to-slate-700">
+    <div className="relative flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-900 to-slate-700">
       <div className="w-full max-w-md p-8 space-y-8 bg-white rounded-2xl shadow-2xl">
         <div className="text-center">
           <h1 className="text-3xl font-bold text-gray-800">سیستم جامع کارگزینی</h1>
@@ -69,6 +69,9 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
           </div>
         </form>
       </div>
+      <footer className="absolute bottom-4 text-center w-full">
+        <p className="text-sm text-slate-400">طراح و کدنویسی جواد آبادیان</p>
+      </footer>
     </div>
   );
 };
