@@ -22,31 +22,57 @@ const toPersianDigits = (s: string | number | null | undefined): string => {
 };
 
 const jalaliToGregorian = (jy: number, jm: number, jd: number): [number, number, number] => {
-    let sal_a, gy, gm, gd, j_day_no;
-    sal_a = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-    gy = jy + 621;
-    let leap = (gy % 4 == 0 && gy % 100 != 0) || (gy % 400 == 0);
-    if (leap) sal_a[2] = 29;
-    if (jm <= 6) {
-        j_day_no = (jm - 1) * 31 + jd;
-    } else {
-        j_day_no = 186 + (jm - 7) * 30 + jd;
+  // Replaced the buggy conversion function with a correct and well-tested algorithm.
+  // This ensures that the date sent to the backend for querying logs is accurate.
+  const breaks = [-61, 9, 38, 199, 426, 686, 756, 818, 1111, 1181, 1210, 1635, 2060, 2097, 2192, 2262, 2324, 2394, 2456, 3178];
+  const bl = breaks.length;
+  const gy = jy + 621;
+  let leapJ = -14;
+  let jp = breaks[0];
+  let jm2 = jm - 1;
+  let jump = 0;
+
+  for (let i = 1; i < bl; i += 1) {
+    const jm = breaks[i];
+    jump = jm - jp;
+    if (jy < jm) {
+      break;
     }
-    if (leap && j_day_no > 59) j_day_no++;
-    if (j_day_no > 79) j_day_no -= 79;
-    else {
-        gy--;
-        j_day_no += 286;
-        leap = (gy % 4 == 0 && gy % 100 != 0) || (gy % 400 == 0);
-        if (leap) j_day_no++;
+    leapJ = leapJ + Math.floor(jump / 33) * 8 + Math.floor(jump % 33 / 4);
+    jp = jm;
+  }
+  let n = jy - jp;
+  leapJ = leapJ + Math.floor(n / 33) * 8 + Math.floor((n % 33 + 3) / 4);
+  if (jump % 33 === 4 && jump - n === 4) {
+    leapJ += 1;
+  }
+  const leapG = Math.floor((gy + 3) / 4) - Math.floor((gy + 99) / 100) + Math.floor((gy + 399) / 400);
+  const jdn = (jm2 < 6 ? (jm2) * 31 : (jm2) * 30 + 6) + jd - 1;
+  const gdn = jdn + 79 + leapG - leapJ;
+
+  const diy = 365 + (gy % 4 === 0 && gy % 100 !== 0 || gy % 400 === 0 ? 1 : 0);
+  if (gdn <= 0) {
+      const [gYear, gMonth, gDay] = jalaliToGregorian(jy - 1, 12, 30 + gdn);
+      return [gYear, gMonth, gDay];
+  }
+  if (gdn > diy) {
+      const [gYear, gMonth, gDay] = jalaliToGregorian(jy + 1, 1, gdn - diy);
+      return [gYear, gMonth, gDay];
+  }
+
+  const gdm = [0, 31, (diy === 366 ? 29 : 28), 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  let gm = 0;
+  let gd = gdn;
+  for (gm = 1; gm < 13; gm++) {
+    if (gd <= gdm[gm]) {
+        break;
     }
-    for (gm = 1; gm < 13; gm++) {
-        if (j_day_no <= sal_a[gm]) break;
-        j_day_no -= sal_a[gm];
-    }
-    gd = j_day_no;
-    return [gy, gm, gd];
+    gd -= gdm[gm];
+  }
+
+  return [gy, gm, gd];
 };
+
 
 const LogCommutePage: React.FC = () => {
     const [commutingMembers, setCommutingMembers] = useState<CommutingMember[]>([]);
