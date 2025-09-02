@@ -51,19 +51,13 @@ const ALL_PERMISSIONS = PERMISSION_GROUPS.flatMap(g => g.permissions);
 
 
 const INDIVIDUAL_BACKUP_ITEMS = [
-    { id: 'personnel', label: 'پرسنل', icon: UsersIcon, api: '/api/personnel?type=personnel', headers: ['کد پرسنلی', 'نام', 'نام خانوادگی', 'نام پدر', 'کد ملی', 'شماره شناسنامه', 'تاریخ تولد', 'محل تولد', 'تاریخ صدور', 'محل صدور', 'وضعیت تاهل', 'وضعیت نظام وظیفه', 'شغل', 'سمت', 'نوع استخدام', 'واحد', 'محل خدمت', 'تاریخ استخدام', 'مدرک تحصیلی', 'رشته تحصیلی', 'وضعیت'] },
-    { id: 'dependents', label: 'بستگان', icon: UsersIcon, api: '/api/personnel?type=dependents', headers: ['کد پرسنلی', 'نوع وابستگی', 'نام', 'نام خانوادگی', 'کد ملی', 'تاریخ تولد', 'جنسیت'] },
-    { id: 'commuting_members', label: 'اعضای تردد', icon: UsersIcon, api: '/api/personnel?type=commuting_members', headers: ['نام و نام خانوادگی', 'کد پرسنلی', 'واحد', 'سمت'] },
-    { id: 'users', label: 'کاربران', icon: UsersIcon, api: '/api/users', headers: ['username', 'password', ...ALL_PERMISSIONS.map(p => `perm_${p.key}`)] }
+    { id: 'personnel', label: 'لیست پرسنل', icon: UsersIcon },
+    { id: 'dependents', label: 'اطلاعات بستگان', icon: UsersIcon },
+    { id: 'commuting_members', label: 'کارمندان عضو تردد', icon: UsersIcon },
+    { id: 'commutes', label: 'داده‌های تردد', icon: DocumentReportIcon },
+    { id: 'app_users', label: 'کاربران و دسترسی‌ها', icon: UsersIcon },
 ];
 
-// Helper to export data to Excel
-const exportToExcel = (data: any[], fileName: string, sheetName: string) => {
-    const worksheet = XLSX.utils.json_to_sheet(data);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-    XLSX.writeFile(workbook, `${fileName}.xlsx`);
-};
 
 const SettingsPage: React.FC = () => {
     const currentUser = JSON.parse(sessionStorage.getItem('currentUser') || '{}');
@@ -147,7 +141,7 @@ const SettingsPage: React.FC = () => {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `backup-${new Date().toISOString().split('T')[0]}.json`;
+            a.download = `backup-full-${new Date().toISOString().split('T')[0]}.json`;
             a.click();
             URL.revokeObjectURL(url);
             setStatus({ type: 'success', message: 'فایل پشتیبان کامل با موفقیت دانلود شد.' });
@@ -175,22 +169,48 @@ const SettingsPage: React.FC = () => {
         reader.readAsText(file);
     };
 
-    const handleDeleteAllData = async () => {
-        if (window.prompt('این عمل تمام داده‌های سیستم را پاک می‌کند و قابل بازگشت نیست. برای تایید، عبارت "حذف کلی" را وارد کنید.') !== 'حذف کلی') {
-            setStatus({ type: 'info', message: 'عملیات پاک کردن لغو شد.' });
-            return;
-        }
-        setStatus({ type: 'info', message: 'در حال پاک کردن تمام داده‌ها...' });
+    const handleIndividualExport = async (table: string) => {
+        setStatus({ type: 'info', message: `در حال ایجاد نسخه پشتیبان برای ${table}...` });
         try {
-            const response = await fetch('/api/backup', { method: 'DELETE' });
+            const response = await fetch(`/api/backup?table=${table}`);
+            if (!response.ok) throw new Error((await response.json()).details || `خطا در دریافت داده‌های ${table}`);
             const data = await response.json();
-            if (!response.ok) throw new Error(data.details || data.error);
-            setStatus({ type: 'success', message: 'تمام اطلاعات با موفقیت پاک شد. لطفاً از سیستم خارج شوید.' });
-        } catch(err) {
-            setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در پاک کردن داده‌ها' });
-        }
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `backup-${table}-${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            setStatus({ type: 'success', message: `فایل پشتیبان ${table} با موفقیت دانلود شد.` });
+        } catch (err) {
+            setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در ایجاد پشتیبان' });
+        } finally { setTimeout(() => setStatus(null), 5000); }
     };
-    
+
+    const handleIndividualImport = (e: React.ChangeEvent<HTMLInputElement>, table: string) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            setStatus({ type: 'info', message: `در حال بازیابی اطلاعات برای ${table}...` });
+            try {
+                const content = event.target?.result;
+                const response = await fetch(`/api/backup?table=${table}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: content });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.details || data.error);
+                setStatus({ type: 'success', message: `اطلاعات ${table} با موفقیت بازیابی شد.` });
+            } catch (err) {
+                setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در بازیابی اطلاعات' });
+            } finally { 
+                const input = individualImportRefs.current[table];
+                if(input) input.value = ""; 
+                setTimeout(() => setStatus(null), 5000); 
+            }
+        };
+        reader.readAsText(file);
+    };
+
     const handleSaveUser = async (user: Partial<AppUser>) => {
         const isNew = !user.id;
         const method = isNew ? 'POST' : 'PUT';
@@ -442,10 +462,10 @@ const SettingsPage: React.FC = () => {
                 </div>
             </div>
 
-            <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-lg">
-                <h2 className="text-xl font-bold text-gray-700 dark:text-gray-200 border-b dark:border-slate-700 pb-3 mb-4">پشتیبان‌گیری و بازیابی مجزا (اکسل)</h2>
+             <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-lg">
+                <h2 className="text-xl font-bold text-gray-700 dark:text-gray-200 border-b dark:border-slate-700 pb-3 mb-4">پشتیبان‌گیری و بازیابی مجزا</h2>
                 <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
-                    از هر بخش به صورت جداگانه خروجی اکسل تهیه کرده یا اطلاعات را از فایل اکسل استاندارد وارد سیستم کنید.
+                    از هر بخش به صورت جداگانه یک فایل پشتیبان (JSON) تهیه کرده یا اطلاعات آن بخش را از یک فایل بازیابی کنید.
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {INDIVIDUAL_BACKUP_ITEMS.map(item => (
@@ -455,19 +475,13 @@ const SettingsPage: React.FC = () => {
                                 <span className="font-semibold text-gray-700 dark:text-gray-200">{item.label}</span>
                             </div>
                              <div className="flex items-center gap-2">
-                                <button className="px-3 py-1.5 text-xs bg-blue-100 text-blue-800 rounded hover:bg-blue-200 dark:bg-blue-900/40 dark:text-blue-200">خروجی اکسل</button>
-                                <input type="file" ref={el => { if(el) individualImportRefs.current[item.id] = el; }} accept=".xlsx, .xls" className="hidden" id={`import-${item.id}`}/>
-                                <label htmlFor={`import-${item.id}`} className="px-3 py-1.5 text-xs bg-green-100 text-green-800 rounded hover:bg-green-200 dark:bg-green-900/40 dark:text-green-200 cursor-pointer">ورود از اکسل</label>
+                                <button onClick={() => handleIndividualExport(item.id)} className="px-3 py-1.5 text-xs bg-blue-100 text-blue-800 rounded hover:bg-blue-200 dark:bg-blue-900/40 dark:text-blue-200">تهیه پشتیبان</button>
+                                <input type="file" ref={el => { if(el) individualImportRefs.current[item.id] = el; }} onChange={(e) => handleIndividualImport(e, item.id)} accept=".json" className="hidden" id={`import-${item.id}`}/>
+                                <label htmlFor={`import-${item.id}`} className="px-3 py-1.5 text-xs bg-green-100 text-green-800 rounded hover:bg-green-200 dark:bg-green-900/40 dark:text-green-200 cursor-pointer">بازیابی</label>
                              </div>
                         </div>
                     ))}
                 </div>
-            </div>
-            
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-6 rounded-lg shadow-lg">
-                <h2 className="text-xl font-bold text-red-800 dark:text-red-300">منطقه خطر</h2>
-                <p className="text-sm text-red-700 dark:text-red-300 mt-2 mb-4">عملیات زیر غیرقابل بازگشت هستند. لطفاً با احتیاط کامل اقدام کنید.</p>
-                <button onClick={handleDeleteAllData} className="px-6 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700">پاک کردن تمام اطلاعات</button>
             </div>
         </div>
     );
