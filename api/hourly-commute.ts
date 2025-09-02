@@ -9,12 +9,13 @@ async function handleGet(request: VercelRequest, response: VercelResponse, pool:
   }
 
   try {
+    // This query now correctly fetches logs if either the exit_time OR entry_time falls on the specified date.
     const result = await pool.sql`
         SELECT * FROM hourly_commute_logs
         WHERE 
             personnel_code = ${personnel_code} AND 
-            DATE(exit_time AT TIME ZONE 'Asia/Tehran') = ${date}
-        ORDER BY exit_time DESC;
+            DATE(COALESCE(exit_time, entry_time) AT TIME ZONE 'Asia/Tehran') = ${date}
+        ORDER BY COALESCE(exit_time, entry_time) DESC;
     `;
     return response.status(200).json({ logs: result.rows });
   } catch (error) {

@@ -86,13 +86,13 @@ const HourlyCommuteModal: React.FC<HourlyCommuteModalProps> = ({ log, guardName,
     setEditingLog(hLog);
     if (hLog.exit_time) {
       const exit = new Date(hLog.exit_time);
-      setExitTime({ hour: String(exit.getHours()), minute: String(exit.getMinutes()) });
+      setExitTime({ hour: String(exit.getUTCHours()), minute: String(exit.getUTCMinutes()) });
     } else {
       setExitTime({ hour: '', minute: '' });
     }
     if (hLog.entry_time) {
         const entry = new Date(hLog.entry_time);
-        setEntryTime({ hour: String(entry.getHours()), minute: String(entry.getMinutes()) });
+        setEntryTime({ hour: String(entry.getUTCHours()), minute: String(entry.getUTCMinutes()) });
     } else {
         setEntryTime({ hour: '', minute: '' });
     }
@@ -103,12 +103,9 @@ const HourlyCommuteModal: React.FC<HourlyCommuteModalProps> = ({ log, guardName,
     e.preventDefault();
 
     if (editingLog) {
-        // When editing, exit time can be null if it was an entry-only record, but let's enforce it for simplicity.
-        // Or we can allow editing one or the other. For now, let's assume exit is required for an edit to make sense.
-        if (!exitTime.hour || !exitTime.minute) {
-            setStatus({ type: 'error', message: 'ساعت خروج برای ویرایش الزامی است.' });
-            return;
-        }
+      if (!exitTime.hour || !exitTime.minute) {
+          // Allow editing entry time on its own
+      }
     } else {
         if (actionType === 'exit' && (!exitTime.hour || !exitTime.minute)) {
             setStatus({ type: 'error', message: 'ساعت خروج الزامی است.' });
@@ -125,7 +122,7 @@ const HourlyCommuteModal: React.FC<HourlyCommuteModalProps> = ({ log, guardName,
     const getTimestamp = (time: {hour: string, minute: string}) => {
         if (!time.hour || !time.minute) return null;
         const d = new Date(Date.UTC(gYear, gMonth - 1, gDay, parseInt(time.hour), parseInt(time.minute)));
-        d.setMinutes(d.getMinutes() - 210); // Adjust for Iran timezone
+        d.setMinutes(d.getMinutes()); // No need for timezone adjustment as we are using UTC throughout
         return d.toISOString();
     }
 
@@ -135,6 +132,7 @@ const HourlyCommuteModal: React.FC<HourlyCommuteModalProps> = ({ log, guardName,
     let payload;
     if (editingLog) {
         payload = {
+            ...editingLog,
             exit_time: exitTimestamp,
             entry_time: entryTimestamp,
             reason: reason,
@@ -142,7 +140,7 @@ const HourlyCommuteModal: React.FC<HourlyCommuteModalProps> = ({ log, guardName,
     } else {
         payload = {
             personnel_code: log.personnel_code,
-            full_name: log.full_name,
+            full_name: log.full_name || log.personnel_code, // Fallback to personnel_code to avoid NOT NULL constraint error
             guard_name: guardName,
             exit_time: actionType === 'exit' ? exitTimestamp : null,
             entry_time: actionType === 'entry' ? entryTimestamp : null,
@@ -156,7 +154,7 @@ const HourlyCommuteModal: React.FC<HourlyCommuteModalProps> = ({ log, guardName,
     try {
         const response = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
         const data = await response.json();
-        if (!response.ok) throw new Error(data.error);
+        if (!response.ok) throw new Error(data.details || data.error);
         setStatus({ type: 'success', message: data.message });
         resetForm();
         fetchHourlyLogs();
@@ -207,13 +205,16 @@ const HourlyCommuteModal: React.FC<HourlyCommuteModalProps> = ({ log, guardName,
   };
 
   const calculateDuration = (exit: string | null, entry: string | null): string => {
-    if (!exit) return '---';
-    if (!entry) return 'در حال انجام';
-    const diff = (new Date(entry).getTime() - new Date(exit).getTime()) / 60000;
-    if (diff < 0) return 'نامعتبر';
-    const hours = Math.floor(diff / 60);
-    const minutes = Math.round(diff % 60);
-    return `${toPersianDigits(hours)} ساعت و ${toPersianDigits(minutes)} دقیقه`;
+    if (exit && entry) {
+        const diff = (new Date(entry).getTime() - new Date(exit).getTime()) / 60000;
+        if (diff < 0) return 'نامعتبر';
+        const hours = Math.floor(diff / 60);
+        const minutes = Math.round(diff % 60);
+        return `${toPersianDigits(hours)} ساعت و ${toPersianDigits(minutes)} دقیقه`;
+    }
+    if (exit && !entry) return 'در حال انجام';
+    if (!exit && entry) return 'ورود ثبت شده';
+    return '---';
   };
   
   const statusColor = { info: 'bg-blue-100 text-blue-800', success: 'bg-green-100 text-green-800', error: 'bg-red-100 text-red-800' };
