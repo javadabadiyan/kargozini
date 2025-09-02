@@ -306,7 +306,7 @@ const LogCommutePage: React.FC = () => {
         reader.onload = async (e) => {
             try {
                 const workbook = XLSX.read(new Uint8Array(e.target?.result as ArrayBuffer), { type: 'array' });
-                const json: any[] = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+                const json: any[] = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { raw: false });
 
                 const mappedData = json.map(row => {
                     const dateStr = String(row['تاریخ'] || '');
