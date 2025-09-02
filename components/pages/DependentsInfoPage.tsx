@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { SearchIcon, UserIcon, UsersIcon } from '../icons/Icons';
 import type { Personnel, Dependent } from '../../types';
@@ -44,7 +45,7 @@ const DependentsInfoPage: React.FC = () => {
       try {
         setPersonnelLoading(true);
         setPersonnelError(null);
-        const response = await fetch('/api/personnel?pageSize=100000');
+        const response = await fetch('/api/personnel?type=personnel&pageSize=100000');
 
         if (!response.ok) {
           throw new Error('خطا در دریافت لیست پرسنل');
@@ -71,7 +72,7 @@ const DependentsInfoPage: React.FC = () => {
       try {
         setDependentsLoading(true);
         setDependentsError(null);
-        const response = await fetch(`/api/dependents?personnel_code=${selectedPersonnel.personnel_code}`);
+        const response = await fetch(`/api/personnel?type=dependents&personnel_code=${selectedPersonnel.personnel_code}`);
         if (!response.ok) {
            const errorData = await response.json();
            throw new Error(errorData.error || 'خطا در دریافت اطلاعات بستگان');
@@ -130,7 +131,7 @@ const DependentsInfoPage: React.FC = () => {
           return newRow;
         });
 
-        const response = await fetch('/api/dependents', {
+        const response = await fetch('/api/personnel?type=dependents', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(mappedData),
@@ -146,7 +147,7 @@ const DependentsInfoPage: React.FC = () => {
         // Refresh dependents if the currently selected personnel was affected
         if (selectedPersonnel) {
            const fetchAgain = async () => {
-             const res = await fetch(`/api/dependents?personnel_code=${selectedPersonnel.personnel_code}`);
+             const res = await fetch(`/api/personnel?type=dependents&personnel_code=${selectedPersonnel.personnel_code}`);
              const data = await res.json();
              setDependents(data.dependents || []);
            }
@@ -167,7 +168,7 @@ const DependentsInfoPage: React.FC = () => {
   const handleExport = async () => {
     setImportStatus({type: 'info', message: 'در حال آماده‌سازی فایل اکسل...'});
     try {
-        const response = await fetch('/api/dependents');
+        const response = await fetch('/api/personnel?type=dependents');
         if(!response.ok) throw new Error('خطا در دریافت اطلاعات برای خروجی');
         const data = await response.json();
 

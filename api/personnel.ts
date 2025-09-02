@@ -1,240 +1,234 @@
 import { createPool, VercelPool, VercelPoolClient } from '@vercel/postgres';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import type { Personnel } from '../types';
+import type { Personnel, Dependent, CommutingMember } from '../types';
 
+// --- Type Aliases for Payloads ---
 type NewPersonnel = Omit<Personnel, 'id'>;
+type NewDependent = Omit<Dependent, 'id'>;
+type NewCommutingMember = Omit<CommutingMember, 'id'>;
 
-// --- GET Handler ---
-async function handleGet(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
-  try {
-    const page = parseInt(request.query.page as string) || 1;
-    const pageSize = parseInt(request.query.pageSize as string) || 20;
-    const searchTerm = (request.query.searchTerm as string) || '';
-    const offset = (page - 1) * pageSize;
-    const searchQuery = `%${searchTerm}%`;
-    
-    let countResult;
-    let dataResult;
+// =================================================================================
+// PERSONNEL HANDLERS
+// =================================================================================
+async function handleGetPersonnel(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+  const page = parseInt(request.query.page as string) || 1;
+  const pageSize = parseInt(request.query.pageSize as string) || 20;
+  const searchTerm = (request.query.searchTerm as string) || '';
+  const offset = (page - 1) * pageSize;
+  const searchQuery = `%${searchTerm}%`;
 
-    if (searchTerm) {
-        countResult = await pool.sql`
-            SELECT COUNT(*) FROM personnel
-            WHERE first_name ILIKE ${searchQuery} OR last_name ILIKE ${searchQuery} OR personnel_code ILIKE ${searchQuery} OR national_id ILIKE ${searchQuery};
-        `;
-        dataResult = await pool.sql`
-            SELECT 
-                id, personnel_code, first_name, last_name, father_name, national_id, id_number,
-                birth_date, birth_place, issue_date, issue_place, marital_status, military_status,
-                job_title, "position", employment_type, department, service_location, hire_date,
-                education_level, field_of_study, status 
-            FROM personnel
-            WHERE first_name ILIKE ${searchQuery} OR last_name ILIKE ${searchQuery} OR personnel_code ILIKE ${searchQuery} OR national_id ILIKE ${searchQuery}
-            ORDER BY last_name, first_name
-            LIMIT ${pageSize} OFFSET ${offset};
-        `;
-    } else {
-        countResult = await pool.sql`SELECT COUNT(*) FROM personnel;`;
-        dataResult = await pool.sql`
-            SELECT 
-                id, personnel_code, first_name, last_name, father_name, national_id, id_number,
-                birth_date, birth_place, issue_date, issue_place, marital_status, military_status,
-                job_title, "position", employment_type, department, service_location, hire_date,
-                education_level, field_of_study, status 
-            FROM personnel
-            ORDER BY last_name, first_name
-            LIMIT ${pageSize} OFFSET ${offset};
-        `;
-    }
+  let countResult;
+  let dataResult;
 
-    const totalCount = parseInt(countResult.rows[0].count, 10);
-    const { rows } = dataResult;
-
-    return response.status(200).json({ personnel: rows, totalCount });
-  } catch (error) {
-    console.error('Database GET failed:', error);
-    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-    
-    if (errorMessage.includes('relation "personnel" does not exist')) {
-        return response.status(500).json({ 
-            error: 'جدول پرسنل در پایگاه داده یافت نشد.', 
-            details: 'به نظر می‌رسد جدول مورد نیاز ایجاد نشده است. لطفاً با مراجعه به آدرس /api/create-users-table از ایجاد جدول اطمینان حاصل کنید.' 
-        });
-    }
-    return response.status(500).json({ error: 'Failed to fetch data from the database.', details: errorMessage });
+  if (searchTerm) {
+      countResult = await pool.sql`
+          SELECT COUNT(*) FROM personnel
+          WHERE first_name ILIKE ${searchQuery} OR last_name ILIKE ${searchQuery} OR personnel_code ILIKE ${searchQuery} OR national_id ILIKE ${searchQuery};
+      `;
+      dataResult = await pool.sql`
+          SELECT * FROM personnel
+          WHERE first_name ILIKE ${searchQuery} OR last_name ILIKE ${searchQuery} OR personnel_code ILIKE ${searchQuery} OR national_id ILIKE ${searchQuery}
+          ORDER BY last_name, first_name
+          LIMIT ${pageSize} OFFSET ${offset};
+      `;
+  } else {
+      countResult = await pool.sql`SELECT COUNT(*) FROM personnel;`;
+      dataResult = await pool.sql`
+          SELECT * FROM personnel
+          ORDER BY last_name, first_name
+          LIMIT ${pageSize} OFFSET ${offset};
+      `;
   }
+  const totalCount = parseInt(countResult.rows[0].count, 10);
+  return response.status(200).json({ personnel: dataResult.rows, totalCount });
 }
 
-// --- POST Handler (Single Add) ---
-async function handleSinglePost(p: NewPersonnel, response: VercelResponse, pool: VercelPool) {
-  if (!p || !p.personnel_code || !p.first_name || !p.last_name) {
-    return response.status(400).json({ error: 'کد پرسنلی، نام و نام خانوادگی الزامی هستند.' });
-  }
-  try {
-    const { rows } = await pool.sql`
-      INSERT INTO personnel (
-        personnel_code, first_name, last_name, father_name, national_id, id_number,
-        birth_date, birth_place, issue_date, issue_place, marital_status, military_status,
-        job_title, "position", employment_type, department, service_location, hire_date,
-        education_level, field_of_study, status
-      ) VALUES (
-        ${p.personnel_code}, ${p.first_name}, ${p.last_name}, ${p.father_name}, ${p.national_id}, ${p.id_number},
-        ${p.birth_date}, ${p.birth_place}, ${p.issue_date}, ${p.issue_place}, ${p.marital_status}, ${p.military_status},
-        ${p.job_title}, ${p.position}, ${p.employment_type}, ${p.department}, ${p.service_location}, ${p.hire_date},
-        ${p.education_level}, ${p.field_of_study}, ${p.status}
-      )
-      RETURNING *;
-    `;
-    return response.status(201).json({ message: 'پرسنل جدید با موفقیت اضافه شد.', personnel: rows[0] });
-  } catch (error) {
-    console.error('Database POST failed:', error);
-    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-    if (errorMessage.includes('duplicate key value violates unique constraint "personnel_personnel_code_key"')) {
-        return response.status(409).json({ error: 'کد پرسنلی وارد شده تکراری است.', details: 'یک پرسنل دیگر با این کد پرسنلی وجود دارد.' });
+async function handlePostPersonnel(body: any, response: VercelResponse, pool: VercelPool) {
+    const client = await pool.connect();
+    try {
+        if (Array.isArray(body)) { // Bulk insert
+            const allPersonnel: NewPersonnel[] = body;
+            const BATCH_SIZE = 500;
+            const validPersonnelList = allPersonnel.filter(p => p.personnel_code && p.first_name && p.last_name);
+            if (validPersonnelList.length === 0) return response.status(200).json({ message: 'هیچ رکورد معتبری برای ورود یافت نشد.' });
+            
+            const columns = ['personnel_code', 'first_name', 'last_name', 'father_name', 'national_id', 'id_number', 'birth_date', 'birth_place', 'issue_date', 'issue_place', 'marital_status', 'military_status', 'job_title', 'position', 'employment_type', 'department', 'service_location', 'hire_date', 'education_level', 'field_of_study', 'status'];
+            const columnNames = columns.map(c => c === 'position' ? `"${c}"` : c).join(', ');
+            const updateSet = columns.filter(c => c !== 'personnel_code').map(c => `${c === 'position' ? `"${c}"` : c} = EXCLUDED.${c === 'position' ? `"${c}"` : c}`).join(', ');
+            
+            let totalProcessed = 0;
+            for (let i = 0; i < validPersonnelList.length; i += BATCH_SIZE) {
+                const batch = validPersonnelList.slice(i, i + BATCH_SIZE);
+                if (batch.length === 0) continue;
+                await (client as any).query('BEGIN');
+                const values: (string | null)[] = [];
+                const valuePlaceholders: string[] = [];
+                let paramIndex = 1;
+                for (const p of batch) {
+                    const recordPlaceholders: string[] = [];
+                    for (const col of columns) { values.push(p[col as keyof NewPersonnel] ?? null); recordPlaceholders.push(`$${paramIndex++}`); }
+                    valuePlaceholders.push(`(${recordPlaceholders.join(', ')})`);
+                }
+                const query = `INSERT INTO personnel (${columnNames}) VALUES ${valuePlaceholders.join(', ')} ON CONFLICT (personnel_code) DO UPDATE SET ${updateSet};`;
+                await (client as any).query(query, values);
+                await (client as any).query('COMMIT');
+                totalProcessed += batch.length;
+            }
+            return response.status(200).json({ message: `عملیات موفق. ${totalProcessed} رکورد پردازش شد.` });
+        } else { // Single insert
+            const p: NewPersonnel = body;
+            if (!p || !p.personnel_code || !p.first_name || !p.last_name) return response.status(400).json({ error: 'کد پرسنلی، نام و نام خانوادگی الزامی هستند.' });
+            const { rows } = await pool.sql`
+              INSERT INTO personnel (personnel_code, first_name, last_name, father_name, national_id, id_number, birth_date, birth_place, issue_date, issue_place, marital_status, military_status, job_title, "position", employment_type, department, service_location, hire_date, education_level, field_of_study, status)
+              VALUES (${p.personnel_code}, ${p.first_name}, ${p.last_name}, ${p.father_name}, ${p.national_id}, ${p.id_number}, ${p.birth_date}, ${p.birth_place}, ${p.issue_date}, ${p.issue_place}, ${p.marital_status}, ${p.military_status}, ${p.job_title}, ${p.position}, ${p.employment_type}, ${p.department}, ${p.service_location}, ${p.hire_date}, ${p.education_level}, ${p.field_of_study}, ${p.status})
+              RETURNING *;`;
+            return response.status(201).json({ message: 'پرسنل جدید با موفقیت اضافه شد.', personnel: rows[0] });
+        }
+    } catch (error) {
+        await (client as any).query('ROLLBACK').catch(() => {});
+        const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+        if (errorMessage.includes('duplicate key')) return response.status(409).json({ error: 'کد پرسنلی یا کد ملی تکراری است.' });
+        return response.status(500).json({ error: 'خطا در عملیات پایگاه داده.', details: errorMessage });
+    } finally {
+        client.release();
     }
-    if (errorMessage.includes('duplicate key value violates unique constraint "personnel_national_id_key"')) {
-        return response.status(409).json({ error: 'کد ملی وارد شده تکراری است.', details: 'یک پرسنل دیگر با این کد ملی وجود دارد.' });
-    }
-    return response.status(500).json({ error: 'خطا در افزودن اطلاعات به پایگاه داده.', details: errorMessage });
-  }
 }
 
-// --- POST Handler (Bulk Import) ---
-async function handleBulkPost(allPersonnel: NewPersonnel[], response: VercelResponse, client: VercelPoolClient) {
-  const BATCH_SIZE = 500;
-  const validPersonnelList = allPersonnel.filter(p => p.personnel_code && p.first_name && p.last_name);
+async function handlePutPersonnel(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+  const p = request.body as Personnel;
+  if (!p || !p.id) return response.status(400).json({ error: 'شناسه پرسنل نامعتبر است.' });
+  const { rows } = await pool.sql`
+    UPDATE personnel SET personnel_code = ${p.personnel_code}, first_name = ${p.first_name}, last_name = ${p.last_name}, father_name = ${p.father_name}, national_id = ${p.national_id}, id_number = ${p.id_number}, birth_date = ${p.birth_date}, birth_place = ${p.birth_place}, issue_date = ${p.issue_date}, issue_place = ${p.issue_place}, marital_status = ${p.marital_status}, military_status = ${p.military_status}, job_title = ${p.job_title}, "position" = ${p.position}, employment_type = ${p.employment_type}, department = ${p.department}, service_location = ${p.service_location}, hire_date = ${p.hire_date}, education_level = ${p.education_level}, field_of_study = ${p.field_of_study}, status = ${p.status}
+    WHERE id = ${p.id} RETURNING *;`;
+  if (rows.length === 0) return response.status(404).json({ error: 'پرسنلی با این شناسه یافت نشد.'});
+  return response.status(200).json({ message: 'اطلاعات پرسنل به‌روزرسانی شد.', personnel: rows[0] });
+}
 
-  if (validPersonnelList.length === 0) {
-    return response.status(200).json({ message: 'هیچ رکورد معتبری برای ورود یافت نشد. لطفاً از وجود ستون‌های کد پرسنلی، نام و نام خانوادگی اطمینان حاصل کنید.' });
+
+// =================================================================================
+// DEPENDENTS HANDLERS
+// =================================================================================
+async function handleGetDependents(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+  const { personnel_code } = request.query;
+  let result;
+  if (personnel_code && typeof personnel_code === 'string') {
+    result = await pool.sql`SELECT * FROM dependents WHERE personnel_code = ${personnel_code} ORDER BY last_name, first_name;`;
+  } else {
+    result = await pool.sql`SELECT * FROM dependents ORDER BY personnel_code, last_name, first_name;`;
   }
+  return response.status(200).json({ dependents: result.rows });
+}
+
+async function handlePostDependents(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
+  const allDependents = request.body as NewDependent[];
+  if (!Array.isArray(allDependents)) return response.status(400).json({ error: 'فرمت داده‌های ارسالی نامعتبر است.' });
+  const validList = allDependents.filter(d => d.personnel_code && d.first_name && d.last_name && d.national_id);
+  if (validList.length === 0) return response.status(400).json({ error: 'هیچ رکورد معتبری برای ورود یافت نشد.' });
   
-  try {
-    const columns = [
-      'personnel_code', 'first_name', 'last_name', 'father_name', 'national_id', 'id_number',
-      'birth_date', 'birth_place', 'issue_date', 'issue_place', 'marital_status', 'military_status',
-      'job_title', 'position', 'employment_type', 'department', 'service_location', 'hire_date',
-      'education_level', 'field_of_study', 'status'
-    ];
-    
-    const columnNames = columns.map(c => c === 'position' ? `"${c}"` : c).join(', ');
-    
-    const updateSet = columns
-      .filter(c => c !== 'personnel_code')
-      .map(c => `${c === 'position' ? `"${c}"` : c} = EXCLUDED.${c === 'position' ? `"${c}"` : c}`)
-      .join(', ');
+  await client.query('BEGIN');
+  const columns = ['personnel_code', 'relation_type', 'first_name', 'last_name', 'national_id', 'birth_date', 'gender'];
+  const updateSet = columns.filter(c => !['personnel_code', 'national_id'].includes(c)).map(c => `${c} = EXCLUDED.${c}`).join(', ');
+  const values: (string | null)[] = [];
+  const valuePlaceholders: string[] = [];
+  let paramIndex = 1;
+  for (const d of validList) {
+    const recordPlaceholders: string[] = [];
+    for (const col of columns) { values.push(d[col as keyof NewDependent] ?? null); recordPlaceholders.push(`$${paramIndex++}`); }
+    valuePlaceholders.push(`(${recordPlaceholders.join(', ')})`);
+  }
+  const query = `INSERT INTO dependents (${columns.join(', ')}) VALUES ${valuePlaceholders.join(', ')} ON CONFLICT (personnel_code, national_id) DO UPDATE SET ${updateSet};`;
+  await client.query(query, values);
+  await client.query('COMMIT');
+  return response.status(200).json({ message: `عملیات موفق. ${validList.length} رکورد پردازش شد.` });
+}
 
-    let totalProcessed = 0;
-    for (let i = 0; i < validPersonnelList.length; i += BATCH_SIZE) {
-        const batch = validPersonnelList.slice(i, i + BATCH_SIZE);
-        if (batch.length === 0) continue;
+// =================================================================================
+// COMMUTING MEMBERS HANDLERS
+// =================================================================================
+async function handleGetCommutingMembers(response: VercelResponse, pool: VercelPool) {
+    const result = await pool.sql`SELECT * FROM commuting_members ORDER BY full_name;`;
+    return response.status(200).json({ members: result.rows });
+}
 
-        await (client as any).query('BEGIN');
-
+async function handlePostCommutingMembers(body: any, response: VercelResponse, client: VercelPoolClient) {
+    if (Array.isArray(body)) { // Bulk
+        const allMembers: NewCommutingMember[] = body;
+        const validList = allMembers.filter(m => m.personnel_code && m.full_name);
+        if (validList.length === 0) return response.status(400).json({ error: 'هیچ رکورد معتبری یافت نشد.' });
+        
+        await client.query('BEGIN');
+        const columns = ['personnel_code', 'full_name', 'department', 'position'];
+        const columnNames = columns.map(c => c === 'position' ? `"${c}"` : c).join(', ');
+        const updateSet = columns.filter(c => c !== 'personnel_code').map(c => `${c === 'position' ? `"${c}"` : c} = EXCLUDED.${c === 'position' ? `"${c}"` : c}`).join(', ');
         const values: (string | null)[] = [];
         const valuePlaceholders: string[] = [];
         let paramIndex = 1;
-
-        for (const p of batch) {
-          const recordPlaceholders: string[] = [];
-          for (const col of columns) {
-            values.push(p[col as keyof NewPersonnel] ?? null);
-            recordPlaceholders.push(`$${paramIndex++}`);
-          }
-          valuePlaceholders.push(`(${recordPlaceholders.join(', ')})`);
+        for (const member of validList) {
+            const recordPlaceholders: string[] = [];
+            for (const col of columns) { values.push(member[col as keyof NewCommutingMember] ?? null); recordPlaceholders.push(`$${paramIndex++}`); }
+            valuePlaceholders.push(`(${recordPlaceholders.join(', ')})`);
         }
-
-        const query = `
-          INSERT INTO personnel (${columnNames})
-          VALUES ${valuePlaceholders.join(', ')}
-          ON CONFLICT (personnel_code) DO UPDATE SET ${updateSet};
-        `;
-        
-        await (client as any).query(query, values);
-        await (client as any).query('COMMIT');
-        totalProcessed += batch.length;
+        const query = `INSERT INTO commuting_members (${columnNames}) VALUES ${valuePlaceholders.join(', ')} ON CONFLICT (personnel_code) DO UPDATE SET ${updateSet};`;
+        await client.query(query, values);
+        await client.query('COMMIT');
+        return response.status(200).json({ message: `عملیات موفق. ${validList.length} رکورد پردازش شد.` });
+    } else { // Single
+        const m: NewCommutingMember = body;
+        if (!m || !m.personnel_code || !m.full_name) return response.status(400).json({ error: 'کد پرسنلی و نام کامل الزامی است.' });
+        const { rows } = await client.sql`
+            INSERT INTO commuting_members (personnel_code, full_name, department, "position") VALUES (${m.personnel_code}, ${m.full_name}, ${m.department}, ${m.position})
+            RETURNING *;`;
+        return response.status(201).json({ message: 'عضو جدید اضافه شد.', member: rows[0] });
     }
-
-    return response.status(200).json({ message: `عملیات موفق. ${totalProcessed} رکورد پردازش شد.` });
-  
-  } catch (error) {
-    await (client as any).query('ROLLBACK').catch((rollbackError: any) => {
-        console.error('Failed to rollback transaction:', rollbackError);
-    });
-
-    console.error('Database bulk insert/update failed:', error);
-    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-    return response.status(500).json({ error: 'عملیات پایگاه داده با شکست مواجه شد.', details: errorMessage });
-  }
 }
 
-// --- PUT Handler (Update) ---
-async function handlePut(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
-  const p = request.body as Personnel;
-  if (!p || !p.id) {
-    return response.status(400).json({ error: 'اطلاعات پرسنل یا شناسه نامعتبر است.' });
-  }
-  try {
-    const { rows } = await pool.sql`
-      UPDATE personnel SET
-        personnel_code = ${p.personnel_code}, first_name = ${p.first_name}, last_name = ${p.last_name},
-        father_name = ${p.father_name}, national_id = ${p.national_id}, id_number = ${p.id_number},
-        birth_date = ${p.birth_date}, birth_place = ${p.birth_place}, issue_date = ${p.issue_date},
-        issue_place = ${p.issue_place}, marital_status = ${p.marital_status}, military_status = ${p.military_status},
-        job_title = ${p.job_title}, "position" = ${p.position}, employment_type = ${p.employment_type},
-        department = ${p.department}, service_location = ${p.service_location}, hire_date = ${p.hire_date},
-        education_level = ${p.education_level}, field_of_study = ${p.field_of_study}, status = ${p.status}
-      WHERE id = ${p.id}
-      RETURNING *;
-    `;
-    if (rows.length === 0) {
-        return response.status(404).json({ error: 'پرسنلی با این شناسه یافت نشد.'});
-    }
-    return response.status(200).json({ message: 'اطلاعات پرسنل با موفقیت به‌روزرسانی شد.', personnel: rows[0] });
-  } catch (error) {
-    console.error('Database PUT failed:', error);
-    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-    if (errorMessage.includes('duplicate key value violates unique constraint "personnel_personnel_code_key"')) {
-        return response.status(409).json({ error: 'کد پرسنلی وارد شده تکراری است.', details: 'یک پرسنل دیگر با این کد پرسنلی وجود دارد.' });
-    }
-    if (errorMessage.includes('duplicate key value violates unique constraint "personnel_national_id_key"')) {
-        return response.status(409).json({ error: 'کد ملی وارد شده تکراری است.', details: 'یک پرسنل دیگر با این کد ملی وجود دارد.' });
-    }
-    return response.status(500).json({ error: 'خطا در به‌روزرسانی اطلاعات در پایگاه داده.', details: errorMessage });
-  }
-}
 
-// --- Main Handler ---
+// =================================================================================
+// MAIN HANDLER
+// =================================================================================
 export default async function handler(request: VercelRequest, response: VercelResponse) {
   if (!process.env.POSTGRES_URL) {
-    return response.status(500).json({
-        error: 'متغیر اتصال به پایگاه داده (POSTGRES_URL) تنظیم نشده است.',
-        details: 'لطفاً تنظیمات پروژه خود را در Vercel بررسی کنید و از اتصال صحیح پایگاه داده اطمینان حاصل کنید.'
-    });
+    return response.status(500).json({ error: 'متغیر اتصال به پایگاه داده (POSTGRES_URL) تنظیم نشده است.' });
   }
-  
-  const pool = createPool({
-    connectionString: process.env.POSTGRES_URL,
-  });
+  const pool = createPool({ connectionString: process.env.POSTGRES_URL });
+  const type = request.query.type as string || 'personnel';
 
-  switch (request.method) {
-    case 'GET':
-      return await handleGet(request, response, pool);
-    case 'POST': {
-      const body = request.body;
-      if (Array.isArray(body)) {
+  try {
+    switch (request.method) {
+      case 'GET':
+        if (type === 'personnel') return await handleGetPersonnel(request, response, pool);
+        if (type === 'dependents') return await handleGetDependents(request, response, pool);
+        if (type === 'commuting_members') return await handleGetCommutingMembers(response, pool);
+        return response.status(400).json({ error: 'نوع داده نامعتبر است.' });
+
+      case 'POST': {
         const client = await pool.connect();
         try {
-            return await handleBulkPost(body, response, client);
+          if (type === 'personnel') return await handlePostPersonnel(request.body, response, pool); // Uses its own client logic
+          if (type === 'dependents') return await handlePostDependents(request, response, client);
+          if (type === 'commuting_members') return await handlePostCommutingMembers(request.body, response, client);
+          return response.status(400).json({ error: 'نوع داده نامعتبر است.' });
         } finally {
-            client.release();
+          client.release();
         }
-      } else {
-        return await handleSinglePost(body, response, pool);
       }
+
+      case 'PUT':
+        if (type === 'personnel') return await handlePutPersonnel(request, response, pool);
+        // Other types don't have PUT handlers for now
+        return response.status(400).json({ error: 'نوع داده نامعتبر است.' });
+
+      default:
+        response.setHeader('Allow', ['GET', 'POST', 'PUT']);
+        return response.status(405).json({ error: `Method ${request.method} Not Allowed` });
     }
-    case 'PUT':
-      return await handlePut(request, response, pool);
-    default:
-      response.setHeader('Allow', ['GET', 'POST', 'PUT']);
-      return response.status(405).json({ error: `Method ${request.method} Not Allowed` });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+    if (errorMessage.includes('does not exist')) {
+        return response.status(500).json({ error: 'جدول مورد نظر در پایگاه داده یافت نشد.', details: 'لطفاً از طریق /api/create-users-table از ایجاد جداول اطمینان حاصل کنید.'});
+    }
+    if (errorMessage.includes('duplicate key')) return response.status(409).json({ error: 'مقدار تکراری.', details: 'یک رکورد دیگر با این شناسه یکتا (مانند کد پرسنلی یا کد ملی) وجود دارد.' });
+    if (errorMessage.includes('foreign key constraint')) return response.status(400).json({ error: 'کد پرسنلی نامعتبر.', details: 'یک یا چند کد پرسنلی در فایل شما در لیست پرسنل اصلی وجود ندارد.' });
+    return response.status(500).json({ error: 'خطای داخلی سرور.', details: errorMessage });
   }
 }

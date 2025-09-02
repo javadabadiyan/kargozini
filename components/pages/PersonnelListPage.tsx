@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import type { Personnel } from '../../types';
 import EditPersonnelModal from '../EditPersonnelModal';
@@ -87,7 +88,7 @@ const PersonnelListPage: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch(`/api/personnel?page=${page}&pageSize=${PAGE_SIZE}&searchTerm=${encodeURIComponent(search)}`);
+      const response = await fetch(`/api/personnel?type=personnel&page=${page}&pageSize=${PAGE_SIZE}&searchTerm=${encodeURIComponent(search)}`);
       
       if (!response.ok) {
         const errorText = await response.text();
@@ -157,7 +158,7 @@ const PersonnelListPage: React.FC = () => {
 
         setImportStatus({ type: 'info', message: 'در حال ارسال اطلاعات به سرور...' });
 
-        const response = await fetch('/api/personnel', {
+        const response = await fetch('/api/personnel?type=personnel', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(mappedData),
@@ -196,7 +197,7 @@ const PersonnelListPage: React.FC = () => {
     // This could be slow if there are many records.
     setImportStatus({type: 'info', message: 'در حال آماده‌سازی فایل اکسل...'});
     try {
-        const response = await fetch('/api/personnel?pageSize=100000'); // A bit of a hack to get all users
+        const response = await fetch('/api/personnel?type=personnel&pageSize=100000'); // A bit of a hack to get all users
         const data = await response.json();
         const dataToExport = data.personnel.map((p: Personnel) => {
             const row: { [key: string]: any } = {};
@@ -243,7 +244,7 @@ const PersonnelListPage: React.FC = () => {
 
   const handleSave = async (updatedPersonnel: Personnel) => {
     const isNew = updatedPersonnel.id === 0;
-    const endpoint = '/api/personnel';
+    const endpoint = '/api/personnel?type=personnel';
     const method = isNew ? 'POST' : 'PUT';
 
     setImportStatus({ type: 'info', message: 'در حال ذخیره اطلاعات...' });

@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import type { CommutingMember } from '../../types';
 import AddCommutingMemberModal from '../AddCommutingMemberModal';
@@ -31,7 +32,7 @@ const CommutingMembersPage: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch('/api/commuting-members');
+      const response = await fetch('/api/personnel?type=commuting_members');
       if (!response.ok) {
         const errData = await response.json();
         throw new Error(errData.error || 'خطا در دریافت اطلاعات');
@@ -75,7 +76,7 @@ const CommutingMembersPage: React.FC = () => {
           return newRow;
         });
 
-        const response = await fetch('/api/commuting-members', {
+        const response = await fetch('/api/personnel?type=commuting_members', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(mappedData),
@@ -116,7 +117,7 @@ const CommutingMembersPage: React.FC = () => {
 
   const handleSaveNewMember = async (member: Omit<CommutingMember, 'id'>) => {
     try {
-      const response = await fetch('/api/commuting-members', {
+      const response = await fetch('/api/personnel?type=commuting_members', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(member),

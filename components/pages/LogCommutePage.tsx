@@ -115,7 +115,7 @@ const LogCommutePage: React.FC = () => {
     const fetchCommutingMembers = useCallback(async () => {
         try {
             setLoadingMembers(true);
-            const response = await fetch('/api/commuting-members');
+            const response = await fetch('/api/personnel?type=commuting_members');
             if (!response.ok) throw new Error('خطا در دریافت لیست اعضای تردد');
             const data = await response.json();
             const members: CommutingMember[] = data.members || [];

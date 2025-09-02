@@ -63,7 +63,7 @@ const HourlyCommuteModal: React.FC<HourlyCommuteModalProps> = ({ log, guardName,
     try {
       const [gYear, gMonth, gDay] = jalaliToGregorian(parseInt(date.year), parseInt(date.month), parseInt(date.day));
       const dateString = `${gYear}-${String(gMonth).padStart(2, '0')}-${String(gDay).padStart(2, '0')}`;
-      const response = await fetch(`/api/hourly-commute?personnel_code=${log.personnel_code}&date=${dateString}`);
+      const response = await fetch(`/api/commute-logs?entity=hourly&personnel_code=${log.personnel_code}&date=${dateString}`);
       if (!response.ok) throw new Error((await response.json()).error || 'خطا در دریافت اطلاعات');
       const data = await response.json();
       setHourlyLogs(data.logs || []);
@@ -128,8 +128,6 @@ const HourlyCommuteModal: React.FC<HourlyCommuteModalProps> = ({ log, guardName,
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // This function creates a Date object in the user's LOCAL timezone,
-    // then toISOString() converts it to the correct UTC timestamp for storage.
     const getTimestamp = (time: {hour: string, minute: string}) => {
         if (!time.hour || !time.minute) return null;
         const [gYear, gMonth, gDay] = jalaliToGregorian(parseInt(date.year), parseInt(date.month), parseInt(date.day));
@@ -144,19 +142,19 @@ const HourlyCommuteModal: React.FC<HourlyCommuteModalProps> = ({ log, guardName,
 
     if (openExitLog && !editingLog) {
         if (!entryTime.hour || !entryTime.minute) { setStatus({ type: 'error', message: 'ساعت بازگشت الزامی است.' }); return; }
-        url = `/api/hourly-commute?id=${openExitLog.id}`;
+        url = `/api/commute-logs?entity=hourly&id=${openExitLog.id}`;
         method = 'PUT';
         payload = { ...openExitLog, entry_time: getTimestamp(entryTime) };
         successMessage = 'بازگشت با موفقیت ثبت و تردد تکمیل شد.';
     } else if (editingLog) {
-        url = `/api/hourly-commute?id=${editingLog.id}`;
+        url = `/api/commute-logs?entity=hourly&id=${editingLog.id}`;
         method = 'PUT';
         payload = { ...editingLog, exit_time: getTimestamp(exitTime), entry_time: getTimestamp(entryTime), reason: reason };
         successMessage = 'تغییرات با موفقیت ذخیره شد.';
     } else {
         if (actionType === 'exit' && (!exitTime.hour || !exitTime.minute)) { setStatus({ type: 'error', message: 'ساعت خروج الزامی است.' }); return; }
         if (actionType === 'entry' && (!entryTime.hour || !entryTime.minute)) { setStatus({ type: 'error', message: 'ساعت ورود الزامی است.' }); return; }
-        url = '/api/hourly-commute';
+        url = '/api/commute-logs?entity=hourly';
         method = 'POST';
         payload = {
             personnel_code: log.personnel_code,
@@ -185,8 +183,7 @@ const HourlyCommuteModal: React.FC<HourlyCommuteModalProps> = ({ log, guardName,
   
   const handleLogReturn = async (hLog: HourlyCommuteLog) => {
       try {
-        // Create a new local date and convert to ISO string.
-        const response = await fetch(`/api/hourly-commute?id=${hLog.id}`, {
+        const response = await fetch(`/api/commute-logs?entity=hourly&id=${hLog.id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ...hLog, entry_time: new Date().toISOString() })
@@ -205,7 +202,7 @@ const HourlyCommuteModal: React.FC<HourlyCommuteModalProps> = ({ log, guardName,
   const handleDelete = async (id: number) => {
     if (window.confirm('آیا از حذف این تردد ساعتی اطمینان دارید؟')) {
         try {
-            const response = await fetch(`/api/hourly-commute?id=${id}`, { method: 'DELETE' });
+            const response = await fetch(`/api/commute-logs?entity=hourly&id=${id}`, { method: 'DELETE' });
             if (!response.ok) throw new Error((await response.json()).error);
             setStatus({ type: 'success', message: 'رکورد با موفقیت حذف شد.' });
             fetchHourlyLogs();
@@ -219,7 +216,6 @@ const HourlyCommuteModal: React.FC<HourlyCommuteModalProps> = ({ log, guardName,
 
   const formatTime = (isoString: string | null) => {
     if (!isoString) return '-';
-    // Display the stored UTC time in the user's local timezone (fa-IR/Asia/Tehran)
     return toPersianDigits(new Date(isoString).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tehran' }));
   };
 

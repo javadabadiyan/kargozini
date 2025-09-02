@@ -112,7 +112,7 @@ const CommuteReportPage: React.FC = () => {
     useEffect(() => {
         const fetchFilterData = async () => {
             try {
-                const response = await fetch('/api/commuting-members');
+                const response = await fetch('/api/personnel?type=commuting_members');
                 if (!response.ok) throw new Error('Failed to fetch commuting members for filters');
                 const data = await response.json();
                 setCommutingMembers(data.members || []);
@@ -154,7 +154,7 @@ const CommuteReportPage: React.FC = () => {
         setLoading(true);
         setError(null);
         try {
-            const response = await fetch(`/api/commute-reports?${buildFilterParams()}`);
+            const response = await fetch(`/api/commute-logs?report=general&${buildFilterParams()}`);
             if (!response.ok) {
                 const errData = await response.json();
                 throw new Error(errData.details || errData.error || 'خطا در دریافت گزارش');
@@ -174,7 +174,7 @@ const CommuteReportPage: React.FC = () => {
         setPresentReportError(null);
         const gregPresentDate = jalaliToGregorian(parseInt(presentDate.year, 10), parseInt(presentDate.month, 10), parseInt(presentDate.day, 10));
         try {
-            const response = await fetch(`/api/present-report?date=${gregPresentDate}`);
+            const response = await fetch(`/api/commute-logs?report=present&date=${gregPresentDate}`);
             if (!response.ok) {
                 const errData = await response.json();
                 throw new Error(errData.details || errData.error || 'خطا در دریافت گزارش حاضرین');
@@ -192,7 +192,7 @@ const CommuteReportPage: React.FC = () => {
         setHourlyReportLoading(true);
         setHourlyReportError(null);
         try {
-            const response = await fetch(`/api/hourly-report?${buildFilterParams()}`);
+            const response = await fetch(`/api/commute-logs?report=hourly&${buildFilterParams()}`);
             if (!response.ok) {
                 const errData = await response.json();
                 throw new Error(errData.details || errData.error || 'خطا در دریافت گزارش بین ساعتی');
@@ -210,7 +210,7 @@ const CommuteReportPage: React.FC = () => {
         setEditLogsLoading(true);
         setEditLogsError(null);
         try {
-            const response = await fetch(`/api/edit-logs?${buildFilterParams()}`);
+            const response = await fetch(`/api/commute-logs?report=edits&${buildFilterParams()}`);
             if (!response.ok) {
                 const errData = await response.json();
                 throw new Error(errData.details || errData.error || 'خطا در دریافت گزارش ویرایش‌ها');
@@ -298,7 +298,7 @@ const CommuteReportPage: React.FC = () => {
     const handleDeleteHourlyLog = async (logId: number) => {
         if (!window.confirm('آیا از حذف این تردد ساعتی اطمینان دارید؟')) return;
         try {
-            const response = await fetch(`/api/hourly-commute?id=${logId}`, { method: 'DELETE' });
+            const response = await fetch(`/api/commute-logs?entity=hourly&id=${logId}`, { method: 'DELETE' });
             if (!response.ok) throw new Error((await response.json()).error || 'خطا در حذف رکورد');
             fetchHourlyReportData();
         } catch (err) {
@@ -309,7 +309,7 @@ const CommuteReportPage: React.FC = () => {
     const handleSaveHourlyLog = async (updatedData: Partial<HourlyCommuteReportRow>) => {
         const { log_id, ...payload } = updatedData;
         try {
-            const response = await fetch(`/api/hourly-commute?id=${log_id}`, {
+            const response = await fetch(`/api/commute-logs?entity=hourly&id=${log_id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload),
@@ -456,8 +456,8 @@ const CommuteReportPage: React.FC = () => {
             const paramsString = monthParams.toString();
     
             const [generalRes, hourlyRes] = await Promise.all([
-                fetch(`/api/commute-reports?${paramsString}`),
-                fetch(`/api/hourly-report?${paramsString}`)
+                fetch(`/api/commute-logs?report=general&${paramsString}`),
+                fetch(`/api/commute-logs?report=hourly&${paramsString}`)
             ]);
     
             if (!generalRes.ok || !hourlyRes.ok) throw new Error('خطا در دریافت اطلاعات ماهانه از سرور.');
