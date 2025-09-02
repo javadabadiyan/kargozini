@@ -89,3 +89,15 @@ export interface PresentMember {
   position: string | null;
   entry_time: string;
 }
+
+export interface HourlyCommuteReportRow {
+  log_id: number;
+  personnel_code: string;
+  full_name: string;
+  department: string | null;
+  position: string | null;
+  exit_time: string | null;
+  entry_time: string | null;
+  reason: string | null;
+  guard_name: string;
+}
