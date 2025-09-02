@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import type { CommutingMember, CommuteLog } from '../../types';
-import { PencilIcon, TrashIcon, ClockIcon, ChevronDownIcon, SearchIcon } from '../icons/Icons';
+import { PencilIcon, TrashIcon, ClockIcon, ChevronDownIcon, SearchIcon, RefreshIcon } from '../icons/Icons';
 import EditCommuteLogModal from '../EditCommuteLogModal';
 import HourlyCommuteModal from '../HourlyCommuteModal';
 
@@ -87,17 +87,20 @@ const LogCommutePage: React.FC = () => {
         const day = parts.find(p => p.type === 'day')?.value || '';
         return { year, month, day };
     }, []);
-
-    useEffect(() => {
-        const today = getTodayPersian();
+    
+    const updateTimeToNow = () => {
         const now = new Date();
         const currentHour = String(now.getHours());
         const currentMinute = String(now.getMinutes());
-
-        setLogDate(today);
-        setViewDate(today);
         setEntryTime({ hour: currentHour, minute: currentMinute });
         setExitTime({ hour: currentHour, minute: currentMinute });
+    };
+
+    useEffect(() => {
+        const today = getTodayPersian();
+        setLogDate(today);
+        setViewDate(today);
+        updateTimeToNow(); // Set initial time
     }, [getTodayPersian]);
 
     const fetchCommutingMembers = useCallback(async () => {
@@ -323,7 +326,17 @@ const LogCommutePage: React.FC = () => {
             </div>
             
              <div className="border rounded-lg p-4 space-y-3 bg-slate-50">
-              <h3 className="font-semibold">ثبت تاریخ و زمان</h3>
+                <div className="flex justify-between items-center">
+                    <h3 className="font-semibold">ثبت تاریخ و زمان</h3>
+                    <button
+                        type="button"
+                        onClick={updateTimeToNow}
+                        className="p-1 text-blue-600 hover:bg-blue-100 rounded-full"
+                        title="بروزرسانی ساعت به زمان حال"
+                    >
+                        <RefreshIcon className="w-5 h-5" />
+                    </button>
+                </div>
                <div className="grid grid-cols-3 gap-2">
                 <select value={logDate.day} onChange={e => setLogDate(p => ({...p, day: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md font-sans"><option value="" disabled>روز</option>{DAYS.map(d => <option key={d} value={d}>{toPersianDigits(d)}</option>)}</select>
                 <select value={logDate.month} onChange={e => setLogDate(p => ({...p, month: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md font-sans"><option value="" disabled>ماه</option>{PERSIAN_MONTHS.map((m, i) => <option key={m} value={i+1}>{m}</option>)}</select>

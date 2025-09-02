@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import type { CommuteLog, HourlyCommuteLog } from '../types';
-import { PencilIcon, TrashIcon } from './icons/Icons';
+import { PencilIcon, TrashIcon, RefreshIcon } from './icons/Icons';
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const MINUTES = Array.from({ length: 60 }, (_, i) => i);
@@ -44,6 +44,19 @@ const HourlyCommuteModal: React.FC<HourlyCommuteModalProps> = ({ log, guardName,
   const [exitTime, setExitTime] = useState({ hour: '', minute: '' });
   const [entryTime, setEntryTime] = useState({ hour: '', minute: '' });
   const [reason, setReason] = useState('');
+  
+  const updateTimeToNow = useCallback(() => {
+    const now = new Date();
+    const currentHour = String(now.getHours());
+    const currentMinute = String(now.getMinutes());
+    return { hour: currentHour, minute: currentMinute };
+  }, []);
+
+  useEffect(() => {
+    const now = updateTimeToNow();
+    setExitTime(now);
+    setEntryTime(now);
+  }, [updateTimeToNow]);
 
   const fetchHourlyLogs = useCallback(async () => {
     setLoading(true);
@@ -82,15 +95,16 @@ const HourlyCommuteModal: React.FC<HourlyCommuteModalProps> = ({ log, guardName,
 
   const resetForm = () => {
     setEditingLog(null);
-    setExitTime({ hour: '', minute: '' });
-    setEntryTime({ hour: '', minute: '' });
+    const now = updateTimeToNow();
+    setExitTime(now);
+    setEntryTime(now);
     setReason('');
   };
 
   const handleActionTypeChange = (type: 'exit' | 'entry') => {
     setActionType(type);
-    if (type === 'exit') setEntryTime({ hour: '', minute: '' });
-    else { setExitTime({ hour: '', minute: '' }); setReason(''); }
+    if (type === 'exit') setEntryTime(updateTimeToNow());
+    else { setExitTime(updateTimeToNow()); setReason(''); }
   };
 
   const handleEditClick = (hLog: HourlyCommuteLog) => {
@@ -251,14 +265,24 @@ const HourlyCommuteModal: React.FC<HourlyCommuteModalProps> = ({ log, guardName,
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className={!editingLog && (actionType === 'entry' || !!openExitLog) ? 'opacity-50' : ''}>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">ساعت خروج</label>
+                    <div className="flex justify-between items-center mb-1">
+                        <label className="block text-sm font-medium text-gray-700">ساعت خروج</label>
+                        <button type="button" onClick={() => setExitTime(updateTimeToNow())} className="p-1 text-blue-600 hover:bg-blue-100 rounded-full" title="بروزرسانی ساعت خروج" disabled={!editingLog && (actionType === 'entry' || !!openExitLog)}>
+                           <RefreshIcon className="w-4 h-4" />
+                        </button>
+                    </div>
                     <div className="grid grid-cols-2 gap-2">
                         <select disabled={!editingLog && (actionType === 'entry' || !!openExitLog)} value={exitTime.hour} onChange={e => setExitTime(p => ({...p, hour: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md font-sans"><option value="">ساعت</option>{HOURS.map(h => <option key={h} value={h}>{toPersianDigits(String(h).padStart(2,'0'))}</option>)}</select>
                         <select disabled={!editingLog && (actionType === 'entry' || !!openExitLog)} value={exitTime.minute} onChange={e => setExitTime(p => ({...p, minute: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md font-sans"><option value="">دقیقه</option>{MINUTES.map(m => <option key={m} value={m}>{toPersianDigits(String(m).padStart(2,'0'))}</option>)}</select>
                     </div>
                 </div>
                 <div className={!editingLog && actionType === 'exit' && !openExitLog ? 'opacity-50' : ''}>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">ساعت ورود</label>
+                     <div className="flex justify-between items-center mb-1">
+                        <label className="block text-sm font-medium text-gray-700">ساعت ورود</label>
+                         <button type="button" onClick={() => setEntryTime(updateTimeToNow())} className="p-1 text-blue-600 hover:bg-blue-100 rounded-full" title="بروزرسانی ساعت ورود" disabled={!editingLog && actionType === 'exit' && !openExitLog}>
+                           <RefreshIcon className="w-4 h-4" />
+                        </button>
+                    </div>
                     <div className="grid grid-cols-2 gap-2">
                         <select disabled={!editingLog && actionType === 'exit' && !openExitLog} value={entryTime.hour} onChange={e => setEntryTime(p => ({...p, hour: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md font-sans"><option value="">ساعت</option>{HOURS.map(h => <option key={h} value={h}>{toPersianDigits(String(h).padStart(2,'0'))}</option>)}</select>
                         <select disabled={!editingLog && actionType === 'exit' && !openExitLog} value={entryTime.minute} onChange={e => setEntryTime(p => ({...p, minute: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md font-sans"><option value="">دقیقه</option>{MINUTES.map(m => <option key={m} value={m}>{toPersianDigits(String(m).padStart(2,'0'))}</option>)}</select>
