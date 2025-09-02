@@ -81,3 +81,11 @@ export interface CommuteReportRow {
   exit_time: string | null;
   guard_name: string;
 }
+
+export interface PresentMember {
+  full_name: string;
+  personnel_code: string;
+  department: string | null;
+  position: string | null;
+  entry_time: string;
+}

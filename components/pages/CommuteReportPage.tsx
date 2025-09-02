@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import type { CommutingMember, CommuteReportRow } from '../../types';
+import type { CommutingMember, CommuteReportRow, PresentMember } from '../../types';
 
 declare const XLSX: any;
 
@@ -71,6 +71,12 @@ const CommuteReportPage: React.FC = () => {
     const [toDate, setToDate] = useState({ year: '', month: '', day: '' });
     const [standardTimes, setStandardTimes] = useState({ entry: { hour: '6', minute: '0' }, exit: { hour: '14', minute: '0' }});
 
+    // New states for Present Report
+    const [presentReportData, setPresentReportData] = useState<PresentMember[]>([]);
+    const [presentReportLoading, setPresentReportLoading] = useState(false);
+    const [presentReportError, setPresentReportError] = useState<string | null>(null);
+    const [presentDate, setPresentDate] = useState({ year: '', month: '', day: '' });
+
     const filterOptions = useMemo(() => {
         const departments = [...new Set(commutingMembers.map(m => m.department).filter(Boolean))].sort((a,b) => a.localeCompare(b, 'fa'));
         const positions = [...new Set(commutingMembers.map(m => m.position).filter(Boolean))].sort((a,b) => a.localeCompare(b, 'fa'));
@@ -91,11 +97,22 @@ const CommuteReportPage: React.FC = () => {
         fetchFilterData();
     }, []);
 
+    // Set initial date for present report to today
+    useEffect(() => {
+        const today = new Date();
+        const formatter = new Intl.DateTimeFormat('fa-IR-u-nu-latn', { timeZone: 'Asia/Tehran', year: 'numeric', month: 'numeric', day: 'numeric' });
+        const parts = formatter.formatToParts(today);
+        setPresentDate({
+            year: parts.find(p => p.type === 'year')?.value || '',
+            month: parts.find(p => p.type === 'month')?.value || '',
+            day: parts.find(p => p.type === 'day')?.value || '',
+        });
+    }, []);
+
     const fetchReportData = useCallback(async () => {
         setLoading(true);
         setError(null);
         const params = new URLSearchParams();
-        // FIX: Parse string date parts to integers before calling jalaliToGregorian.
         const gregFrom = jalaliToGregorian(parseInt(fromDate.year, 10), parseInt(fromDate.month, 10), parseInt(fromDate.day, 10));
         const gregTo = jalaliToGregorian(parseInt(toDate.year, 10), parseInt(toDate.month, 10), parseInt(toDate.day, 10));
         
@@ -120,9 +137,36 @@ const CommuteReportPage: React.FC = () => {
         }
     }, [fromDate, toDate, filters]);
 
+    const fetchPresentReportData = useCallback(async () => {
+        if (!presentDate.year || !presentDate.month || !presentDate.day) return;
+        
+        setPresentReportLoading(true);
+        setPresentReportError(null);
+        
+        const gregPresentDate = jalaliToGregorian(parseInt(presentDate.year, 10), parseInt(presentDate.month, 10), parseInt(presentDate.day, 10));
+        
+        try {
+            const response = await fetch(`/api/present-report?date=${gregPresentDate}`);
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.details || errData.error || 'خطا در دریافت گزارش حاضرین');
+            }
+            const data = await response.json();
+            setPresentReportData(data.present || []);
+        } catch (err) {
+            setPresentReportError(err instanceof Error ? err.message : 'یک خطای ناشناخته رخ داد.');
+        } finally {
+            setPresentReportLoading(false);
+        }
+    }, [presentDate]);
+
     useEffect(() => {
-        fetchReportData();
-    }, [fetchReportData]);
+        if (activeTab === 'general') {
+            fetchReportData();
+        } else if (activeTab === 'present') {
+            fetchPresentReportData();
+        }
+    }, [activeTab, fetchReportData, fetchPresentReportData]);
 
     const calculateDifference = useCallback((isoString: string | null, standardHour: string, standardMinute: string, type: 'late' | 'early'): string | null => {
         if (!isoString) return null;
@@ -167,6 +211,21 @@ const CommuteReportPage: React.FC = () => {
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, 'گزارش تردد');
         XLSX.writeFile(workbook, 'Commute_Report.xlsx');
+    };
+
+    const handlePresentExport = () => {
+        const gregDate = jalaliToGregorian(parseInt(presentDate.year), parseInt(presentDate.month), parseInt(presentDate.day));
+        const dataToExport = presentReportData.map(row => ({
+            'نام کامل': row.full_name,
+            'کد پرسنلی': toPersianDigits(row.personnel_code),
+            'واحد': row.department || '',
+            'سمت': row.position || '',
+            'ساعت ورود': toPersianDigits(new Date(row.entry_time).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tehran' })),
+        }));
+        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'گزارش حاضرین');
+        XLSX.writeFile(workbook, `Present_Report_${gregDate}.xlsx`);
     };
 
     return (
@@ -252,7 +311,47 @@ const CommuteReportPage: React.FC = () => {
                 </div>
             </div>
             )}
-            {activeTab !== 'general' && <div className="text-center p-10 text-gray-500">این بخش از گزارش‌گیری در حال ساخت است.</div>}
+
+            {activeTab === 'present' && (
+                <div className="space-y-4">
+                    <div className="p-4 border rounded-lg bg-slate-50 flex items-center justify-between">
+                        <h3 className="font-bold text-gray-700">انتخاب تاریخ گزارش حاضرین</h3>
+                        <div className="w-72">
+                            <DatePicker date={presentDate} setDate={setPresentDate} />
+                        </div>
+                    </div>
+                    <div className="overflow-x-auto border rounded-lg">
+                        <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-100">
+                                <tr>
+                                    {['نام کامل', 'کد پرسنلی', 'واحد', 'سمت', 'ساعت ورود'].map(h => <th key={h} className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider whitespace-nowrap">{h}</th>)}
+                                </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                                {presentReportLoading ? <tr><td colSpan={5} className="text-center p-4">در حال بارگذاری گزارش...</td></tr> :
+                                presentReportError ? <tr><td colSpan={5} className="text-center p-4 text-red-500">{presentReportError}</td></tr> :
+                                presentReportData.length === 0 ? <tr><td colSpan={5} className="text-center p-4 text-gray-500">هیچ فردی در تاریخ انتخابی حاضر نمی‌باشد.</td></tr> :
+                                presentReportData.map(row => (
+                                    <tr key={row.personnel_code} className="hover:bg-slate-50">
+                                        <td className="px-4 py-3 whitespace-nowrap text-sm font-medium">{row.full_name}</td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-sm">{toPersianDigits(row.personnel_code)}</td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-sm">{row.department}</td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-sm">{row.position}</td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-sm">{toPersianDigits(new Date(row.entry_time).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tehran' }))}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div className="flex justify-end">
+                        <button onClick={handlePresentExport} disabled={presentReportData.length === 0} className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 transition-colors">
+                            خروجی اکسل
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {activeTab !== 'general' && activeTab !== 'present' && <div className="text-center p-10 text-gray-500">این بخش از گزارش‌گیری در حال ساخت است.</div>}
 
             <style>{`
                 .form-select { appearance: none; background-image: url('data:image/svg+xml;charset=utf-8,<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20"><path stroke="%236b7280" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 8l4 4 4-4"/></svg>'); background-position: left 0.5rem center; background-repeat: no-repeat; background-size: 1.5em 1.5em; padding-left: 2.5rem; }
