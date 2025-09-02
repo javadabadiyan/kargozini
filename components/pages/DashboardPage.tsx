@@ -10,26 +10,47 @@ const toPersianDigits = (s: string | number | null | undefined): string => {
 };
 
 // Age calculation helpers
-const getPersianYear = () => {
+const getCurrentPersianDate = (): { year: number; month: number; day: number } => {
     const today = new Date();
     // Use a specific locale that gives Persian digits to parse
-    const formatter = new Intl.DateTimeFormat('fa-IR-u-nu-latn', { year: 'numeric', timeZone: 'Asia/Tehran' });
-    const formattedDate = formatter.format(today);
-    // Convert any Persian digits back to English to ensure parseInt works
-    const englishDigits = formattedDate.replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString());
-    return parseInt(englishDigits, 10);
+    const formatter = new Intl.DateTimeFormat('fa-IR-u-nu-latn', {
+        timeZone: 'Asia/Tehran',
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric',
+    });
+    const parts = formatter.formatToParts(today);
+    // Helper to convert any Persian digits back to English to ensure parseInt works
+    const toEnglish = (s: string) => s.replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString());
+
+    const year = parseInt(toEnglish(parts.find(p => p.type === 'year')?.value || '0'), 10);
+    const month = parseInt(toEnglish(parts.find(p => p.type === 'month')?.value || '0'), 10);
+    const day = parseInt(toEnglish(parts.find(p => p.type === 'day')?.value || '0'), 10);
+
+    return { year, month, day };
 };
 
-const persianDateToAge = (birthDate: string | null | undefined): number | null => {
-    if (!birthDate || typeof birthDate !== 'string' || birthDate.length < 4) return null;
-    const parts = birthDate.split(/[\/-]/);
-    const birthYearStr = parts[0];
-    if (birthYearStr.length !== 4) return null; // Basic validation
-    const birthYear = parseInt(birthYearStr, 10);
-    if (isNaN(birthYear)) return null;
+const persianDateToAge = (birthDateStr: string | null | undefined, currentDate: { year: number; month: number; day: number }): number | null => {
+    if (!birthDateStr || typeof birthDateStr !== 'string') return null;
 
-    const currentYear = getPersianYear();
-    return currentYear - birthYear;
+    // A more robust regex to handle YYYY/MM/DD or YYYY-MM-DD
+    const match = birthDateStr.match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})$/);
+    if (!match) return null;
+    
+    const birthYear = parseInt(match[1], 10);
+    const birthMonth = parseInt(match[2], 10);
+    const birthDay = parseInt(match[3], 10);
+
+    if (isNaN(birthYear) || isNaN(birthMonth) || isNaN(birthDay)) return null;
+
+    let age = currentDate.year - birthYear;
+
+    // Check if birthday has occurred this year. If not, decrement age.
+    if (currentDate.month < birthMonth || (currentDate.month === birthMonth && currentDate.day < birthDay)) {
+        age--;
+    }
+
+    return age < 0 ? 0 : age; // Age can't be negative
 };
 
 
@@ -104,6 +125,7 @@ const DashboardPage: React.FC = () => {
         const toSortedArray = (obj: Record<string, number>) => Object.entries(obj).sort(([, a], [, b]) => b - a);
         
         // Age calculations
+        const currentDate = getCurrentPersianDate();
         const ages: number[] = [];
         let closeToRetirementCount = 0; // 55-59
         let retiredCount = 0; // 60+
@@ -117,7 +139,7 @@ const DashboardPage: React.FC = () => {
         };
 
         personnel.forEach(p => {
-            const age = persianDateToAge(p.birth_date);
+            const age = persianDateToAge(p.birth_date, currentDate);
             if (age !== null) {
                 ages.push(age);
                 if (age >= 55 && age < 60) closeToRetirementCount++;
