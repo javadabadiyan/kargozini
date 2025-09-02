@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import type { CommutingMember, CommuteLog } from '../../types';
-import { PencilIcon, TrashIcon, ArrowRightOnRectangleIcon, ChevronDownIcon, SearchIcon, ClockIcon } from '../icons/Icons';
+import { PencilIcon, TrashIcon, ArrowRightOnRectangleIcon, ChevronDownIcon, SearchIcon } from '../icons/Icons';
 import EditCommuteLogModal from '../EditCommuteLogModal';
 
 const GUARDS = [
@@ -416,12 +415,7 @@ const LogCommutePage: React.FC = () => {
                   <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">پرسنل</th>
                   <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">شیفت کاری</th>
                   <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">ورود</th>
-                  <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">
-                    <div className="inline-flex items-center">
-                      <span>خروج</span>
-                      <ClockIcon className="w-4 h-4 mr-1" />
-                    </div>
-                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">خروج</th>
                   <th className="px-4 py-3 text-center text-xs font-bold text-gray-600 uppercase">عملیات</th>
                 </tr>
               </thead>
