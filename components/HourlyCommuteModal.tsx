@@ -39,6 +39,7 @@ const HourlyCommuteModal: React.FC<HourlyCommuteModalProps> = ({ log, guardName,
   const [status, setStatus] = useState<{ type: 'info' | 'success' | 'error'; message: string } | null>(null);
   const [editingLog, setEditingLog] = useState<HourlyCommuteLog | null>(null);
 
+  const [actionType, setActionType] = useState<'exit' | 'entry'>('exit');
   const [exitTime, setExitTime] = useState({ hour: '', minute: '' });
   const [entryTime, setEntryTime] = useState({ hour: '', minute: '' });
   const [reason, setReason] = useState('');
@@ -68,6 +69,17 @@ const HourlyCommuteModal: React.FC<HourlyCommuteModalProps> = ({ log, guardName,
     setExitTime({ hour: '', minute: '' });
     setEntryTime({ hour: '', minute: '' });
     setReason('');
+    setActionType('exit');
+  };
+
+  const handleActionTypeChange = (type: 'exit' | 'entry') => {
+    setActionType(type);
+    if (type === 'exit') {
+        setEntryTime({ hour: '', minute: '' });
+    } else {
+        setExitTime({ hour: '', minute: '' });
+        setReason('');
+    }
   };
 
   const handleEditClick = (hLog: HourlyCommuteLog) => {
@@ -85,9 +97,21 @@ const HourlyCommuteModal: React.FC<HourlyCommuteModalProps> = ({ log, guardName,
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!exitTime.hour || !exitTime.minute) {
-        setStatus({ type: 'error', message: 'ساعت خروج الزامی است.' });
-        return;
+
+    if (editingLog) {
+        if (!exitTime.hour || !exitTime.minute) {
+            setStatus({ type: 'error', message: 'ساعت خروج برای ویرایش الزامی است.' });
+            return;
+        }
+    } else {
+        if (actionType === 'exit' && (!exitTime.hour || !exitTime.minute)) {
+            setStatus({ type: 'error', message: 'ساعت خروج الزامی است.' });
+            return;
+        }
+        if (actionType === 'entry' && (!entryTime.hour || !entryTime.minute)) {
+            setStatus({ type: 'error', message: 'ساعت ورود الزامی است.' });
+            return;
+        }
     }
 
     const [gYear, gMonth, gDay] = jalaliToGregorian(parseInt(date.year), parseInt(date.month), parseInt(date.day));
@@ -102,14 +126,23 @@ const HourlyCommuteModal: React.FC<HourlyCommuteModalProps> = ({ log, guardName,
     const exitTimestamp = getTimestamp(exitTime);
     const entryTimestamp = getTimestamp(entryTime);
 
-    const payload = {
-        personnel_code: log.personnel_code,
-        full_name: log.full_name,
-        guard_name: guardName,
-        exit_time: exitTimestamp,
-        entry_time: entryTimestamp,
-        reason: reason,
-    };
+    let payload;
+    if (editingLog) {
+        payload = {
+            exit_time: exitTimestamp,
+            entry_time: entryTimestamp,
+            reason: reason,
+        };
+    } else {
+        payload = {
+            personnel_code: log.personnel_code,
+            full_name: log.full_name,
+            guard_name: guardName,
+            exit_time: actionType === 'exit' ? exitTimestamp : null,
+            entry_time: actionType === 'entry' ? entryTimestamp : null,
+            reason: actionType === 'exit' ? reason : null,
+        };
+    }
 
     const url = editingLog ? `/api/hourly-commute?id=${editingLog.id}` : '/api/hourly-commute';
     const method = editingLog ? 'PUT' : 'POST';
@@ -189,29 +222,43 @@ const HourlyCommuteModal: React.FC<HourlyCommuteModalProps> = ({ log, guardName,
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           <form onSubmit={handleSubmit} className="p-4 border rounded-lg bg-slate-50 space-y-4">
             <h4 className="font-bold text-lg text-gray-700">{editingLog ? 'ویرایش تردد' : 'افزودن تردد جدید'}</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            
+            {!editingLog && (
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">ساعت خروج</label>
-                    <div className="grid grid-cols-2 gap-2">
-                        <select value={exitTime.hour} onChange={e => setExitTime(p => ({...p, hour: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md font-sans"><option value="">ساعت</option>{HOURS.map(h => <option key={h} value={h}>{toPersianDigits(String(h).padStart(2,'0'))}</option>)}</select>
-                        <select value={exitTime.minute} onChange={e => setExitTime(p => ({...p, minute: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md font-sans"><option value="">دقیقه</option>{MINUTES.map(m => <option key={m} value={m}>{toPersianDigits(String(m).padStart(2,'0'))}</option>)}</select>
+                    <div className="grid grid-cols-2 gap-1 p-1 bg-slate-200 rounded-lg">
+                        <button type="button" onClick={() => handleActionTypeChange('exit')} className={`px-4 py-2 text-sm font-semibold rounded-md transition-colors ${actionType === 'exit' ? 'bg-white text-blue-600 shadow' : 'text-gray-600'}`}>
+                            ثبت خروج
+                        </button>
+                        <button type="button" onClick={() => handleActionTypeChange('entry')} className={`px-4 py-2 text-sm font-semibold rounded-md transition-colors ${actionType === 'entry' ? 'bg-white text-blue-600 shadow' : 'text-gray-600'}`}>
+                            ثبت ورود
+                        </button>
                     </div>
                 </div>
-                <div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className={!editingLog && actionType === 'entry' ? 'opacity-50' : ''}>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">ساعت خروج</label>
+                    <div className="grid grid-cols-2 gap-2">
+                        <select disabled={!editingLog && actionType === 'entry'} value={exitTime.hour} onChange={e => setExitTime(p => ({...p, hour: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md font-sans"><option value="">ساعت</option>{HOURS.map(h => <option key={h} value={h}>{toPersianDigits(String(h).padStart(2,'0'))}</option>)}</select>
+                        <select disabled={!editingLog && actionType === 'entry'} value={exitTime.minute} onChange={e => setExitTime(p => ({...p, minute: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md font-sans"><option value="">دقیقه</option>{MINUTES.map(m => <option key={m} value={m}>{toPersianDigits(String(m).padStart(2,'0'))}</option>)}</select>
+                    </div>
+                </div>
+                <div className={!editingLog && actionType === 'exit' ? 'opacity-50' : ''}>
                     <label className="block text-sm font-medium text-gray-700 mb-1">ساعت ورود</label>
                     <div className="grid grid-cols-2 gap-2">
-                        <select value={entryTime.hour} onChange={e => setEntryTime(p => ({...p, hour: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md font-sans"><option value="">ساعت</option>{HOURS.map(h => <option key={h} value={h}>{toPersianDigits(String(h).padStart(2,'0'))}</option>)}</select>
-                        <select value={entryTime.minute} onChange={e => setEntryTime(p => ({...p, minute: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md font-sans"><option value="">دقیقه</option>{MINUTES.map(m => <option key={m} value={m}>{toPersianDigits(String(m).padStart(2,'0'))}</option>)}</select>
+                        <select disabled={!editingLog && actionType === 'exit'} value={entryTime.hour} onChange={e => setEntryTime(p => ({...p, hour: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md font-sans"><option value="">ساعت</option>{HOURS.map(h => <option key={h} value={h}>{toPersianDigits(String(h).padStart(2,'0'))}</option>)}</select>
+                        <select disabled={!editingLog && actionType === 'exit'} value={entryTime.minute} onChange={e => setEntryTime(p => ({...p, minute: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md font-sans"><option value="">دقیقه</option>{MINUTES.map(m => <option key={m} value={m}>{toPersianDigits(String(m).padStart(2,'0'))}</option>)}</select>
                     </div>
                 </div>
             </div>
-            <div>
+            <div className={!editingLog && actionType === 'entry' ? 'hidden' : ''}>
               <label htmlFor="reason" className="block text-sm font-medium text-gray-700 mb-1">شرح (مثال: ماموریت، مرخصی ساعتی)</label>
               <input id="reason" value={reason} onChange={e => setReason(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md" placeholder="اختیاری"/>
             </div>
             <div className="flex items-center justify-end gap-2">
                 {editingLog && <button type="button" onClick={resetForm} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">لغو ویرایش</button>}
-                <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">{editingLog ? 'ذخیره تغییرات' : 'افزودن خروج'}</button>
+                <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">{editingLog ? 'ذخیره تغییرات' : (actionType === 'exit' ? 'افزودن خروج' : 'افزودن ورود')}</button>
             </div>
           </form>
 
@@ -237,7 +284,7 @@ const HourlyCommuteModal: React.FC<HourlyCommuteModalProps> = ({ log, guardName,
                                 <td className="px-3 py-2 text-sm max-w-xs truncate">{hLog.reason || '-'}</td>
                                 <td className="px-3 py-2 whitespace-nowrap text-sm">
                                     <div className="flex items-center gap-1">
-                                        {!hLog.entry_time && <button onClick={() => handleLogReturn(hLog.id)} className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded hover:bg-green-200">ثبت بازگشت</button>}
+                                        {!hLog.entry_time && hLog.exit_time && <button onClick={() => handleLogReturn(hLog.id)} className="px-2 py-1 bg-green-100 text-green-700 text-xs rounded hover:bg-green-200">ثبت بازگشت</button>}
                                         <button onClick={() => handleEditClick(hLog)} className="p-1 text-blue-600 hover:bg-blue-100 rounded-md"><PencilIcon className="w-4 h-4" /></button>
                                         <button onClick={() => handleDelete(hLog.id)} className="p-1 text-red-600 hover:bg-red-100 rounded-md"><TrashIcon className="w-4 h-4" /></button>
                                     </div>

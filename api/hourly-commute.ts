@@ -24,21 +24,22 @@ async function handleGet(request: VercelRequest, response: VercelResponse, pool:
   }
 }
 
-// --- POST Handler (Log Exit) ---
+// --- POST Handler (Log Exit or Entry) ---
 async function handlePost(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
-  const { personnel_code, full_name, guard_name, exit_time, reason } = request.body;
+  const { personnel_code, full_name, guard_name, exit_time, entry_time, reason } = request.body;
 
-  if (!personnel_code || !full_name || !guard_name || !exit_time) {
-    return response.status(400).json({ error: 'اطلاعات ارسالی برای ثبت خروج ناقص است.' });
+  if (!personnel_code || !full_name || !guard_name || (!exit_time && !entry_time)) {
+    return response.status(400).json({ error: 'اطلاعات ارسالی ناقص است. زمان ورود یا خروج باید مشخص باشد.' });
   }
   
   try {
     const { rows } = await pool.sql`
-        INSERT INTO hourly_commute_logs (personnel_code, full_name, guard_name, exit_time, reason)
-        VALUES (${personnel_code}, ${full_name}, ${guard_name}, ${exit_time}, ${reason})
+        INSERT INTO hourly_commute_logs (personnel_code, full_name, guard_name, exit_time, entry_time, reason)
+        VALUES (${personnel_code}, ${full_name}, ${guard_name}, ${exit_time || null}, ${entry_time || null}, ${reason || null})
         RETURNING *;
     `;
-    return response.status(201).json({ message: 'خروج ساعتی با موفقیت ثبت شد.', log: rows[0] });
+    const message = exit_time ? 'خروج ساعتی با موفقیت ثبت شد.' : 'ورود ساعتی با موفقیت ثبت شد.';
+    return response.status(201).json({ message, log: rows[0] });
   } catch (error) {
     console.error('Database POST for hourly_commute_logs failed:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
