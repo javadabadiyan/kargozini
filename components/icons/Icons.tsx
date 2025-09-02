@@ -156,6 +156,14 @@ export const CalendarDaysIcon: React.FC<IconProps> = (props) => (
   </svg>
 );
 
+export const CakeIcon: React.FC<IconProps> = (props) => (
+  <svg {...props} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" d="M21 15.75a.75.75 0 01-1.5 0v-5.638a.75.75 0 01.146-.44l.82-1.46a.75.75 0 00-1.298-.732l-1.46.82a.75.75 0 01-.44.146H5.25a.75.75 0 01-.44-.146l-1.46-.82a.75.75 0 00-1.298.732l.82 1.46a.75.75 0 01.146.44v5.638a.75.75 0 01-1.5 0V10.5a3 3 0 011.5-2.598l.82-1.46a3 3 0 012.598-1.5h10.5a3 3 0 012.598 1.5l.82 1.46a3 3 0 011.5 2.598v5.25z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 11.25v2.25c0 .621.504 1.125 1.125 1.125h3.75c.621 0 1.125-.504 1.125-1.125v-2.25" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75v.001M21.75 15.75v.001M12 18.75a.75.75 0 000 1.5.75.75 0 000-1.5z" />
+  </svg>
+);
+
 // FIX: Add missing DownloadIcon and UploadIcon
 export const DownloadIcon: React.FC<IconProps> = (props) => (
   <svg {...props} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">

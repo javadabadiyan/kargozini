@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { Personnel } from '../../types';
 import { holidays1403, PERSIAN_MONTHS } from '../holidays';
-import { UsersIcon, BuildingOffice2Icon, MapPinIcon, HeartIcon, BriefcaseIcon, CalendarDaysIcon } from '../icons/Icons';
+import { UsersIcon, BuildingOffice2Icon, MapPinIcon, HeartIcon, BriefcaseIcon, CalendarDaysIcon, CakeIcon } from '../icons/Icons';
 
 // Helper to convert numbers to Persian digits
 const toPersianDigits = (s: string | number | null | undefined): string => {
@@ -9,15 +9,39 @@ const toPersianDigits = (s: string | number | null | undefined): string => {
     return String(s).replace(/[0-9]/g, (w) => '۰۱۲۳۴۵۶۷۸۹'[parseInt(w, 10)]);
 };
 
-// Reusable Stat Card component
+// Age calculation helpers
+const getPersianYear = () => {
+    const today = new Date();
+    // Use a specific locale that gives Persian digits to parse
+    const formatter = new Intl.DateTimeFormat('fa-IR-u-nu-latn', { year: 'numeric', timeZone: 'Asia/Tehran' });
+    const formattedDate = formatter.format(today);
+    // Convert any Persian digits back to English to ensure parseInt works
+    const englishDigits = formattedDate.replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString());
+    return parseInt(englishDigits, 10);
+};
+
+const persianDateToAge = (birthDate: string | null | undefined): number | null => {
+    if (!birthDate || typeof birthDate !== 'string' || birthDate.length < 4) return null;
+    const parts = birthDate.split(/[\/-]/);
+    const birthYearStr = parts[0];
+    if (birthYearStr.length !== 4) return null; // Basic validation
+    const birthYear = parseInt(birthYearStr, 10);
+    if (isNaN(birthYear)) return null;
+
+    const currentYear = getPersianYear();
+    return currentYear - birthYear;
+};
+
+
+// Reusable Stat Card component - smaller version
 const StatCard: React.FC<{ title: string; value: string; icon: React.ComponentType<{ className?: string }>; color: string }> = ({ title, value, icon: Icon, color }) => (
-    <div className="bg-white dark:bg-slate-800 p-5 rounded-xl shadow-md flex items-center space-x-4 space-x-reverse">
-        <div className={`p-3 rounded-full ${color}`}>
-            <Icon className="w-7 h-7 text-white" />
+    <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-md flex items-center space-x-3 space-x-reverse">
+        <div className={`p-2.5 rounded-full ${color}`}>
+            <Icon className="w-6 h-6 text-white" />
         </div>
         <div>
-            <p className="text-3xl font-bold text-gray-800 dark:text-white">{value}</p>
-            <p className="text-gray-500 dark:text-gray-400">{title}</p>
+            <p className="text-2xl font-bold text-gray-800 dark:text-white">{value}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">{title}</p>
         </div>
     </div>
 );
@@ -77,23 +101,51 @@ const DashboardPage: React.FC = () => {
             }, {} as Record<string, number>);
         };
         
-        const residency = personnel.reduce((acc, p) => {
-            const isBumi = p.birth_place && p.birth_place.includes('سیرجان');
-            const key = isBumi ? 'بومی سیرجان' : 'غیر بومی سیرجان';
-            acc[key] = (acc[key] || 0) + 1;
-            return acc;
-        }, {} as Record<string, number>);
-
         const toSortedArray = (obj: Record<string, number>) => Object.entries(obj).sort(([, a], [, b]) => b - a);
         
+        // Age calculations
+        const ages: number[] = [];
+        let closeToRetirementCount = 0; // 55-59
+        let retiredCount = 0; // 60+
+        const ageGroups: Record<string, number> = {
+            'زیر ۳۰ سال': 0,
+            '۳۱-۴۰ سال': 0,
+            '۴۱-۵۰ سال': 0,
+            '۵۱-۶۰ سال': 0,
+            'بیشتر از ۶۰': 0,
+            'نامشخص': 0,
+        };
+
+        personnel.forEach(p => {
+            const age = persianDateToAge(p.birth_date);
+            if (age !== null) {
+                ages.push(age);
+                if (age >= 55 && age < 60) closeToRetirementCount++;
+                if (age >= 60) retiredCount++;
+
+                if (age <= 30) ageGroups['زیر ۳۰ سال']++;
+                else if (age >= 31 && age <= 40) ageGroups['۳۱-۴۰ سال']++;
+                else if (age >= 41 && age <= 50) ageGroups['۴۱-۵۰ سال']++;
+                else if (age >= 51 && age <= 60) ageGroups['۵۱-۶۰ سال']++;
+                else if (age > 60) ageGroups['بیشتر از ۶۰']++;
+            } else {
+                ageGroups['نامشخص']++;
+            }
+        });
+
+        const averageAge = ages.length > 0 ? Math.round(ages.reduce((a, b) => a + b, 0) / ages.length) : 0;
+
+
         return {
             total: personnel.length,
             byDepartment: toSortedArray(groupAndCount('department')),
             byServiceLocation: toSortedArray(groupAndCount('service_location')),
             byPosition: toSortedArray(groupAndCount('position')),
-            byJobTitle: toSortedArray(groupAndCount('job_title')),
             byMaritalStatus: toSortedArray(groupAndCount('marital_status')),
-            byResidency: toSortedArray(residency)
+            averageAge,
+            closeToRetirementCount,
+            retiredCount,
+            byAgeGroup: toSortedArray(ageGroups)
         };
     }, [personnel]);
 
@@ -135,23 +187,24 @@ const DashboardPage: React.FC = () => {
     
     return (
         <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-5">
                 <StatCard title="کل پرسنل" value={toPersianDigits(stats?.total || 0)} icon={UsersIcon} color="bg-blue-500" />
+                <StatCard title="میانگین سن" value={`${toPersianDigits(stats?.averageAge || 0)} سال`} icon={CakeIcon} color="bg-teal-500" />
+                <StatCard title="نزدیک به بازنشستگی" value={toPersianDigits(stats?.closeToRetirementCount || 0)} icon={UsersIcon} color="bg-amber-500" />
+                <StatCard title="سن بازنشستگی" value={toPersianDigits(stats?.retiredCount || 0)} icon={UsersIcon} color="bg-red-500" />
                 <StatCard title="تعداد واحدها" value={toPersianDigits(stats?.byDepartment.length || 0)} icon={BuildingOffice2Icon} color="bg-green-500" />
-                <StatCard title="تعداد سمت‌ها" value={toPersianDigits(stats?.byPosition.length || 0)} icon={BriefcaseIcon} color="bg-indigo-500" />
                 <StatCard title="پرسنل متاهل" value={toPersianDigits(stats?.byMaritalStatus.find(([k]) => k === 'متاهل')?.[1] || 0)} icon={HeartIcon} color="bg-rose-500" />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                  {stats && <StatListCard title="آمار بر اساس واحد" data={stats.byDepartment} icon={BuildingOffice2Icon} />}
-                 {stats && <StatListCard title="آمار بر اساس محل خدمت" data={stats.byServiceLocation} icon={BuildingOffice2Icon} />}
-                 {stats && <StatListCard title="آمار بر اساس وضعیت تاهل" data={stats.byMaritalStatus} icon={HeartIcon} />}
+                 {stats && <StatListCard title="آمار بر اساس محل خدمت" data={stats.byServiceLocation} icon={MapPinIcon} />}
+                 {stats && <StatListCard title="آمار بر اساس گروه سنی" data={stats.byAgeGroup} icon={CakeIcon} />}
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {stats && <StatListCard title="آمار بر اساس سمت" data={stats.byPosition} icon={BriefcaseIcon} />}
-                {stats && <StatListCard title="آمار بر اساس شغل" data={stats.byJobTitle} icon={BriefcaseIcon} />}
-                {stats && <StatListCard title="آمار بر اساس بومی بودن" data={stats.byResidency} icon={MapPinIcon} />}
+                {stats && <StatListCard title="آمار بر اساس وضعیت تاهل" data={stats.byMaritalStatus} icon={HeartIcon} />}
             </div>
             
             <div className="bg-white dark:bg-slate-800 p-5 rounded-xl shadow-md">
