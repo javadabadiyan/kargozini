@@ -68,9 +68,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
             </button>
           </div>
         </form>
-        <div className="text-center text-sm text-gray-500 pt-4 border-t mt-6">
-          طراح و کدنویسی جواد آبادیان
-        </div>
       </div>
     </div>
   );

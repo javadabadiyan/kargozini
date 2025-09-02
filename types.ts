@@ -60,11 +60,3 @@ export interface CommuteLog {
   entry_time: string; // ISO string from DB
   exit_time: string | null; // ISO string from DB or null
 }
-
-export interface CommuteReportRow extends CommuteLog {
-  department?: string;
-  position?: string;
-  shift?: string;
-  lateness_minutes?: number;
-  early_leave_minutes?: number;
-}

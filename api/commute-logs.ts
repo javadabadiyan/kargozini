@@ -1,4 +1,3 @@
-
 import { createPool, VercelPool } from '@vercel/postgres';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
@@ -56,18 +55,20 @@ async function handlePost(request: VercelRequest, response: VercelResponse, pool
   const effectiveTime = timestampOverride ? new Date(timestampOverride).toISOString() : 'NOW()';
 
   try {
-    // Find an open log for the person, regardless of the day. A person can only be "in" at one facility at a time.
+    // Find an open log for the specific day of the effectiveTime
     const { rows: openLogs } = await pool.sql`
         SELECT id FROM commute_logs 
         WHERE 
             personnel_code = ${personnelCode} AND 
-            exit_time IS NULL;
+            exit_time IS NULL AND 
+            entry_time >= date_trunc('day', ${effectiveTime}::timestamptz) AND
+            entry_time < date_trunc('day', ${effectiveTime}::timestamptz) + interval '1 day';
     `;
     const openLog = openLogs[0];
 
     if (action === 'entry') {
         if (openLog) {
-            return response.status(409).json({ error: 'برای این پرسنل یک ورود باز ثبت شده است. ابتدا باید خروج ثبت شود.' });
+            return response.status(409).json({ error: 'برای این پرسنل یک ورود باز در این روز ثبت شده است. ابتدا باید خروج ثبت شود.' });
         }
         const { rows: newLog } = await pool.sql`
             INSERT INTO commute_logs (personnel_code, guard_name, entry_time) 
@@ -79,7 +80,7 @@ async function handlePost(request: VercelRequest, response: VercelResponse, pool
     
     if (action === 'exit') {
         if (!openLog) {
-            return response.status(404).json({ error: 'هیچ ورود بازی برای این پرسنل یافت نشد تا خروج ثبت شود.' });
+            return response.status(404).json({ error: 'هیچ ورود بازی برای این پرسنل در این روز یافت نشد تا خروج ثبت شود.' });
         }
         const { rows: updatedLog } = await pool.sql`
             UPDATE commute_logs 
