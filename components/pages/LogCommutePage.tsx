@@ -339,6 +339,10 @@ const LogCommutePage: React.FC = () => {
               </div>
             </div>
 
+            <button onClick={handleSubmit} disabled={selectedPersonnel.size === 0} className="w-full py-3 text-lg font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-gray-400">
+                {actionType === 'entry' ? 'ثبت ورود' : 'ثبت خروج'} برای {toPersianDigits(selectedPersonnel.size)} نفر
+            </button>
+            
             <div className="border rounded-lg">
                 <div className="p-4 border-b">
                      <h3 className="font-semibold">انتخاب پرسنل ({toPersianDigits(selectedPersonnel.size)} نفر)</h3>
