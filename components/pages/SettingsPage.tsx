@@ -37,6 +37,7 @@ const SettingsPage: React.FC = () => {
     const [appLogo, setAppLogo] = useState<string | null>(() => localStorage.getItem('appLogo'));
     const logoInputRef = useRef<HTMLInputElement>(null);
     const backupInputRef = useRef<HTMLInputElement>(null);
+    const userImportRef = useRef<HTMLInputElement>(null);
     const individualImportRefs = useRef<{[key: string]: HTMLInputElement | null}>({});
     
     const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
@@ -144,6 +145,78 @@ const SettingsPage: React.FC = () => {
             setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در پاک کردن داده‌ها' });
         }
     };
+
+    const handleSaveUser = async (user: AppUser) => {
+        const isNew = !user.id;
+        const method = isNew ? 'POST' : 'PUT';
+        const url = '/api/users';
+        try {
+            const response = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(user) });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error);
+            setStatus({ type: 'success', message: data.message });
+            setIsUserModalOpen(false);
+            setEditingUser(null);
+            fetchUsers();
+        } catch (err) {
+            setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در ذخیره کاربر' });
+        }
+    };
+
+    const handleDeleteUser = async (userId: number) => {
+        if (window.confirm('آیا از حذف این کاربر اطمینان دارید؟')) {
+            try {
+                const response = await fetch('/api/users', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: userId }) });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error);
+                setStatus({ type: 'success', message: data.message });
+                fetchUsers();
+            } catch (err) {
+                setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در حذف کاربر' });
+            }
+        }
+    };
+
+    const handleUserExcelSample = () => {
+        const headers = ['username', 'password', ...PERMISSION_KEYS.map(p => `perm_${p.key}`)];
+        const sampleRow = ['newuser', 'password123', ...PERMISSION_KEYS.map(() => 'FALSE')];
+        const ws = XLSX.utils.aoa_to_sheet([headers, sampleRow]);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, wb.SheetNames.length ? wb.SheetNames[0] : 'Users', 'Users');
+        XLSX.utils.sheet_add_aoa(wb.Sheets['Users'], [headers, sampleRow]);
+        XLSX.writeFile(wb, 'Sample_Users.xlsx');
+    };
+
+    const handleUserExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setStatus({ type: 'info', message: 'در حال پردازش فایل کاربران...' });
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const workbook = XLSX.read(new Uint8Array(event.target?.result as ArrayBuffer), { type: 'array' });
+                const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+                const usersToImport = json.map((row: any) => {
+                    const permissions: UserPermissions = {};
+                    PERMISSION_KEYS.forEach(p => {
+                        permissions[p.key] = String(row[`perm_${p.key}`]).toUpperCase() === 'TRUE';
+                    });
+                    return { username: row.username, password: row.password, permissions };
+                }).filter(u => u.username && u.password);
+                
+                if (usersToImport.length === 0) throw new Error('هیچ کاربر معتبری در فایل یافت نشد.');
+
+                const response = await fetch('/api/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(usersToImport) });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error);
+                setStatus({ type: 'success', message: data.message });
+                fetchUsers();
+            } catch (err) {
+                setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در ورود اطلاعات کاربران' });
+            } finally { if (userImportRef.current) userImportRef.current.value = ""; }
+        };
+        reader.readAsArrayBuffer(file);
+    };
     
     const statusColor = { info: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300', success: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300', error: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' };
     const inputClass = "w-full px-3 py-2 text-gray-700 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-slate-700 dark:border-slate-600 dark:text-gray-200";
@@ -182,7 +255,49 @@ const SettingsPage: React.FC = () => {
                 </div>
             </div>
 
-            {userPermissions.user_management && <UserEditModal user={editingUser} onClose={() => { setIsUserModalOpen(false); setEditingUser(null); }} onSave={async() => {}} />}
+            {userPermissions.user_management && (
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-lg">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b dark:border-slate-700 pb-3 mb-4">
+                        <h2 className="text-xl font-bold text-gray-700 dark:text-gray-200">مدیریت کاربران</h2>
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <button onClick={() => { setEditingUser(null); setIsUserModalOpen(true); }} className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">افزودن کاربر</button>
+                            <button onClick={handleUserExcelSample} className="px-4 py-2 text-sm bg-gray-100 dark:bg-slate-600 dark:text-gray-200 border border-gray-300 dark:border-slate-500 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-500">دانلود نمونه</button>
+                            <input type="file" ref={userImportRef} onChange={handleUserExcelImport} accept=".xlsx, .xls" className="hidden" id="user-import"/>
+                            <label htmlFor="user-import" className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 cursor-pointer">ورود از اکسل</label>
+                        </div>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700">
+                            <thead className="bg-gray-50 dark:bg-slate-700">
+                                <tr>
+                                    <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 dark:text-gray-300 uppercase">نام کاربری</th>
+                                    <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 dark:text-gray-300 uppercase">دسترسی‌ها</th>
+                                    <th className="px-4 py-3 text-center text-xs font-bold text-gray-600 dark:text-gray-300 uppercase">عملیات</th>
+                                </tr>
+                            </thead>
+                            <tbody className="bg-white dark:bg-slate-800 divide-y divide-gray-200 dark:divide-slate-700">
+                                {loadingUsers ? (
+                                    <tr><td colSpan={3} className="text-center p-4">در حال بارگذاری...</td></tr>
+                                ) : (
+                                    users.map(user => (
+                                        <tr key={user.id}>
+                                            <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-800 dark:text-gray-100">{user.username}</td>
+                                            <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">
+                                                {PERMISSION_KEYS.filter(p => user.permissions[p.key]).map(p => p.label).join('، ')}
+                                            </td>
+                                            <td className="px-4 py-3 whitespace-nowrap text-sm text-center">
+                                                <button onClick={() => { setEditingUser(user); setIsUserModalOpen(true); }} className="p-1 text-blue-600 hover:text-blue-800" title="ویرایش"><PencilIcon className="w-5 h-5"/></button>
+                                                <button onClick={() => handleDeleteUser(user.id)} className="p-1 text-red-600 hover:text-red-800 mr-2" title="حذف"><TrashIcon className="w-5 h-5"/></button>
+                                            </td>
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
+             {isUserModalOpen && <UserEditModal user={editingUser} onClose={() => { setIsUserModalOpen(false); setEditingUser(null); }} onSave={handleSaveUser} />}
 
             <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-lg">
                 <h2 className="text-xl font-bold text-gray-700 dark:text-gray-200 border-b dark:border-slate-700 pb-3 mb-4">تغییر ظاهر</h2>
