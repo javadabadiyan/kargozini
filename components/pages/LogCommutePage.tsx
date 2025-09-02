@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import type { CommutingMember, CommuteLog } from '../../types';
-import { PencilIcon, TrashIcon, ClockIcon, ChevronDownIcon, SearchIcon } from '../icons/Icons';
+import { PencilIcon, TrashIcon, ArrowRightOnRectangleIcon, ChevronDownIcon, SearchIcon } from '../icons/Icons';
 import EditCommuteLogModal from '../EditCommuteLogModal';
-import MidDayLeaveModal from '../MidDayLeaveModal';
 
 const GUARDS = [
   'شیفت A | محسن صادقی گوغری',
@@ -22,57 +21,31 @@ const toPersianDigits = (s: string | number | null | undefined): string => {
 };
 
 const jalaliToGregorian = (jy: number, jm: number, jd: number): [number, number, number] => {
-  // Replaced the buggy conversion function with a correct and well-tested algorithm.
-  // This ensures that the date sent to the backend for querying logs is accurate.
-  const breaks = [-61, 9, 38, 199, 426, 686, 756, 818, 1111, 1181, 1210, 1635, 2060, 2097, 2192, 2262, 2324, 2394, 2456, 3178];
-  const bl = breaks.length;
-  const gy = jy + 621;
-  let leapJ = -14;
-  let jp = breaks[0];
-  let jm2 = jm - 1;
-  let jump = 0;
-
-  for (let i = 1; i < bl; i += 1) {
-    const jm = breaks[i];
-    jump = jm - jp;
-    if (jy < jm) {
-      break;
+    let sal_a, gy, gm, gd, j_day_no;
+    sal_a = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    gy = jy + 621;
+    let leap = (gy % 4 == 0 && gy % 100 != 0) || (gy % 400 == 0);
+    if (leap) sal_a[2] = 29;
+    if (jm <= 6) {
+        j_day_no = (jm - 1) * 31 + jd;
+    } else {
+        j_day_no = 186 + (jm - 7) * 30 + jd;
     }
-    leapJ = leapJ + Math.floor(jump / 33) * 8 + Math.floor(jump % 33 / 4);
-    jp = jm;
-  }
-  let n = jy - jp;
-  leapJ = leapJ + Math.floor(n / 33) * 8 + Math.floor((n % 33 + 3) / 4);
-  if (jump % 33 === 4 && jump - n === 4) {
-    leapJ += 1;
-  }
-  const leapG = Math.floor((gy + 3) / 4) - Math.floor((gy + 99) / 100) + Math.floor((gy + 399) / 400);
-  const jdn = (jm2 < 6 ? (jm2) * 31 : (jm2) * 30 + 6) + jd - 1;
-  const gdn = jdn + 79 + leapG - leapJ;
-
-  const diy = 365 + (gy % 4 === 0 && gy % 100 !== 0 || gy % 400 === 0 ? 1 : 0);
-  if (gdn <= 0) {
-      const [gYear, gMonth, gDay] = jalaliToGregorian(jy - 1, 12, 30 + gdn);
-      return [gYear, gMonth, gDay];
-  }
-  if (gdn > diy) {
-      const [gYear, gMonth, gDay] = jalaliToGregorian(jy + 1, 1, gdn - diy);
-      return [gYear, gMonth, gDay];
-  }
-
-  const gdm = [0, 31, (diy === 366 ? 29 : 28), 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-  let gm = 0;
-  let gd = gdn;
-  for (gm = 1; gm < 13; gm++) {
-    if (gd <= gdm[gm]) {
-        break;
+    if (leap && j_day_no > 59) j_day_no++;
+    if (j_day_no > 79) j_day_no -= 79;
+    else {
+        gy--;
+        j_day_no += 286;
+        leap = (gy % 4 == 0 && gy % 100 != 0) || (gy % 400 == 0);
+        if (leap) j_day_no++;
     }
-    gd -= gdm[gm];
-  }
-
-  return [gy, gm, gd];
+    for (gm = 1; gm < 13; gm++) {
+        if (j_day_no <= sal_a[gm]) break;
+        j_day_no -= sal_a[gm];
+    }
+    gd = j_day_no;
+    return [gy, gm, gd];
 };
-
 
 const LogCommutePage: React.FC = () => {
     const [commutingMembers, setCommutingMembers] = useState<CommutingMember[]>([]);
@@ -95,8 +68,6 @@ const LogCommutePage: React.FC = () => {
     const [status, setStatus] = useState<{ type: 'info' | 'success' | 'error'; message: string } | null>(null);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editingLog, setEditingLog] = useState<CommuteLog | null>(null);
-    const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
-    const [personnelForLeave, setPersonnelForLeave] = useState<CommuteLog | null>(null);
     const [openUnits, setOpenUnits] = useState<Set<string>>(new Set());
 
     const getTodayPersian = useCallback(() => {
@@ -255,6 +226,7 @@ const LogCommutePage: React.FC = () => {
                     successCount++;
                 } else {
                     const errorData = await response.json();
+                    // Optionally show individual errors, for now, we just count success
                     console.error(`Failed for ${personnelCode}:`, errorData.error);
                 }
             } catch (err) {
@@ -267,10 +239,28 @@ const LogCommutePage: React.FC = () => {
         fetchLogs();
         setTimeout(() => setStatus(null), 5000);
     };
+    
+    const handleMidDayExit = async (personnelCode: string) => {
+        setStatus({ type: 'info', message: 'در حال ثبت خروج بین ساعتی...' });
+        try {
+            const response = await fetch('/api/commute-logs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ personnelCode, guardName: selectedGuard, action: 'exit' }) // Let backend handle timestamp
+            });
 
-    const handleOpenLeaveModal = (log: CommuteLog) => {
-        setPersonnelForLeave(log);
-        setIsLeaveModalOpen(true);
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'خطا در ثبت خروج');
+            }
+            
+            setStatus({ type: 'success', message: 'خروج بین ساعتی با موفقیت ثبت شد.' });
+            fetchLogs();
+        } catch (err) {
+            setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطای ناشناخته' });
+        } finally {
+            setTimeout(() => setStatus(null), 5000);
+        }
     };
 
     const handleEditClick = (log: CommuteLog) => {
@@ -464,8 +454,8 @@ const LogCommutePage: React.FC = () => {
                       <td className="px-4 py-3 whitespace-nowrap text-sm">
                         <div className="flex items-center justify-center gap-1">
                           {!log.exit_time && (
-                            <button onClick={() => handleOpenLeaveModal(log)} className="p-2 text-orange-600 hover:bg-orange-100 rounded-md" title="ثبت تردد بین ساعتی">
-                              <ClockIcon className="w-5 h-5" />
+                            <button onClick={() => handleMidDayExit(log.personnel_code)} className="p-2 text-green-600 hover:bg-green-100 rounded-md" title="ثبت خروج بین ساعتی">
+                              <ArrowRightOnRectangleIcon className="w-5 h-5" />
                             </button>
                           )}
                           <button onClick={() => handleEditClick(log)} className="p-2 text-blue-600 hover:bg-blue-100 rounded-md" title="ویرایش"><PencilIcon className="w-5 h-5" /></button>
@@ -481,18 +471,6 @@ const LogCommutePage: React.FC = () => {
       </div>
       {isEditModalOpen && editingLog && (
         <EditCommuteLogModal log={editingLog} onClose={() => setIsEditModalOpen(false)} onSave={handleSaveLog} />
-      )}
-       {isLeaveModalOpen && personnelForLeave && (
-        <MidDayLeaveModal 
-            personnel={personnelForLeave} 
-            guardName={selectedGuard}
-            onClose={() => setIsLeaveModalOpen(false)} 
-            onUpdate={() => {
-                setStatus({type: 'success', message: 'تردد بین ساعتی با موفقیت ثبت شد.'});
-                fetchLogs();
-                setTimeout(() => setStatus(null), 4000);
-            }} 
-        />
       )}
     </>
   );
