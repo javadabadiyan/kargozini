@@ -48,6 +48,22 @@ const ALL_MENU_ITEMS: MenuItem[] = [
   { id: 'settings', label: 'تنظیمات', icon: CogIcon, page: SettingsPage }
 ];
 
+const findFirstAccessiblePage = (permissions: UserPermissions): { page: React.ComponentType, id: string } | null => {
+    for (const item of ALL_MENU_ITEMS) {
+        if (item.page && permissions[item.id]) {
+            return { page: item.page, id: item.id };
+        }
+        if (item.children) {
+            for (const child of item.children) {
+                if (child.page && permissions[child.id]) {
+                    return { page: child.page, id: child.id };
+                }
+            }
+        }
+    }
+    return null;
+};
+
 
 const SidebarMenuItem: React.FC<{
   item: MenuItem;
@@ -167,7 +183,7 @@ const Clock: React.FC = () => {
 
 
 export const Sidebar: React.FC<{ 
-  setActivePage: React.Dispatch<React.SetStateAction<React.ComponentType>>;
+  setActivePage: React.Dispatch<React.SetStateAction<React.ComponentType | null>>;
   isOpen: boolean;
   onClose: () => void;
   user: { permissions: UserPermissions };
@@ -179,7 +195,11 @@ export const Sidebar: React.FC<{
     );
   }, [permissions]);
 
-  const [activeItem, setActiveItem] = useState<string>('personnel_list');
+  const [activeItem, setActiveItem] = useState<string>(() => {
+    const firstPage = findFirstAccessiblePage(permissions);
+    return firstPage ? firstPage.id : '';
+  });
+
   const [openItems, setOpenItems] = useState<Record<string, boolean>>({
       personnel: true,
       recruitment: false,
@@ -188,6 +208,17 @@ export const Sidebar: React.FC<{
 
   const [appName, setAppName] = useState('سیستم جامع کارگزینی');
   const [appLogo, setAppLogo] = useState<string | null>(null);
+  
+  useEffect(() => {
+    const firstPage = findFirstAccessiblePage(permissions);
+    if (firstPage) {
+        setActivePage(() => firstPage.page);
+    } else {
+        // No accessible page, show a placeholder
+        setActivePage(() => () => <PlaceholderPage title="دسترسی به هیچ صفحه‌ای وجود ندارد" />);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [permissions]);
 
   useEffect(() => {
     const savedName = localStorage.getItem('appName');

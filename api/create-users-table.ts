@@ -198,7 +198,7 @@ export default async function handler(
       user_management: true,
     });
     const guardPermissions = JSON.stringify({
-      dashboard: true,
+      dashboard: false,
       personnel: false,
       personnel_list: false,
       dependents_info: false,
@@ -209,7 +209,7 @@ export default async function handler(
       performance_review: false,
       job_group: false,
       bonus_management: false,
-      security: true,
+      security: false,
       commuting_members: false,
       log_commute: true,
       commute_report: false,
