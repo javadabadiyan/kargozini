@@ -7,11 +7,22 @@ declare const XLSX: any;
 
 const PERMISSION_KEYS: { key: keyof UserPermissions, label: string }[] = [
     { key: 'dashboard', label: 'داشبورد' },
-    { key: 'personnel', label: 'مدیریت پرسنل' },
-    { key: 'recruitment', label: 'کارگزینی' },
-    { key: 'security', label: 'حراست' },
+    { key: 'personnel', label: 'منوی مدیریت پرسنل' },
+    { key: 'personnel_list', label: ' - لیست پرسنل' },
+    { key: 'dependents_info', label: ' - اطلاعات بستگان' },
+    { key: 'document_upload', label: ' - بارگذاری مدارک' },
+    { key: 'recruitment', label: 'منوی کارگزینی' },
+    { key: 'accounting_commitment', label: ' - نامه تعهد حسابداری' },
+    { key: 'disciplinary_committee', label: ' - کمیته تشویق و انضباطی' },
+    { key: 'performance_review', label: ' - ارزیابی عملکرد' },
+    { key: 'job_group', label: ' - گروه شغلی پرسنل' },
+    { key: 'bonus_management', label: ' - مدیریت کارانه' },
+    { key: 'security', label: 'منوی حراست' },
+    { key: 'commuting_members', label: ' - کارمندان عضو تردد' },
+    { key: 'log_commute', label: ' - ثبت تردد' },
+    { key: 'commute_report', label: ' - گزارش گیری تردد' },
     { key: 'settings', label: 'تنظیمات' },
-    { key: 'user_management', label: 'مدیریت کاربران' },
+    { key: 'user_management', label: 'مدیریت کاربران (در تنظیمات)' },
 ];
 
 const INDIVIDUAL_BACKUP_ITEMS = [

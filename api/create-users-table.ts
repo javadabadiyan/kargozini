@@ -179,12 +179,42 @@ export default async function handler(
 
     // Insert default users if they don't exist
     const adminPermissions = JSON.stringify({
-      dashboard: true, personnel: true, recruitment: true, 
-      security: true, settings: true, user_management: true 
+      dashboard: true,
+      personnel: true,
+      personnel_list: true,
+      dependents_info: true,
+      document_upload: true,
+      recruitment: true,
+      accounting_commitment: true,
+      disciplinary_committee: true,
+      performance_review: true,
+      job_group: true,
+      bonus_management: true,
+      security: true,
+      commuting_members: true,
+      log_commute: true,
+      commute_report: true,
+      settings: true,
+      user_management: true,
     });
     const guardPermissions = JSON.stringify({
-      dashboard: true, personnel: false, recruitment: false, 
-      security: true, settings: false, user_management: false 
+      dashboard: true,
+      personnel: false,
+      personnel_list: false,
+      dependents_info: false,
+      document_upload: false,
+      recruitment: false,
+      accounting_commitment: false,
+      disciplinary_committee: false,
+      performance_review: false,
+      job_group: false,
+      bonus_management: false,
+      security: true,
+      commuting_members: false,
+      log_commute: true,
+      commute_report: false,
+      settings: false,
+      user_management: false,
     });
 
     await client.sql`
