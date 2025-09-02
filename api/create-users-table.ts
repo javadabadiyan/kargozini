@@ -131,16 +131,12 @@ export default async function handler(
     `;
     messages.push('جدول "hourly_commute_logs" با موفقیت ایجاد یا تایید شد.');
 
-    // FINAL FIX: Forcefully remove the NOT NULL constraint from exit_time in a safe way.
-    // This try/catch block ensures that the script doesn't fail on subsequent runs and handles the case where the constraint is already removed.
     try {
       await client.sql`
         ALTER TABLE hourly_commute_logs ALTER COLUMN exit_time DROP NOT NULL;
       `;
       messages.push('ستون "exit_time" در جدول ترددهای ساعتی برای ثبت ورود مجزا به‌روزرسانی شد.');
     } catch (alterError: any) {
-        // This is a broader catch. It will catch the "already nullable" error but also others.
-        // It's better than potentially hiding a real issue with a faulty string match.
         console.warn(`Could not alter hourly_commute_logs table (this may be expected if already altered): ${alterError.message}`);
         messages.push('ستون "exit_time" از قبل به درستی تنظیم شده بود یا با خطای دیگری مواجه شد (این مورد در اجراهای بعدی طبیعی است).');
     }
@@ -169,8 +165,40 @@ export default async function handler(
       );
     `;
     messages.push('جدول "commute_edit_logs" برای ثبت ویرایش‌ها با موفقیت ایجاد یا تایید شد.');
+    
+    // Create app_users table
+    await client.sql`
+      CREATE TABLE IF NOT EXISTS app_users (
+        id SERIAL PRIMARY KEY,
+        username VARCHAR(100) UNIQUE NOT NULL,
+        password VARCHAR(255) NOT NULL,
+        permissions JSONB NOT NULL
+      );
+    `;
+    messages.push('جدول "app_users" با موفقیت ایجاد یا تایید شد.');
 
-    // Create extensions and indexes for personnel table
+    // Insert default users if they don't exist
+    const adminPermissions = JSON.stringify({
+      dashboard: true, personnel: true, recruitment: true, 
+      security: true, settings: true, user_management: true 
+    });
+    const guardPermissions = JSON.stringify({
+      dashboard: true, personnel: false, recruitment: false, 
+      security: true, settings: false, user_management: false 
+    });
+
+    await client.sql`
+      INSERT INTO app_users (username, password, permissions) VALUES
+      ('ادمین', '5221157', ${adminPermissions})
+      ON CONFLICT (username) DO UPDATE SET permissions = ${adminPermissions};
+    `;
+    await client.sql`
+      INSERT INTO app_users (username, password, permissions) VALUES
+      ('نگهبانی', '123456789', ${guardPermissions})
+      ON CONFLICT (username) DO UPDATE SET password = '123456789', permissions = ${guardPermissions};
+    `;
+    messages.push('کاربران پیش‌فرض "ادمین" و "نگهبانی" ایجاد یا به‌روزرسانی شدند.');
+
     try {
         await client.sql`CREATE EXTENSION IF NOT EXISTS pg_trgm;`;
         messages.push('افزونه "pg_trgm" برای جستجوی سریع فعال شد.');

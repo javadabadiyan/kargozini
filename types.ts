@@ -8,6 +8,17 @@ export interface MenuItem {
   page?: React.ComponentType;
 }
 
+export interface UserPermissions {
+  [key: string]: boolean;
+}
+
+export interface AppUser {
+  id: number;
+  username: string;
+  password?: string; // Only for sending to API, not for receiving
+  permissions: UserPermissions;
+}
+
 export interface Personnel {
   id: number;
   personnel_code: string;

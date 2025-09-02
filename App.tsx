@@ -1,36 +1,60 @@
-
 import React, { useState, useCallback } from 'react';
 import LoginPage from './components/LoginPage';
 import DashboardLayout from './components/DashboardLayout';
+import type { UserPermissions } from './types';
+
+interface CurrentUser {
+  username: string;
+  permissions: UserPermissions;
+}
 
 const App: React.FC = () => {
-  // Initialize state from sessionStorage to persist login across page reloads.
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(
-    sessionStorage.getItem('isLoggedIn') === 'true'
-  );
-
-  const handleLogin = useCallback((user: string, pass: string): boolean => {
-    // In a real application, this would be an API call.
-    // For this demo, we use hardcoded credentials.
-    if (user === 'ادمین' && pass === '5221157') {
-      // Persist login state in sessionStorage
-      sessionStorage.setItem('isLoggedIn', 'true');
-      setIsAuthenticated(true);
-      return true;
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(() => {
+    try {
+      const storedUser = sessionStorage.getItem('currentUser');
+      return storedUser ? JSON.parse(storedUser) : null;
+    } catch (e) {
+      console.error("Failed to parse user from sessionStorage", e);
+      return null;
     }
-    return false;
+  });
+
+  const handleLogin = useCallback(async (user: string, pass: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const response = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: user, password: pass }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        const userData: CurrentUser = {
+          username: data.user.username,
+          permissions: data.user.permissions,
+        };
+        sessionStorage.setItem('currentUser', JSON.stringify(userData));
+        setCurrentUser(userData);
+        return { success: true };
+      } else {
+        return { success: false, error: data.error || 'نام کاربری یا رمز عبور اشتباه است.' };
+      }
+    } catch (error) {
+      console.error('Login request failed:', error);
+      return { success: false, error: 'خطا در برقراری ارتباط با سرور.' };
+    }
   }, []);
 
   const handleLogout = useCallback(() => {
-    // Clear login state from sessionStorage
-    sessionStorage.removeItem('isLoggedIn');
-    setIsAuthenticated(false);
+    sessionStorage.removeItem('currentUser');
+    setCurrentUser(null);
   }, []);
 
   return (
     <div className="bg-slate-100 dark:bg-slate-900 min-h-screen">
-      {isAuthenticated ? (
-        <DashboardLayout onLogout={handleLogout} />
+      {currentUser ? (
+        <DashboardLayout onLogout={handleLogout} user={currentUser} />
       ) : (
         <LoginPage onLogin={handleLogin} />
       )}

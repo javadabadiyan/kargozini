@@ -1,22 +1,24 @@
-
 import React, { useState } from 'react';
 import { LockClosedIcon, UserIcon } from './icons/Icons';
 
 interface LoginPageProps {
-  onLogin: (user: string, pass:string) => boolean;
+  onLogin: (user: string, pass: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const [username, setUsername] = useState<string>('');
   const [password, setPassword] = useState<string>('');
   const [error, setError] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
-    const success = onLogin(username, password);
-    if (!success) {
-      setError('نام کاربری یا رمز عبور اشتباه است.');
+    setIsLoading(true);
+    const result = await onLogin(username, password);
+    setIsLoading(false);
+    if (!result.success) {
+      setError(result.error || 'نام کاربری یا رمز عبور اشتباه است.');
     }
   };
 
@@ -39,6 +41,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
               placeholder="نام کاربری"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
+              disabled={isLoading}
             />
           </div>
           <div className="relative">
@@ -52,6 +55,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
               placeholder="رمز عبور"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              disabled={isLoading}
             />
           </div>
 
@@ -62,9 +66,10 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
           <div>
             <button
               type="submit"
-              className="w-full py-3 text-lg font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-transform transform hover:scale-105"
+              className="w-full py-3 text-lg font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-transform transform hover:scale-105 disabled:bg-blue-400 disabled:cursor-not-allowed"
+              disabled={isLoading}
             >
-              ورود به سیستم
+              {isLoading ? 'در حال بررسی...' : 'ورود به سیستم'}
             </button>
           </div>
         </form>

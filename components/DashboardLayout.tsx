@@ -1,15 +1,20 @@
-
 import React, { useState } from 'react';
 import { Sidebar } from './Sidebar';
 import Header from './Header';
 import PersonnelListPage from './pages/PersonnelListPage';
+import type { UserPermissions } from '../types';
+
+interface CurrentUser {
+  username: string;
+  permissions: UserPermissions;
+}
 
 interface DashboardLayoutProps {
   onLogout: () => void;
+  user: CurrentUser;
 }
 
-const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout }) => {
-  // صفحه پیش‌فرض اکنون لیست پرسنل است
+const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout, user }) => {
   const [ActivePage, setActivePage] = useState<React.ComponentType>(() => PersonnelListPage);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
@@ -18,7 +23,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout }) => {
 
   return (
     <div className="flex h-screen bg-slate-50 dark:bg-slate-900 relative lg:overflow-hidden">
-      <Sidebar setActivePage={setActivePage} isOpen={isSidebarOpen} onClose={closeSidebar} />
+      <Sidebar setActivePage={setActivePage} isOpen={isSidebarOpen} onClose={closeSidebar} user={user} />
       {/* Overlay for mobile to close sidebar on click outside */}
       {isSidebarOpen && (
          <div 
@@ -28,7 +33,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout }) => {
          ></div>
       )}
       <main className="flex-1 flex flex-col overflow-y-auto overflow-x-hidden">
-        <Header onLogout={onLogout} onMenuClick={toggleSidebar} />
+        <Header onLogout={onLogout} onMenuClick={toggleSidebar} username={user.username} />
         <div className="p-4 sm:p-6 flex-1">
             <ActivePage />
         </div>

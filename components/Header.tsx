@@ -1,13 +1,13 @@
-
 import React from 'react';
 import { LogoutIcon, MenuIcon } from './icons/Icons';
 
 interface HeaderProps {
   onLogout: () => void;
   onMenuClick: () => void;
+  username: string;
 }
 
-const Header: React.FC<HeaderProps> = ({ onLogout, onMenuClick }) => {
+const Header: React.FC<HeaderProps> = ({ onLogout, onMenuClick, username }) => {
   return (
     <header className="bg-white dark:bg-slate-800 shadow-md dark:shadow-slate-700/50 p-4 flex justify-between items-center sticky top-0 z-10 border-b border-gray-200 dark:border-slate-700">
       <div className="flex items-center">
@@ -18,7 +18,7 @@ const Header: React.FC<HeaderProps> = ({ onLogout, onMenuClick }) => {
         >
           <MenuIcon className="w-6 h-6" />
         </button>
-        <h1 className="text-lg font-semibold text-gray-700 dark:text-gray-200 hidden sm:block">خوش آمدید, مدیر سیستم</h1>
+        <h1 className="text-lg font-semibold text-gray-700 dark:text-gray-200 hidden sm:block">خوش آمدید, {username}</h1>
       </div>
       <button 
         onClick={onLogout}
