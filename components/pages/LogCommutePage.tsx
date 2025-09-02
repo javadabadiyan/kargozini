@@ -23,6 +23,12 @@ const toPersianDigits = (s: string | number | null | undefined): string => {
     return String(s).replace(/[0-9]/g, (w) => '۰۱۲۳۴۵۶۷۸۹'[parseInt(w, 10)]);
 };
 
+const toEnglishDigits = (str: string): string => {
+    if (!str) return '';
+    return str.replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString())
+              .replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString());
+};
+
 const jalaliToGregorian = (jy: number, jm: number, jd: number): [number, number, number] => {
     let sal_a, gy, gm, gd, j_day_no;
     sal_a = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
@@ -309,9 +315,10 @@ const LogCommutePage: React.FC = () => {
                 const json: any[] = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { raw: false });
 
                 const mappedData = json.map(row => {
-                    const dateStr = String(row['تاریخ'] || '');
-                    const entryTimeStr = String(row['ورود'] || '');
-                    const exitTimeStr = String(row['خروج'] || '');
+                    const dateStr = toEnglishDigits(String(row['تاریخ'] || ''));
+                    const entryTimeStr = toEnglishDigits(String(row['ورود'] || ''));
+                    const exitTimeStr = toEnglishDigits(String(row['خروج'] || ''));
+                    const personnelCodeStr = toEnglishDigits(String(row['کد'] || ''));
 
                     const dateParts = dateStr.split(/[\/-]/).map(p => parseInt(p, 10));
                     if (dateParts.length !== 3 || dateParts.some(isNaN)) return null;
@@ -321,28 +328,30 @@ const LogCommutePage: React.FC = () => {
                     let entryTimestamp = null;
                     if (entryTimeStr) {
                         const entryTimeParts = entryTimeStr.split(':').map(p => parseInt(p, 10));
-                        if (entryTimeParts.length === 2 && !entryTimeParts.some(isNaN)) {
-                            entryTimestamp = new Date(gYear, gMonth - 1, gDay, entryTimeParts[0], entryTimeParts[1]).toISOString();
+                        if (entryTimeParts.length >= 2 && !entryTimeParts.some(isNaN)) {
+                            const localDate = new Date(gYear, gMonth - 1, gDay, entryTimeParts[0], entryTimeParts[1]);
+                            entryTimestamp = localDate.toISOString();
                         }
                     }
 
                     let exitTimestamp = null;
                     if (exitTimeStr) {
                         const exitTimeParts = exitTimeStr.split(':').map(p => parseInt(p, 10));
-                        if (exitTimeParts.length === 2 && !exitTimeParts.some(isNaN)) {
-                            exitTimestamp = new Date(gYear, gMonth - 1, gDay, exitTimeParts[0], exitTimeParts[1]).toISOString();
+                        if (exitTimeParts.length >= 2 && !exitTimeParts.some(isNaN)) {
+                            const localDate = new Date(gYear, gMonth - 1, gDay, exitTimeParts[0], exitTimeParts[1]);
+                            exitTimestamp = localDate.toISOString();
                         }
                     }
 
                     return {
-                        personnel_code: String(row['کد'] || ''),
+                        personnel_code: personnelCodeStr,
                         guard_name: String(row['شیفت'] || selectedGuard),
                         entry_time: entryTimestamp,
                         exit_time: exitTimestamp,
                     };
                 }).filter(log => log && log.personnel_code && log.entry_time);
 
-                if (mappedData.length === 0) throw new Error('هیچ رکورد معتبری در فایل یافت نشد. لطفاً فرمت تاریخ و ساعت و وجود کد پرسنلی و ساعت ورود را بررسی کنید.');
+                if (mappedData.length === 0) throw new Error('هیچ رکورد معتبری در فایل یافت نشد. لطفاً فرمت تاریخ (مثال: ۱۴۰۴/۰۶/۱۱)، ساعت (مثال: ۰۹:۰۰)، و وجود کد پرسنلی و ساعت ورود را بررسی کنید.');
 
                 const response = await fetch('/api/commute-logs', {
                     method: 'POST',
