@@ -290,11 +290,11 @@ const LogCommutePage: React.FC = () => {
     };
 
     const handleDownloadSample = () => {
-        const headers = ['کد پرسنلی', 'نگهبان ثبت کننده', 'تاریخ (مثال: 1403/05/21)', 'ساعت ورود (مثال: 08:30)', 'ساعت خروج (مثال: 16:45)'];
+        const headers = ['نام', 'کد', 'واحد', 'سمت', 'تاریخ', 'ورود', 'خروج', 'شیفت', 'تاخیر', 'تعجیل', 'مدت ماموریت'];
         const ws = XLSX.utils.aoa_to_sheet([headers]);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'نمونه');
-        XLSX.writeFile(wb, 'Sample_Commute_Logs.xlsx');
+        XLSX.writeFile(wb, 'Sample_Commute_Logs_Detailed.xlsx');
     };
 
     const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -309,9 +309,9 @@ const LogCommutePage: React.FC = () => {
                 const json: any[] = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
 
                 const mappedData = json.map(row => {
-                    const dateStr = String(row['تاریخ (مثال: 1403/05/21)'] || '');
-                    const entryTimeStr = String(row['ساعت ورود (مثال: 08:30)'] || '');
-                    const exitTimeStr = String(row['ساعت خروج (مثال: 16:45)'] || '');
+                    const dateStr = String(row['تاریخ'] || '');
+                    const entryTimeStr = String(row['ورود'] || '');
+                    const exitTimeStr = String(row['خروج'] || '');
 
                     const dateParts = dateStr.split(/[\/-]/).map(p => parseInt(p, 10));
                     if (dateParts.length !== 3 || dateParts.some(isNaN)) return null;
@@ -335,14 +335,14 @@ const LogCommutePage: React.FC = () => {
                     }
 
                     return {
-                        personnel_code: String(row['کد پرسنلی'] || ''),
-                        guard_name: String(row['نگهبان ثبت کننده'] || selectedGuard),
+                        personnel_code: String(row['کد'] || ''),
+                        guard_name: String(row['شیفت'] || selectedGuard),
                         entry_time: entryTimestamp,
                         exit_time: exitTimestamp,
                     };
-                }).filter(Boolean);
+                }).filter(log => log && log.personnel_code && log.entry_time);
 
-                if (mappedData.length === 0) throw new Error('هیچ رکورد معتبری در فایل یافت نشد. لطفاً فرمت تاریخ و ساعت را بررسی کنید.');
+                if (mappedData.length === 0) throw new Error('هیچ رکورد معتبری در فایل یافت نشد. لطفاً فرمت تاریخ و ساعت و وجود کد پرسنلی و ساعت ورود را بررسی کنید.');
 
                 const response = await fetch('/api/commute-logs', {
                     method: 'POST',
