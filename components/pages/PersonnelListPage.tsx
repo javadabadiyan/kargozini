@@ -341,6 +341,48 @@ const PersonnelListPage: React.FC = () => {
       };
       reader.readAsArrayBuffer(file);
   };
+  
+  const handleExportAll = async () => {
+    setStatus({ type: 'info', message: 'در حال آماده‌سازی فایل اکسل برای خروجی...' });
+    try {
+        // Fetch all data, ignoring pagination but respecting search
+        const response = await fetch(`/api/personnel?type=personnel&page=1&pageSize=100000&searchTerm=${encodeURIComponent(debouncedSearchTerm)}`);
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'خطا در دریافت اطلاعات برای خروجی');
+        }
+
+        const data = await response.json();
+        const allPersonnel: Personnel[] = data.personnel || [];
+
+        if (allPersonnel.length === 0) {
+            setStatus({ type: 'info', message: 'هیچ داده‌ای برای خروجی گرفتن وجود ندارد.' });
+            setTimeout(() => setStatus(null), 3000);
+            return;
+        }
+
+        // Map data to Persian headers
+        const dataToExport = allPersonnel.map(p => {
+            const row: { [key: string]: string } = {};
+            for (const header of TABLE_HEADERS_KEYS) {
+                const key = HEADER_MAP[header as keyof typeof HEADER_MAP];
+                row[header] = toPersianDigits(String(p[key] ?? ''));
+            }
+            return row;
+        });
+        
+        const worksheet = XLSX.utils.json_to_sheet(dataToExport, { header: TABLE_HEADERS_KEYS });
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'لیست پرسنل');
+        XLSX.writeFile(workbook, 'Personnel_List_Export.xlsx');
+        setStatus(null); // Clear status on success
+    } catch (err) {
+        const message = err instanceof Error ? err.message : 'خطا در ایجاد فایل اکسل.';
+        setStatus({ type: 'error', message });
+        setTimeout(() => setStatus(null), 5000);
+    }
+  };
 
 
   const statusColor = {
@@ -376,6 +418,10 @@ const PersonnelListPage: React.FC = () => {
                 <UploadIcon className="w-4 h-4" />
                 ورود از اکسل
               </label>
+              <button onClick={handleExportAll} className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors text-sm font-medium">
+                  <DownloadIcon className="w-4 h-4" />
+                  خروجی اکسل
+              </button>
               <div className="w-px h-6 bg-gray-200 mx-2 hidden sm:block"></div>
               <button onClick={handleOpenAddModal} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">افزودن پرسنل</button>
               <button onClick={handleDeleteAll} disabled={totalCount === 0} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors">حذف کلی اطلاعات</button>
