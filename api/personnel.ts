@@ -57,6 +57,19 @@ async function handlePostPersonnel(body: any, response: VercelResponse, pool: Ve
     try {
         if (Array.isArray(body)) { // Bulk insert
             const allPersonnel: NewPersonnel[] = body;
+            
+            // Data sanitization on the backend as a safety measure
+            for (const p of allPersonnel) {
+                for (const key in p) {
+                    const typedKey = key as keyof NewPersonnel;
+                    if (typeof p[typedKey] === 'string') {
+                        (p as any)[typedKey] = (p[typedKey] as string)
+                            .replace(/[\u0000-\u001F\u200B-\u200D\u200E\u200F\uFEFF]/g, '')
+                            .trim();
+                    }
+                }
+            }
+            
             const BATCH_SIZE = 500;
             const validPersonnelList = allPersonnel.filter(p => p.personnel_code && p.first_name && p.last_name);
             if (validPersonnelList.length === 0) return response.status(200).json({ message: 'هیچ رکورد معتبری برای ورود یافت نشد.' });
@@ -96,29 +109,24 @@ async function handlePostPersonnel(body: any, response: VercelResponse, pool: Ve
     } catch (error) {
         await client.sql`ROLLBACK`.catch(() => {});
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-        console.error("Error in handlePostPersonnel:", errorMessage);
+        console.error("Error in handlePostPersonnel:", error);
 
         if (errorMessage.includes('personnel_national_id_key')) {
             return response.status(409).json({ 
-                error: 'خطا: کد ملی تکراری است. یک یا چند کد ملی در فایل اکسل شما از قبل در سیستم وجود دارد.'
+                error: 'خطا: کد ملی تکراری است.',
+                details: 'یک یا چند کد ملی در فایل اکسل شما از قبل در سیستم وجود دارد.'
             });
         }
         
         if (errorMessage.includes('personnel_personnel_code_key')) {
              return response.status(409).json({ 
-                error: 'خطا: کد پرسنلی تکراری است. سیستم باید این موارد را به‌روزرسانی کند اما با خطا مواجه شد.'
+                error: 'خطا: کد پرسنلی تکراری است.',
+                details: 'سیستم هنگام به‌روزرسانی رکورد موجود با خطا مواجه شد.'
             });
         }
 
-        if (errorMessage.includes('duplicate key')) {
-            return response.status(409).json({ 
-                error: 'خطا: یک مقدار تکراری (مانند کد ملی یا کد پرسنلی) در فایل شما وجود دارد.',
-                details: errorMessage
-            });
-        }
-        
         return response.status(500).json({ 
-            error: 'خطا در عملیات پایگاه داده.',
+            error: 'خطا در عملیات پایگاه داده. لطفاً فرمت فایل اکسل و مقادیر داخل آن را بررسی کنید.',
             details: `جزئیات فنی: ${errorMessage}` 
         });
     } finally {
