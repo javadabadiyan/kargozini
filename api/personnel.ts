@@ -202,32 +202,52 @@ async function handleGetDependents(request: VercelRequest, response: VercelRespo
 async function handlePostDependents(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
   const allDependents = request.body as NewDependent[];
   if (!Array.isArray(allDependents)) return response.status(400).json({ error: 'فرمت داده‌های ارسالی نامعتبر است.' });
+  
   const validList = allDependents.filter(d => d.personnel_code && d.first_name && d.last_name && d.national_id);
   if (validList.length === 0) return response.status(400).json({ error: 'هیچ رکورد معتبری برای ورود یافت نشد.' });
   
   try {
-    await client.sql`BEGIN`;
+    const BATCH_SIZE = 500;
+    let totalProcessed = 0;
+
     const columns = ['personnel_code', 'first_name', 'last_name', 'father_name', 'relation_type', 'birth_date', 'gender', 'birth_month', 'birth_day', 'id_number', 'national_id', 'issue_place', 'insurance_type'];
     const quotedColumns = columns.map(c => `"${c}"`);
     const updateSet = columns
       .filter(c => !['personnel_code', 'national_id'].includes(c))
       .map(c => `"${c}" = EXCLUDED."${c}"`).join(', ');
-      
-    const values: (string | null)[] = [];
-    const valuePlaceholders: string[] = [];
-    let paramIndex = 1;
-    for (const d of validList) {
-      const recordPlaceholders: string[] = [];
-      for (const col of columns) { values.push(d[col as keyof NewDependent] ?? null); recordPlaceholders.push(`$${paramIndex++}`); }
-      valuePlaceholders.push(`(${recordPlaceholders.join(', ')})`);
+
+    for (let i = 0; i < validList.length; i += BATCH_SIZE) {
+        const batch = validList.slice(i, i + BATCH_SIZE);
+        if (batch.length === 0) continue;
+
+        await client.sql`BEGIN`;
+        
+        const values: (string | null)[] = [];
+        const valuePlaceholders: string[] = [];
+        let paramIndex = 1;
+        for (const d of batch) {
+          const recordPlaceholders: string[] = [];
+          for (const col of columns) { 
+            values.push(d[col as keyof NewDependent] ?? null); 
+            recordPlaceholders.push(`$${paramIndex++}`); 
+          }
+          valuePlaceholders.push(`(${recordPlaceholders.join(', ')})`);
+        }
+
+        if (values.length > 0) {
+            const query = `INSERT INTO dependents (${quotedColumns.join(', ')}) VALUES ${valuePlaceholders.join(', ')} ON CONFLICT ("personnel_code", "national_id") DO UPDATE SET ${updateSet};`;
+            await (client as any).query(query, values);
+        }
+        
+        await client.sql`COMMIT`;
+        totalProcessed += batch.length;
     }
-    const query = `INSERT INTO dependents (${quotedColumns.join(', ')}) VALUES ${valuePlaceholders.join(', ')} ON CONFLICT ("personnel_code", "national_id") DO UPDATE SET ${updateSet};`;
-    await (client as any).query(query, values);
-    await client.sql`COMMIT`;
-    return response.status(200).json({ message: `عملیات موفق. ${validList.length} رکورد پردازش شد.` });
+
+    return response.status(200).json({ message: `عملیات موفق. ${totalProcessed} رکورد پردازش شد.` });
   } catch (error) {
     await client.sql`ROLLBACK`.catch(() => {});
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+    console.error("Error in handlePostDependents:", error);
     if (errorMessage.includes('foreign key constraint')) return response.status(400).json({ error: 'یک یا چند کد پرسنلی (یا کد ملی سرپرست) در فایل شما در لیست پرسنل اصلی وجود ندارد.' });
     return response.status(500).json({ error: 'خطا در عملیات پایگاه داده.', details: errorMessage });
   }
