@@ -202,6 +202,18 @@ async function handleGetDependents(request: VercelRequest, response: VercelRespo
 async function handlePostDependents(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
   const allDependents = request.body as NewDependent[];
   if (!Array.isArray(allDependents)) return response.status(400).json({ error: 'فرمت داده‌های ارسالی نامعتبر است.' });
+
+  // Data sanitization on the backend as a safety measure
+  allDependents.forEach(d => {
+      for (const key in d) {
+          const typedKey = key as keyof NewDependent;
+          if (typeof d[typedKey] === 'string') {
+              (d as any)[typedKey] = (d[typedKey] as string)
+                  .replace(/[\u0000-\u001F\u200B-\u200D\u200E\u200F\uFEFF]/g, '')
+                  .trim();
+          }
+      }
+  });
   
   // The 'personnel_code' field from the frontend now holds the head of household's NATIONAL ID.
   const validList = allDependents.filter(d => d.personnel_code && d.first_name && d.last_name && d.national_id);
@@ -211,8 +223,6 @@ async function handlePostDependents(request: VercelRequest, response: VercelResp
   const headNationalIdsInFile = [...new Set(validList.map(d => d.personnel_code))];
   
   if (headNationalIdsInFile.length > 0) {
-      // FIX: The `sql` template literal from @vercel/postgres does not accept arrays as parameters, causing a type error.
-      // Switched to `client.query` which correctly handles array parameters for `ANY` clauses.
       const { rows: existingHeads } = await client.query(
           `SELECT national_id, personnel_code FROM personnel WHERE national_id = ANY($1::text[])`,
           [headNationalIdsInFile]
