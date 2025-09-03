@@ -55,7 +55,7 @@ export default async function handler(
     await client.sql`
       CREATE TABLE IF NOT EXISTS dependents (
         id SERIAL PRIMARY KEY,
-        personnel_code VARCHAR(50) NOT NULL REFERENCES personnel(personnel_code) ON DELETE CASCADE,
+        personnel_code VARCHAR(50) NOT NULL,
         first_name VARCHAR(100) NOT NULL,
         last_name VARCHAR(100) NOT NULL,
         father_name VARCHAR(100),

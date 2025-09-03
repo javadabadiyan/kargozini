@@ -219,7 +219,9 @@ async function handleGetDependents(request: VercelRequest, response: VercelRespo
 
 async function handlePostDependents(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
   const allDependents = request.body as NewDependent[];
-  if (!Array.isArray(allDependents)) return response.status(400).json({ error: 'فرمت داده‌های ارسالی نامعتبر است.' });
+  if (!Array.isArray(allDependents)) {
+    return response.status(400).json({ error: 'فرمت داده‌های ارسالی نامعتبر است.' });
+  }
 
   allDependents.forEach(d => {
       for (const key in d) {
@@ -233,43 +235,8 @@ async function handlePostDependents(request: VercelRequest, response: VercelResp
   });
   
   const validList = allDependents.filter(d => d.personnel_code && d.first_name && d.last_name && d.national_id);
-  if (validList.length === 0) return response.status(400).json({ error: 'هیچ رکورد معتبری برای ورود یافت نشد.' });
-
-  const supervisorIdentifiersInFile = [...new Set(validList.map(d => d.personnel_code))];
-  
-  if (supervisorIdentifiersInFile.length > 0) {
-      const { rows: allPersonnel } = await client.sql`SELECT national_id, personnel_code FROM personnel`;
-
-      const identifierToPersonnelCodeMap = new Map<string, string>();
-      for (const p of allPersonnel) {
-        const nationalId = p.national_id ? String(p.national_id).trim() : null;
-        const personnelCode = p.personnel_code ? String(p.personnel_code).trim() : null;
-        
-        if (personnelCode) {
-            if (nationalId) {
-                identifierToPersonnelCodeMap.set(nationalId, personnelCode);
-            }
-            identifierToPersonnelCodeMap.set(personnelCode, personnelCode);
-        }
-      }
-
-      const missingIdentifiers = supervisorIdentifiersInFile.filter(id => !identifierToPersonnelCodeMap.has(id));
-
-      if (missingIdentifiers.length > 0) {
-          return response.status(400).json({
-              error: `شناسه سرپرست (کد ملی یا کد پرسنلی) برای برخی از رکوردها در سیستم یافت نشد.`,
-              details: `لطفاً فایل اکسل خود را بررسی کنید. سرپرستی با شناسه‌های زیر در سیستم وجود ندارد: ${missingIdentifiers.join(', ')}`
-          });
-      }
-      
-      for(const dependent of validList) {
-          const correctPersonnelCode = identifierToPersonnelCodeMap.get(dependent.personnel_code);
-          if (correctPersonnelCode) {
-              dependent.personnel_code = correctPersonnelCode;
-          } else {
-              return response.status(500).json({ error: 'خطای داخلی سرور هنگام مپ کردن شناسه سرپرست به کد پرسنلی.' });
-          }
-      }
+  if (validList.length === 0) {
+    return response.status(400).json({ error: 'هیچ رکورد معتبری برای ورود یافت نشد. لطفاً از وجود ستون‌های کد پرسنلی، نام، نام خانوادگی و کد ملی بستگان اطمینان حاصل کنید.' });
   }
   
   try {
