@@ -25,20 +25,35 @@ const toEnglishDigits = (str: string): string => {
 
 
 const jalaliToGregorian = (jy?: number, jm?: number, jd?: number): string | null => {
-    if (!jy || !jm || !jd) return null;
-    let sal_a, gy, gm, gd, j_day_no;
-    sal_a = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-    gy = jy + 621;
-    let leap = (gy % 4 == 0 && gy % 100 != 0) || (gy % 400 == 0);
-    if (leap) sal_a[2] = 29;
-    if (jm <= 6) j_day_no = (jm - 1) * 31 + jd;
-    else j_day_no = 186 + (jm - 7) * 30 + jd;
-    if (leap && j_day_no > 59) j_day_no++;
-    if (j_day_no > 79) j_day_no -= 79;
-    else { gy--; j_day_no += 286; leap = (gy % 4 == 0 && gy % 100 != 0) || (gy % 400 == 0); if (leap) j_day_no++; }
-    for (gm = 1; gm < 13; gm++) { if (j_day_no <= sal_a[gm]) break; j_day_no -= sal_a[gm]; }
-    gd = j_day_no;
-    return `${gy}-${String(gm).padStart(2, '0')}-${String(gd).padStart(2, '0')}`;
+    if (!jy || !jm || !jd || isNaN(jy) || isNaN(jm) || isNaN(jd)) return null;
+    
+    let j_year = jy;
+    let j_month = jm;
+    let j_day = jd;
+
+    j_year += 1595;
+    let days = -355668 + (365 * j_year) + (Math.floor(j_year / 33) * 8) + Math.floor(((j_year % 33) + 3) / 4) + j_day + ((j_month < 7) ? (j_month - 1) * 31 : ((j_month - 7) * 30) + 186);
+    let g_year = 400 * Math.floor(days / 146097);
+    days %= 146097;
+    if (days > 36524) {
+        g_year += 100 * Math.floor(--days / 36524);
+        days %= 36524;
+        if (days >= 365) days++;
+    }
+    g_year += 4 * Math.floor(days / 1461);
+    days %= 1461;
+    if (days > 365) {
+        g_year += Math.floor((days - 1) / 365);
+        days = (days - 1) % 365;
+    }
+    let g_day = days + 1;
+    const sal_a = [0, 31, ((g_year % 4 === 0 && g_year % 100 !== 0) || (g_year % 400 === 0)) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+    let g_month = 0;
+    for (; g_month < 13 && g_day > sal_a[g_month]; g_month++) {
+        g_day -= sal_a[g_month];
+    }
+    
+    return `${g_year}-${String(g_month).padStart(2, '0')}-${String(g_day).padStart(2, '0')}`;
 };
 
 const DatePicker: React.FC<{ date: any, setDate: (date: any) => void }> = ({ date, setDate }) => {
