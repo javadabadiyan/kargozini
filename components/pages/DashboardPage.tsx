@@ -9,6 +9,14 @@ const toPersianDigits = (s: string | number | null | undefined): string => {
     return String(s).replace(/[0-9]/g, (w) => '۰۱۲۳۴۵۶۷۸۹'[parseInt(w, 10)]);
 };
 
+// Helper to convert Persian/Arabic numerals to English for calculations
+const toEnglishDigits = (str: string): string => {
+    if (!str) return '';
+    return str.replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString())
+              .replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString());
+};
+
+
 // Age calculation helpers
 const getCurrentPersianDate = (): { year: number; month: number; day: number } => {
     const today = new Date();
@@ -20,12 +28,10 @@ const getCurrentPersianDate = (): { year: number; month: number; day: number } =
         day: 'numeric',
     });
     const parts = formatter.formatToParts(today);
-    // Helper to convert any Persian digits back to English to ensure parseInt works
-    const toEnglish = (s: string) => s.replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString());
 
-    const year = parseInt(toEnglish(parts.find(p => p.type === 'year')?.value || '0'), 10);
-    const month = parseInt(toEnglish(parts.find(p => p.type === 'month')?.value || '0'), 10);
-    const day = parseInt(toEnglish(parts.find(p => p.type === 'day')?.value || '0'), 10);
+    const year = parseInt(toEnglishDigits(parts.find(p => p.type === 'year')?.value || '0'), 10);
+    const month = parseInt(toEnglishDigits(parts.find(p => p.type === 'month')?.value || '0'), 10);
+    const day = parseInt(toEnglishDigits(parts.find(p => p.type === 'day')?.value || '0'), 10);
 
     return { year, month, day };
 };
@@ -33,8 +39,10 @@ const getCurrentPersianDate = (): { year: number; month: number; day: number } =
 const persianDateToAge = (birthDateStr: string | null | undefined, currentDate: { year: number; month: number; day: number }): number | null => {
     if (!birthDateStr || typeof birthDateStr !== 'string') return null;
 
+    const englishBirthDateStr = toEnglishDigits(birthDateStr);
+
     // Match only the year part, e.g., "1370" from "1370/01/01"
-    const match = birthDateStr.match(/^(\d{4})/);
+    const match = englishBirthDateStr.match(/^(\d{4})/);
     if (!match) return null;
     
     const birthYear = parseInt(match[1], 10);
