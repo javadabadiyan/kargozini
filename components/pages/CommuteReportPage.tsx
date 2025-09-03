@@ -84,6 +84,16 @@ const DatePicker: React.FC<{ date: any, setDate: (date: any) => void }> = ({ dat
     );
 };
 
+const formatMinutesToHours = (totalMinutes: number): string => {
+    if (totalMinutes <= 0) return '۰ دقیقه';
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = Math.round(totalMinutes % 60);
+    let result = [];
+    if (hours > 0) result.push(`${toPersianDigits(hours)} ساعت`);
+    if (minutes > 0) result.push(`${toPersianDigits(minutes)} دقیقه`);
+    return result.join(' و ');
+};
+
 const CommuteReportPage: React.FC = () => {
     const [activeTab, setActiveTab] = useState('general');
     const [reportData, setReportData] = useState<CommuteReportRow[]>([]);
@@ -601,6 +611,39 @@ const CommuteReportPage: React.FC = () => {
             }))
             .sort((a, b) => a.date.localeCompare(b.date, 'fa'));
     }, [selectedAnalysisPersonnel, reportData, standardTimes, calculateDifferenceInMinutes]);
+
+    const hourlySummary = useMemo(() => {
+        if (hourlyReportData.length === 0) return [];
+        
+        const summary: Record<string, {
+            fullName: string;
+            code: string;
+            department: string | null;
+            totalMinutes: number;
+        }> = {};
+
+        hourlyReportData.forEach(row => {
+            const code = row.personnel_code;
+            if (!summary[code]) {
+                summary[code] = {
+                    fullName: row.full_name,
+                    code: row.personnel_code,
+                    department: row.department,
+                    totalMinutes: 0
+                };
+            }
+            
+            if (row.exit_time && row.entry_time) {
+                const duration = (new Date(row.entry_time).getTime() - new Date(row.exit_time).getTime()) / 60000;
+                if (duration > 0) {
+                    summary[code].totalMinutes += duration;
+                }
+            }
+        });
+
+        return Object.values(summary).sort((a, b) => b.totalMinutes - a.totalMinutes);
+
+    }, [hourlyReportData]);
     
     const statusColor = { info: 'bg-blue-100 text-blue-800', success: 'bg-green-100 text-green-800', error: 'bg-red-100 text-red-800' };
 
@@ -795,6 +838,35 @@ const CommuteReportPage: React.FC = () => {
                         </label>
                     </div>
                 </div>
+
+                {!hourlyReportLoading && hourlySummary.length > 0 && (
+                    <div className="space-y-2">
+                        <h3 className="text-lg font-bold text-gray-800">خلاصه جمع کل تردد بین ساعتی</h3>
+                        <div className="overflow-x-auto border rounded-lg">
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-100">
+                                    <tr>
+                                        {['نام پرسنل', 'کد پرسنلی', 'واحد', 'جمع کل مدت تردد'].map(h => 
+                                            <th key={h} className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider whitespace-nowrap">{h}</th>
+                                        )}
+                                    </tr>
+                                </thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {hourlySummary.map(row => (
+                                        <tr key={row.code} className="hover:bg-slate-50">
+                                            <td className="px-4 py-3 whitespace-nowrap text-sm font-medium">{row.fullName}</td>
+                                            <td className="px-4 py-3 whitespace-nowrap text-sm">{toPersianDigits(row.code)}</td>
+                                            <td className="px-4 py-3 whitespace-nowrap text-sm">{row.department}</td>
+                                            <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold">{formatMinutesToHours(row.totalMinutes)}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
+                
+                <h3 className="text-lg font-bold text-gray-800 pt-4">جزئیات تردد بین ساعتی</h3>
                 <div className="overflow-x-auto border rounded-lg">
                     <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-100">
