@@ -207,7 +207,8 @@ async function handlePostDependents(request: VercelRequest, response: VercelResp
   if (validList.length === 0) return response.status(400).json({ error: 'هیچ رکورد معتبری برای ورود یافت نشد.' });
   
   try {
-    const BATCH_SIZE = 500;
+    await client.sql`BEGIN`;
+    const BATCH_SIZE = 250; // Reduced batch size for safety
     let totalProcessed = 0;
 
     const columns = ['personnel_code', 'first_name', 'last_name', 'father_name', 'relation_type', 'birth_date', 'gender', 'birth_month', 'birth_day', 'id_number', 'national_id', 'issue_place', 'insurance_type'];
@@ -219,8 +220,6 @@ async function handlePostDependents(request: VercelRequest, response: VercelResp
     for (let i = 0; i < validList.length; i += BATCH_SIZE) {
         const batch = validList.slice(i, i + BATCH_SIZE);
         if (batch.length === 0) continue;
-
-        await client.sql`BEGIN`;
         
         const values: (string | null)[] = [];
         const valuePlaceholders: string[] = [];
@@ -239,17 +238,22 @@ async function handlePostDependents(request: VercelRequest, response: VercelResp
             await (client as any).query(query, values);
         }
         
-        await client.sql`COMMIT`;
         totalProcessed += batch.length;
     }
 
+    await client.sql`COMMIT`;
     return response.status(200).json({ message: `عملیات موفق. ${totalProcessed} رکورد پردازش شد.` });
   } catch (error) {
     await client.sql`ROLLBACK`.catch(() => {});
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     console.error("Error in handlePostDependents:", error);
-    if (errorMessage.includes('foreign key constraint')) return response.status(400).json({ error: 'یک یا چند کد پرسنلی (یا کد ملی سرپرست) در فایل شما در لیست پرسنل اصلی وجود ندارد.' });
-    return response.status(500).json({ error: 'خطا در عملیات پایگاه داده.', details: errorMessage });
+    if (errorMessage.includes('foreign key constraint')) {
+        return response.status(400).json({ error: 'یک یا چند کد پرسنلی (یا کد ملی سرپرست) در فایل شما در لیست پرسنل اصلی وجود ندارد.' });
+    }
+    return response.status(500).json({ 
+        error: 'خطا در عملیات پایگاه داده.', 
+        details: `این خطا ممکن است به دلیل حجم زیاد داده، فرمت نادرست فایل اکسل، یا عدم وجود کد پرسنلی سرپرست در سیستم باشد. جزئیات فنی: ${errorMessage}` 
+    });
   }
 }
 
