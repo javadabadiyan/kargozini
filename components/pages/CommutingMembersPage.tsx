@@ -151,8 +151,8 @@ const CommutingMembersPage: React.FC = () => {
             <button onClick={() => setIsAddModalOpen(true)} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">افزودن دستی</button>
             <button onClick={handleDownloadSample} className="px-4 py-2 bg-gray-100 text-gray-700 border border-gray-300 text-sm rounded-lg hover:bg-gray-200">دانلود نمونه</button>
             <input type="file" accept=".xlsx, .xls" ref={fileInputRef} onChange={handleFileImport} className="hidden" id="excel-import-commuting" />
-            <label htmlFor="excel-import-commuting" className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 cursor-pointer">ورود از اکسل</label>
-            <button onClick={handleExport} disabled={members.length === 0} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400">خروجی اکسل</button>
+            <label htmlFor="excel-import-commuting" className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 cursor-pointer">بازیابی از فایل</label>
+            <button onClick={handleExport} disabled={members.length === 0} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400">تهیه پشتیبان</button>
         </div>
       </div>
       

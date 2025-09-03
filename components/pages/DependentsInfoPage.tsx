@@ -207,8 +207,8 @@ const DependentsInfoPage: React.FC = () => {
         <div className="flex items-center gap-2 flex-wrap">
               <button onClick={handleDownloadSample} className="px-4 py-2 bg-gray-100 text-gray-700 border border-gray-300 text-sm rounded-lg hover:bg-gray-200 transition-colors">دانلود نمونه</button>
               <input type="file" accept=".xlsx, .xls" ref={fileInputRef} onChange={handleFileImport} className="hidden" id="excel-import-dependents" />
-              <label htmlFor="excel-import-dependents" className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 cursor-pointer transition-colors">ورود از اکسل</label>
-              <button onClick={handleExport} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">خروجی اکسل</button>
+              <label htmlFor="excel-import-dependents" className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 cursor-pointer transition-colors">بازیابی از فایل</label>
+              <button onClick={handleExport} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">تهیه پشتیبان</button>
         </div>
       </div>
       

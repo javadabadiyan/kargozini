@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type { AppUser, UserPermissions } from '../../types';
 import UserEditModal from '../UserEditModal';
-import { PencilIcon, TrashIcon, DownloadIcon, UploadIcon, DocumentReportIcon, UsersIcon } from '../icons/Icons';
+import { PencilIcon, TrashIcon, DownloadIcon, UploadIcon } from '../icons/Icons';
 
 declare const XLSX: any;
 
@@ -25,21 +25,6 @@ const PERMISSION_KEYS: { key: keyof UserPermissions, label: string }[] = [
     { key: 'user_management', label: 'مدیریت کاربران (در تنظیمات)' },
 ];
 
-const INDIVIDUAL_BACKUP_ITEMS = [
-    { id: 'personnel', label: 'پرسنل', icon: UsersIcon, api: '/api/personnel?type=personnel', headers: ['کد پرسنلی', 'نام', 'نام خانوادگی', 'نام پدر', 'کد ملی', 'شماره شناسنامه', 'تاریخ تولد', 'محل تولد', 'تاریخ صدور', 'محل صدور', 'وضعیت تاهل', 'وضعیت نظام وظیفه', 'شغل', 'سمت', 'نوع استخدام', 'واحد', 'محل خدمت', 'تاریخ استخدام', 'مدرک تحصیلی', 'رشته تحصیلی', 'وضعیت'] },
-    { id: 'dependents', label: 'بستگان', icon: UsersIcon, api: '/api/personnel?type=dependents', headers: ['کد پرسنلی', 'نوع وابستگی', 'نام', 'نام خانوادگی', 'کد ملی', 'تاریخ تولد', 'جنسیت'] },
-    { id: 'commuting_members', label: 'اعضای تردد', icon: UsersIcon, api: '/api/personnel?type=commuting_members', headers: ['نام و نام خانوادگی', 'کد پرسنلی', 'واحد', 'سمت'] },
-    { id: 'users', label: 'کاربران', icon: UsersIcon, api: '/api/users', headers: ['username', 'password', ...PERMISSION_KEYS.map(p => `perm_${p.key}`)] }
-];
-
-// Helper to export data to Excel
-const exportToExcel = (data: any[], fileName: string, sheetName: string) => {
-    const worksheet = XLSX.utils.json_to_sheet(data);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-    XLSX.writeFile(workbook, `${fileName}.xlsx`);
-};
-
 const SettingsPage: React.FC = () => {
     const currentUser = JSON.parse(sessionStorage.getItem('currentUser') || '{}');
     const userPermissions: UserPermissions = currentUser.permissions || {};
@@ -49,7 +34,6 @@ const SettingsPage: React.FC = () => {
     const logoInputRef = useRef<HTMLInputElement>(null);
     const backupInputRef = useRef<HTMLInputElement>(null);
     const userImportRef = useRef<HTMLInputElement>(null);
-    const individualImportRefs = useRef<{[key: string]: HTMLInputElement | null}>({});
     
     const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
     const [status, setStatus] = useState<{ type: 'info' | 'success' | 'error'; message: string } | null>(null);
@@ -413,28 +397,6 @@ const SettingsPage: React.FC = () => {
                 </div>
             </div>
 
-            <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-lg">
-                <h2 className="text-xl font-bold text-gray-700 dark:text-gray-200 border-b dark:border-slate-700 pb-3 mb-4">پشتیبان‌گیری و بازیابی مجزا (اکسل)</h2>
-                <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
-                    از هر بخش به صورت جداگانه خروجی اکسل تهیه کرده یا اطلاعات را از فایل اکسل استاندارد وارد سیستم کنید.
-                </p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {INDIVIDUAL_BACKUP_ITEMS.map(item => (
-                        <div key={item.id} className="p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <item.icon className="w-8 h-8 text-slate-500"/>
-                                <span className="font-semibold text-gray-700 dark:text-gray-200">{item.label}</span>
-                            </div>
-                             <div className="flex items-center gap-2">
-                                <button className="px-3 py-1.5 text-xs bg-blue-100 text-blue-800 rounded hover:bg-blue-200 dark:bg-blue-900/40 dark:text-blue-200">خروجی اکسل</button>
-                                <input type="file" ref={el => { individualImportRefs.current[item.id] = el; }} accept=".xlsx, .xls" className="hidden" id={`import-${item.id}`}/>
-                                <label htmlFor={`import-${item.id}`} className="px-3 py-1.5 text-xs bg-green-100 text-green-800 rounded hover:bg-green-200 dark:bg-green-900/40 dark:text-green-200 cursor-pointer">ورود از اکسل</label>
-                             </div>
-                        </div>
-                    ))}
-                </div>
-            </div>
-            
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-6 rounded-lg shadow-lg">
                 <h2 className="text-xl font-bold text-red-800 dark:text-red-300">منطقه خطر</h2>
                 <p className="text-sm text-red-700 dark:text-red-300 mt-2 mb-4">عملیات زیر غیرقابل بازگشت هستند. لطفاً با احتیاط کامل اقدام کنید.</p>

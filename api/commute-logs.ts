@@ -94,14 +94,42 @@ async function handleGetHourly(request: VercelRequest, response: VercelResponse,
 }
 
 async function handlePostHourly(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
-    const { personnel_code, full_name, guard_name, exit_time, entry_time, reason } = request.body;
-    if (!personnel_code || !full_name || !guard_name || (!exit_time && !entry_time)) return response.status(400).json({ error: 'اطلاعات ارسالی ناقص است. زمان ورود یا خروج باید مشخص باشد.' });
-    const { rows } = await pool.sql`
-        INSERT INTO hourly_commute_logs (personnel_code, full_name, guard_name, exit_time, entry_time, reason)
-        VALUES (${personnel_code}, ${full_name}, ${guard_name}, ${exit_time || null}, ${entry_time || null}, ${reason || null})
-        RETURNING *;
-    `;
-    return response.status(201).json({ message: exit_time ? 'خروج ساعتی ثبت شد.' : 'ورود ساعتی ثبت شد.', log: rows[0] });
+    const body = request.body;
+    const client = await pool.connect();
+    try {
+      if (Array.isArray(body)) {
+        const validLogs = body.filter(l => l.personnel_code && l.guard_name && (l.exit_time || l.entry_time));
+        if (validLogs.length === 0) return response.status(400).json({ error: 'هیچ رکورد معتبری برای ورود یافت نشد.' });
+        await client.sql`BEGIN`;
+        const columns = ['personnel_code', 'full_name', 'guard_name', 'exit_time', 'entry_time', 'reason'];
+        const values: (string | null)[] = [];
+        const valuePlaceholders: string[] = [];
+        let paramIndex = 1;
+        for (const log of validLogs) {
+            values.push(log.personnel_code, log.full_name || log.personnel_code, log.guard_name, log.exit_time || null, log.entry_time || null, log.reason || null);
+            valuePlaceholders.push(`($${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++})`);
+        }
+        const query = `INSERT INTO hourly_commute_logs (${columns.join(', ')}) VALUES ${valuePlaceholders.join(', ')}`;
+        await (client as any).query(query, values);
+        await client.sql`COMMIT`;
+        return response.status(201).json({ message: `عملیات موفق. ${validLogs.length} رکورد تردد ساعتی وارد شد.` });
+      } else {
+        const { personnel_code, full_name, guard_name, exit_time, entry_time, reason } = body;
+        if (!personnel_code || !full_name || !guard_name || (!exit_time && !entry_time)) return response.status(400).json({ error: 'اطلاعات ارسالی ناقص است. زمان ورود یا خروج باید مشخص باشد.' });
+        const { rows } = await pool.sql`
+            INSERT INTO hourly_commute_logs (personnel_code, full_name, guard_name, exit_time, entry_time, reason)
+            VALUES (${personnel_code}, ${full_name}, ${guard_name}, ${exit_time || null}, ${entry_time || null}, ${reason || null})
+            RETURNING *;
+        `;
+        return response.status(201).json({ message: exit_time ? 'خروج ساعتی ثبت شد.' : 'ورود ساعتی ثبت شد.', log: rows[0] });
+      }
+    } catch (error) {
+      await client.sql`ROLLBACK`.catch(()=>{});
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      return response.status(500).json({ error: 'خطا در عملیات پایگاه داده.', details: errorMessage });
+    } finally {
+      client.release();
+    }
 }
 
 async function handlePutHourly(request: VercelRequest, response: VercelResponse, pool: VercelPool) {

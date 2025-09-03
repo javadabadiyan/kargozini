@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import type { CommutingMember, CommuteReportRow, PresentMember, HourlyCommuteReportRow, CommuteEditLog, CommuteLog } from '../../types';
-import { PencilIcon, TrashIcon } from '../icons/Icons';
+import { PencilIcon, TrashIcon, DownloadIcon, UploadIcon } from '../icons/Icons';
 import EditCommuteLogModal from '../EditCommuteLogModal';
 import EditHourlyLogModal from '../EditHourlyLogModal';
 
@@ -16,6 +16,13 @@ const toPersianDigits = (s: string | number | null | undefined): string => {
     if (s === null || s === undefined) return '';
     return String(s).replace(/[0-9]/g, (w) => '۰۱۲۳۴۵۶۷۸۹'[parseInt(w, 10)]);
 };
+
+const toEnglishDigits = (str: string): string => {
+    if (!str) return '';
+    return str.replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString())
+              .replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString());
+};
+
 
 const jalaliToGregorian = (jy?: number, jm?: number, jd?: number): string | null => {
     if (!jy || !jm || !jd) return null;
@@ -91,6 +98,7 @@ const CommuteReportPage: React.FC = () => {
     
     // State for Monthly Report
     const [monthlyExportStatus, setMonthlyExportStatus] = useState<{ type: 'info' | 'success' | 'error'; message: string } | null>(null);
+    const [backupStatus, setBackupStatus] = useState<{ type: 'info' | 'success' | 'error'; message: string } | null>(null);
     
     // States for Edit Logs Report
     const [editLogs, setEditLogs] = useState<CommuteEditLog[]>([]);
@@ -102,6 +110,9 @@ const CommuteReportPage: React.FC = () => {
     const [editingLog, setEditingLog] = useState<CommuteLog | null>(null);
     const [isHourlyEditModalOpen, setIsHourlyEditModalOpen] = useState(false);
     const [editingHourlyLog, setEditingHourlyLog] = useState<HourlyCommuteReportRow | null>(null);
+
+    const dailyBackupRef = useRef<HTMLInputElement>(null);
+    const hourlyBackupRef = useRef<HTMLInputElement>(null);
 
     const filterOptions = useMemo(() => {
         const departments = [...new Set(commutingMembers.map(m => m.department).filter(Boolean))].sort((a,b) => a.localeCompare(b, 'fa'));
@@ -578,12 +589,98 @@ const CommuteReportPage: React.FC = () => {
     
     const statusColor = { info: 'bg-blue-100 text-blue-800', success: 'bg-green-100 text-green-800', error: 'bg-red-100 text-red-800' };
 
+    // --- Backup and Restore Handlers ---
+
+    const handleBackup = async (type: 'daily' | 'hourly') => {
+        setBackupStatus({ type: 'info', message: 'در حال آماده سازی فایل پشتیبان...'});
+        try {
+            const reportType = type === 'daily' ? 'general' : 'hourly';
+            const response = await fetch(`/api/commute-logs?report=${reportType}`);
+            if (!response.ok) throw new Error((await response.json()).error || 'خطا در دریافت داده‌ها');
+            const data = await response.json();
+            const rows = data.reports || [];
+            
+            let headers, dataToExport, fileName;
+
+            if (type === 'daily') {
+                headers = ['personnel_code', 'guard_name', 'entry_time', 'exit_time'];
+                dataToExport = rows.map((r: CommuteReportRow) => ({
+                    personnel_code: r.personnel_code,
+                    guard_name: r.guard_name,
+                    entry_time: r.entry_time,
+                    exit_time: r.exit_time
+                }));
+                fileName = 'Daily_Commute_Backup.xlsx';
+            } else {
+                headers = ['personnel_code', 'full_name', 'guard_name', 'exit_time', 'entry_time', 'reason'];
+                 dataToExport = rows.map((r: HourlyCommuteReportRow) => ({
+                    personnel_code: r.personnel_code,
+                    full_name: r.full_name,
+                    guard_name: r.guard_name,
+                    exit_time: r.exit_time,
+                    entry_time: r.entry_time,
+                    reason: r.reason,
+                }));
+                fileName = 'Hourly_Commute_Backup.xlsx';
+            }
+
+            const worksheet = XLSX.utils.json_to_sheet(dataToExport, { header: headers });
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Backup');
+            XLSX.writeFile(workbook, fileName);
+
+            setBackupStatus({ type: 'success', message: 'فایل پشتیبان با موفقیت دانلود شد.' });
+
+        } catch (err) {
+            setBackupStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در ایجاد پشتیبان'});
+        } finally {
+            setTimeout(() => setBackupStatus(null), 5000);
+        }
+    };
+    
+    const handleRestore = (e: React.ChangeEvent<HTMLInputElement>, type: 'daily' | 'hourly') => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setBackupStatus({ type: 'info', message: 'در حال پردازش فایل برای بازیابی...'});
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const workbook = XLSX.read(new Uint8Array(event.target?.result as ArrayBuffer), { type: 'array' });
+                const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+
+                const url = type === 'daily' ? '/api/commute-logs' : '/api/commute-logs?entity=hourly';
+                
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(json)
+                });
+                
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.details || data.error);
+
+                setBackupStatus({ type: 'success', message: 'اطلاعات با موفقیت بازیابی شد.'});
+                if (type === 'daily') fetchReportData();
+                else fetchHourlyReportData();
+
+            } catch (err) {
+                setBackupStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در بازیابی اطلاعات'});
+            } finally {
+                if (e.target) e.target.value = "";
+                setTimeout(() => setBackupStatus(null), 5000);
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    };
+
     return (
         <div className="bg-white p-6 rounded-lg shadow-lg space-y-6">
             <div>
                 <h1 className="text-2xl font-bold text-gray-800">گزارش گیری</h1>
                 <p className="text-sm text-gray-500 mt-1">تحلیل و بررسی داده‌های تردد ثبت شده در سیستم</p>
             </div>
+            {backupStatus && <div className={`p-4 mb-4 text-sm rounded-lg ${statusColor[backupStatus.type]}`}>{backupStatus.message}</div>}
 
             <div className="p-4 border rounded-lg bg-slate-50 space-y-4">
                 <h2 className="font-bold text-gray-700">فیلتر گزارش</h2>
@@ -608,6 +705,19 @@ const CommuteReportPage: React.FC = () => {
 
             {activeTab === 'general' && (
             <div className="space-y-4">
+                 <div className="p-4 border rounded-lg bg-slate-50 space-y-3">
+                    <h3 className="font-bold text-gray-700">پشتیبان‌گیری و بازیابی (تردد روزانه)</h3>
+                    <p className="text-xs text-gray-500">از کل اطلاعات ترددهای روزانه یک فایل پشتیبان تهیه کنید یا اطلاعات را از یک فایل بازیابی نمایید. (فیلترهای بالا در این عملیات نادیده گرفته می‌شوند)</p>
+                     <div className="flex items-center gap-2">
+                        <button onClick={() => handleBackup('daily')} className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700">
+                           <DownloadIcon className="w-5 h-5"/> تهیه پشتیبان
+                        </button>
+                        <input type="file" ref={dailyBackupRef} onChange={(e) => handleRestore(e, 'daily')} accept=".xlsx, .xls" className="hidden" id="daily-backup-import"/>
+                        <label htmlFor="daily-backup-import" className="flex items-center gap-2 px-4 py-2 text-sm bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 cursor-pointer">
+                           <UploadIcon className="w-5 h-5"/> بازیابی از فایل
+                        </label>
+                    </div>
+                </div>
                 <div className="p-4 border rounded-lg bg-slate-50 flex items-center gap-6">
                     <h3 className="font-bold text-gray-700">تنظیمات محاسبه تاخیر/تعجیل</h3>
                     <div className="flex items-center gap-2">
@@ -657,6 +767,19 @@ const CommuteReportPage: React.FC = () => {
 
             {activeTab === 'hourly' && (
             <div className="space-y-4">
+                 <div className="p-4 border rounded-lg bg-slate-50 space-y-3">
+                    <h3 className="font-bold text-gray-700">پشتیبان‌گیری و بازیابی (تردد بین ساعتی)</h3>
+                    <p className="text-xs text-gray-500">از کل اطلاعات ترددهای بین ساعتی یک فایل پشتیبان تهیه کنید یا اطلاعات را از یک فایل بازیابی نمایید. (فیلترهای بالا در این عملیات نادیده گرفته می‌شوند)</p>
+                     <div className="flex items-center gap-2">
+                        <button onClick={() => handleBackup('hourly')} className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700">
+                           <DownloadIcon className="w-5 h-5"/> تهیه پشتیبان
+                        </button>
+                        <input type="file" ref={hourlyBackupRef} onChange={(e) => handleRestore(e, 'hourly')} accept=".xlsx, .xls" className="hidden" id="hourly-backup-import"/>
+                        <label htmlFor="hourly-backup-import" className="flex items-center gap-2 px-4 py-2 text-sm bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 cursor-pointer">
+                           <UploadIcon className="w-5 h-5"/> بازیابی از فایل
+                        </label>
+                    </div>
+                </div>
                 <div className="overflow-x-auto border rounded-lg">
                     <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-100">
