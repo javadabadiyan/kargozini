@@ -302,6 +302,60 @@ async function handlePostDependents(request: VercelRequest, response: VercelResp
   }
 }
 
+async function handlePutDependent(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+    const d = request.body as Dependent;
+    if (!d || !d.id) {
+        return response.status(400).json({ error: 'شناسه وابسته برای ویرایش الزامی است.' });
+    }
+    try {
+        const { rows } = await pool.sql`
+            UPDATE dependents SET 
+                first_name = ${d.first_name},
+                last_name = ${d.last_name},
+                father_name = ${d.father_name},
+                relation_type = ${d.relation_type},
+                birth_date = ${d.birth_date},
+                gender = ${d.gender},
+                birth_month = ${d.birth_month},
+                birth_day = ${d.birth_day},
+                id_number = ${d.id_number},
+                issue_place = ${d.issue_place},
+                insurance_type = ${d.insurance_type}
+            WHERE id = ${d.id} RETURNING *;
+        `;
+        if (rows.length === 0) {
+            return response.status(404).json({ error: 'وابسته‌ای با این شناسه یافت نشد.' });
+        }
+        return response.status(200).json({ message: 'اطلاعات با موفقیت به‌روزرسانی شد.', dependent: rows[0] });
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error("Error in handlePutDependent:", error);
+        return response.status(500).json({ error: 'خطا در عملیات پایگاه داده.', details: errorMessage });
+    }
+}
+
+async function handleDeleteDependent(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+    const { id } = request.query;
+    if (!id || typeof id !== 'string') {
+        return response.status(400).json({ error: 'شناسه وابسته برای حذف الزامی است.' });
+    }
+    const dependentId = parseInt(id, 10);
+    if (isNaN(dependentId)) {
+        return response.status(400).json({ error: 'شناسه نامعتبر است.' });
+    }
+    try {
+        const result = await pool.sql`DELETE FROM dependents WHERE id = ${dependentId};`;
+        if (result.rowCount === 0) {
+            return response.status(404).json({ error: 'وابسته‌ای با این شناسه یافت نشد.' });
+        }
+        return response.status(200).json({ message: 'وابسته با موفقیت حذف شد.' });
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error("Error in handleDeleteDependent:", error);
+        return response.status(500).json({ error: 'خطا در عملیات پایگاه داده.', details: errorMessage });
+    }
+}
+
 // =================================================================================
 // COMMUTING MEMBERS HANDLERS
 // =================================================================================
@@ -445,12 +499,13 @@ export default async function handler(request: VercelRequest, response: VercelRe
 
       case 'PUT':
         if (type === 'personnel') return await handlePutPersonnel(request, response, pool);
-        // Other types don't have PUT handlers for now
+        if (type === 'dependents') return await handlePutDependent(request, response, pool);
         return response.status(400).json({ error: 'نوع داده نامعتبر است.' });
       
       case 'DELETE':
         if (type === 'personnel') return await handleDeletePersonnel(request, response, pool);
         if (type === 'documents') return await handleDeleteDocument(request, response, pool);
+        if (type === 'dependents') return await handleDeleteDependent(request, response, pool);
         return response.status(400).json({ error: 'نوع داده برای حذف نامعتبر است.' });
 
       default:

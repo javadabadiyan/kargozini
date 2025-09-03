@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { SearchIcon, UserIcon, UsersIcon } from '../icons/Icons';
+import { SearchIcon, UserIcon, UsersIcon, PencilIcon, TrashIcon } from '../icons/Icons';
 import type { Personnel, Dependent } from '../../types';
+import EditDependentModal from '../EditDependentModal';
 
 // Type alias for SheetJS, assuming it's loaded from a global script
 declare const XLSX: any;
@@ -22,7 +23,7 @@ const DEPENDENT_HEADER_MAP: { [key: string]: keyof Omit<Dependent, 'id'> } = {
 };
 
 const EXPORT_HEADERS = Object.keys(DEPENDENT_HEADER_MAP);
-const TABLE_VIEW_HEADERS = EXPORT_HEADERS.filter(h => h !== 'كد ملي سرپرست');
+const TABLE_VIEW_HEADERS = [...EXPORT_HEADERS.filter(h => h !== 'كد ملي سرپرست'), 'عملیات'];
 
 
 const DependentsInfoPage: React.FC = () => {
@@ -39,6 +40,9 @@ const DependentsInfoPage: React.FC = () => {
   
   const [importStatus, setImportStatus] = useState<{ type: 'info' | 'success' | 'error'; message: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingDependent, setEditingDependent] = useState<Dependent | null>(null);
 
   const toPersianDigits = (s: string | null | undefined): string => {
     if (s === null || s === undefined) return '';
@@ -199,6 +203,61 @@ const DependentsInfoPage: React.FC = () => {
     }
   };
   
+    const handleEditClick = (dependent: Dependent) => {
+        setEditingDependent(dependent);
+        setIsEditModalOpen(true);
+    };
+
+    const handleCloseModal = () => {
+        setIsEditModalOpen(false);
+        setEditingDependent(null);
+    };
+
+    const handleSaveDependent = async (updatedDependent: Dependent) => {
+        setImportStatus({ type: 'info', message: 'در حال ذخیره تغییرات...' });
+        try {
+            const response = await fetch('/api/personnel?type=dependents', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(updatedDependent),
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.error || 'خطا در به‌روزرسانی اطلاعات');
+            }
+            setDependents(prev => prev.map(d => (d.id === data.dependent.id ? data.dependent : d)));
+            setImportStatus({ type: 'success', message: 'اطلاعات با موفقیت به‌روزرسانی شد.' });
+            handleCloseModal();
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'خطای ناشناخته رخ داد.';
+            setImportStatus({ type: 'error', message });
+        } finally {
+            setTimeout(() => setImportStatus(null), 5000);
+        }
+    };
+    
+    const handleDeleteDependent = async (dependentId: number) => {
+        if (window.confirm('آیا از حذف این وابسته اطمینان دارید؟ این عمل قابل بازگشت نیست.')) {
+            setImportStatus({ type: 'info', message: 'در حال حذف...' });
+            try {
+                const response = await fetch(`/api/personnel?type=dependents&id=${dependentId}`, {
+                    method: 'DELETE',
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.error || 'خطا در حذف');
+                }
+                setDependents(prev => prev.filter(d => d.id !== dependentId));
+                setImportStatus({ type: 'success', message: 'وابسته با موفقیت حذف شد.' });
+            } catch (err) {
+                const message = err instanceof Error ? err.message : 'خطای ناشناخته رخ داد.';
+                setImportStatus({ type: 'error', message });
+            } finally {
+                setTimeout(() => setImportStatus(null), 5000);
+            }
+        }
+    };
+
   const statusColor = {
     info: 'bg-blue-100 text-blue-800',
     success: 'bg-green-100 text-green-800',
@@ -300,9 +359,27 @@ const DependentsInfoPage: React.FC = () => {
                               <tbody className="bg-white divide-y divide-gray-200">
                                   {dependents.map(d => (
                                       <tr key={d.id}>
-                                          {TABLE_VIEW_HEADERS.map(header => (
+                                          {TABLE_VIEW_HEADERS.filter(h => h !== 'عملیات').map(header => (
                                               <td key={header} className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">{toPersianDigits(String(d[DEPENDENT_HEADER_MAP[header as keyof typeof DEPENDENT_HEADER_MAP]] ?? ''))}</td>
                                           ))}
+                                          <td className="px-4 py-3 whitespace-nowrap text-sm text-center">
+                                            <div className="flex items-center justify-center gap-2">
+                                                <button 
+                                                    onClick={() => handleEditClick(d)}
+                                                    className="text-blue-600 hover:text-blue-800 p-1 rounded-full hover:bg-blue-100 transition-colors"
+                                                    aria-label={`ویرایش ${d.first_name} ${d.last_name}`}
+                                                >
+                                                    <PencilIcon className="w-5 h-5" />
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleDeleteDependent(d.id)}
+                                                    className="text-red-600 hover:text-red-800 p-1 rounded-full hover:bg-red-100 transition-colors"
+                                                    aria-label={`حذف ${d.first_name} ${d.last_name}`}
+                                                >
+                                                    <TrashIcon className="w-5 h-5" />
+                                                </button>
+                                            </div>
+                                          </td>
                                       </tr>
                                   ))}
                               </tbody>
@@ -313,6 +390,13 @@ const DependentsInfoPage: React.FC = () => {
             )}
         </div>
       </div>
+      {isEditModalOpen && editingDependent && (
+        <EditDependentModal
+            dependent={editingDependent}
+            onClose={handleCloseModal}
+            onSave={handleSaveDependent}
+        />
+      )}
     </div>
   );
 };
