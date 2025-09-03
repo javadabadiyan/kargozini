@@ -140,12 +140,13 @@ export default async function handler(
     await client.sql`
       CREATE TABLE IF NOT EXISTS personnel_documents (
         id SERIAL PRIMARY KEY,
-        personnel_code VARCHAR(50) NOT NULL REFERENCES personnel(personnel_code) ON DELETE CASCADE,
+        personnel_code VARCHAR(50) NOT NULL,
         title VARCHAR(255) NOT NULL,
         file_name VARCHAR(255) NOT NULL,
         file_type VARCHAR(100) NOT NULL,
         file_data TEXT NOT NULL,
-        uploaded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        uploaded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        CONSTRAINT fk_personnel FOREIGN KEY(personnel_code) REFERENCES personnel(personnel_code) ON DELETE CASCADE
       );
     `;
     messages.push('جدول "personnel_documents" ایجاد شد.');
@@ -164,16 +165,22 @@ export default async function handler(
     for (const col of columnsToAdd) {
         try {
             // FIX: Use client.query for DDL with dynamic identifiers, not client.sql which parameterizes them.
-            await (client as any).query(`ALTER TABLE personnel ADD COLUMN ${client.escapeIdentifier(col.name)} ${col.type}`);
-            messages.push(`ستون "${col.name}" برای سازگاری با نسخه‌های قدیمی اضافه شد.`);
+            await (client as any).query(`ALTER TABLE personnel ADD COLUMN IF NOT EXISTS ${client.escapeIdentifier(col.name)} ${col.type}`);
+            messages.push(`ستون "${col.name}" برای سازگاری با نسخه‌های قدیمی اضافه یا تایید شد.`);
         } catch (e: any) {
-            if (e.message.includes('already exists') || e.code === '42701') {
+             if (e.message.includes('already exists') || e.code === '42701') {
                 messages.push(`ستون "${col.name}" از قبل وجود داشت.`);
             } else {
-                throw e; // Re-throw if it's an unexpected error
+                 messages.push(`هشدار: ایجاد ستون "${col.name}" با خطا مواجه شد: ${e.message}`);
             }
         }
     }
+     try {
+        await client.sql`ALTER TABLE dependents DROP CONSTRAINT IF EXISTS dependents_personnel_code_fkey;`;
+        messages.push(`محدودیت کلید خارجی برای "dependents" (در صورت وجود) حذف شد.`);
+     } catch (e: any) {
+        messages.push(`هشدار: حذف کلید خارجی "dependents" با خطا مواجه شد: ${e.message}`);
+     }
 
     // --- Phase 3: Create triggers, indexes, and default data ---
     // This is also in a transaction for atomicity.
@@ -213,7 +220,7 @@ export default async function handler(
     
     const adminPermissions = JSON.stringify({
       dashboard: true, personnel: true, personnel_list: true, dependents_info: true, document_upload: true,
-      recruitment: true, accounting_commitment: true, disciplinary_committee: true, performance_review: true, job_group: true, enter_bonus: true, bonus_analyzer: true,
+      recruitment: true, accounting_commitment: true, disciplinary_committee: true, performance_review: true, job_group: true, bonus_management: true, enter_bonus: true, bonus_analyzer: true,
       security: true, commuting_members: true, log_commute: true, commute_report: true,
       settings: true, user_management: true,
     });

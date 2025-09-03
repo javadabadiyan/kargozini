@@ -35,8 +35,13 @@ export const ALL_MENU_ITEMS: MenuItem[] = [
       { id: 'disciplinary_committee', label: 'کمیته تشویق و انضباطی', icon: CircleIcon, page: DisciplinaryCommitteePage },
       { id: 'performance_review', label: 'ارزیابی عملکرد', icon: CircleIcon, page: PerformanceReviewPage },
       { id: 'job_group', label: 'گروه شغلی پرسنل', icon: CircleIcon, page: JobGroupPage },
-      { id: 'enter_bonus', label: 'وارد کردن کارانه', icon: CircleIcon, page: EnterBonusPage },
-      { id: 'bonus_analyzer', label: 'تحلیلگر هوشمند کارانه', icon: CircleIcon, page: BonusAnalyzerPage }
+      {
+        id: 'bonus_management', label: 'مدیریت کارانه', icon: DocumentReportIcon,
+        children: [
+            { id: 'enter_bonus', label: 'وارد کردن کارانه', icon: CircleIcon, page: EnterBonusPage },
+            { id: 'bonus_analyzer', label: 'تحلیلگر هوشمند کارانه', icon: CircleIcon, page: BonusAnalyzerPage }
+        ]
+      }
     ]
   },
   {
