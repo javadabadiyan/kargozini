@@ -20,14 +20,14 @@ const DEPENDENT_HEADER_MAP: { [key: string]: keyof Omit<Dependent, 'id'> } = {
   'كد ملي بستگان': 'national_id',
   'كد ملي سرپرست': 'guardian_national_id',
   'محل صدور شناسنامه': 'issue_place',
-  'نوع بيمه شده': 'insurance_type',
+  'نوع': 'insurance_type',
 };
 
 const EXPORT_HEADERS = Object.keys(DEPENDENT_HEADER_MAP);
 const TABLE_VIEW_HEADERS = [
     'کد پرسنلی', 'نام', 'نام خانوادگی', 'نام پدر', 'نسبت', 'تاريخ تولد', 'جنسيت',
     'ماه تولد', 'روز تولد', 'شماره شناسنامه', 'كد ملي بستگان',
-    'كد ملي سرپرست', 'محل صدور شناسنامه', 'نوع بيمه شده', 'عملیات'
+    'كد ملي سرپرست', 'محل صدور شناسنامه', 'نوع', 'عملیات'
 ];
 
 const DependentsInfoPage: React.FC = () => {
