@@ -33,24 +33,16 @@ const getCurrentPersianDate = (): { year: number; month: number; day: number } =
 const persianDateToAge = (birthDateStr: string | null | undefined, currentDate: { year: number; month: number; day: number }): number | null => {
     if (!birthDateStr || typeof birthDateStr !== 'string') return null;
 
-    // A more robust regex to handle YYYY/MM/DD or YYYY-MM-DD
-    const match = birthDateStr.match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})$/);
+    // Match only the year part, e.g., "1370" from "1370/01/01"
+    const match = birthDateStr.match(/^(\d{4})/);
     if (!match) return null;
     
     const birthYear = parseInt(match[1], 10);
-    const birthMonth = parseInt(match[2], 10);
-    const birthDay = parseInt(match[3], 10);
+    if (isNaN(birthYear)) return null;
 
-    if (isNaN(birthYear) || isNaN(birthMonth) || isNaN(birthDay)) return null;
+    const age = currentDate.year - birthYear;
 
-    let age = currentDate.year - birthYear;
-
-    // Check if birthday has occurred this year. If not, decrement age.
-    if (currentDate.month < birthMonth || (currentDate.month === birthMonth && currentDate.day < birthDay)) {
-        age--;
-    }
-
-    return age < 0 ? 0 : age; // Age can't be negative
+    return age < 0 ? 0 : age;
 };
 
 
@@ -213,7 +205,7 @@ const DashboardPage: React.FC = () => {
                 <StatCard title="کل پرسنل" value={toPersianDigits(stats?.total || 0)} icon={UsersIcon} color="bg-blue-500" />
                 <StatCard title="میانگین سن" value={`${toPersianDigits(stats?.averageAge || 0)} سال`} icon={CakeIcon} color="bg-teal-500" />
                 <StatCard title="نزدیک به بازنشستگی" value={toPersianDigits(stats?.closeToRetirementCount || 0)} icon={UsersIcon} color="bg-amber-500" />
-                <StatCard title="سن بازنشستگی" value={toPersianDigits(stats?.retiredCount || 0)} icon={UsersIcon} color="bg-red-500" />
+                <StatCard title="در سن بازنشستگی" value={toPersianDigits(stats?.retiredCount || 0)} icon={UsersIcon} color="bg-red-500" />
                 <StatCard title="تعداد واحدها" value={toPersianDigits(stats?.byDepartment.length || 0)} icon={BuildingOffice2Icon} color="bg-green-500" />
                 <StatCard title="پرسنل متاهل" value={toPersianDigits(stats?.byMaritalStatus.find(([k]) => k === 'متاهل')?.[1] || 0)} icon={HeartIcon} color="bg-rose-500" />
             </div>
