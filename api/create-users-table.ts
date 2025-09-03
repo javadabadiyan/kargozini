@@ -19,7 +19,8 @@ export default async function handler(
 
   const messages: string[] = [];
   try {
-    await (client as any).query('BEGIN');
+    // --- Phase 1: Critical schema setup in a single transaction ---
+    await client.sql`BEGIN`;
 
     // Create personnel table
     await client.sql`
@@ -50,29 +51,7 @@ export default async function handler(
     `;
     messages.push('جدول "personnel" با موفقیت ایجاد یا تایید شد.');
 
-    // Add columns for backward compatibility in a robust way
-    const columnsToAdd = [
-        { name: 'birth_year', type: 'VARCHAR(10)' },
-        { name: 'job_group', type: 'VARCHAR(100)' },
-        { name: 'sum_of_decree_factors', type: 'VARCHAR(100)' }
-    ];
-
-    for (const col of columnsToAdd) {
-        try {
-            await (client as any).query(`ALTER TABLE personnel ADD COLUMN ${col.name} ${col.type}`);
-            messages.push(`ستون "${col.name}" برای سازگاری با نسخه‌های قدیمی اضافه شد.`);
-        } catch (e: any) {
-            // Check for both "already exists" message and PostgreSQL's duplicate column error code '42701'
-            if (e.message.includes('already exists') || e.code === '42701') {
-                messages.push(`ستون "${col.name}" از قبل وجود داشت.`);
-            } else {
-                // Re-throw other errors to be caught by the main transaction try-catch block
-                throw e;
-            }
-        }
-    }
-
-    // Create dependents table
+    // Create other primary tables
     await client.sql`
       CREATE TABLE IF NOT EXISTS dependents (
         id SERIAL PRIMARY KEY,
@@ -87,10 +66,7 @@ export default async function handler(
       );
     `;
     messages.push('جدول "dependents" با موفقیت ایجاد یا تایید شد.');
-    await client.sql`CREATE INDEX IF NOT EXISTS dependents_personnel_code_idx ON dependents (personnel_code);`;
-    messages.push('ایندکس برای جستجوی سریع بستگان ایجاد شد.');
 
-    // Create commuting_members table
     await client.sql`
       CREATE TABLE IF NOT EXISTS commuting_members (
         id SERIAL PRIMARY KEY,
@@ -102,7 +78,6 @@ export default async function handler(
     `;
     messages.push('جدول "commuting_members" با موفقیت ایجاد یا تایید شد.');
 
-    // Create commute_logs table
     await client.sql`
       CREATE TABLE IF NOT EXISTS commute_logs (
         id SERIAL PRIMARY KEY,
@@ -115,29 +90,7 @@ export default async function handler(
       );
     `;
     messages.push('جدول "commute_logs" با موفقیت ایجاد یا تایید شد.');
-    
-    // Create trigger function for updated_at
-    await (client as any).query(`
-        CREATE OR REPLACE FUNCTION update_updated_at_column()
-        RETURNS TRIGGER AS $$
-        BEGIN
-           NEW.updated_at = NOW();
-           RETURN NEW;
-        END;
-        $$ language 'plpgsql';
-    `);
 
-    // Create trigger for commute_logs
-    await (client as any).query(`
-        DROP TRIGGER IF EXISTS update_commute_logs_updated_at ON commute_logs;
-        CREATE TRIGGER update_commute_logs_updated_at
-        BEFORE UPDATE ON commute_logs
-        FOR EACH ROW
-        EXECUTE FUNCTION update_updated_at_column();
-    `);
-    messages.push('تریگر به‌روزرسانی خودکار برای جدول "commute_logs" ایجاد شد.');
-
-    // Create hourly_commute_logs table
     await client.sql`
       CREATE TABLE IF NOT EXISTS hourly_commute_logs (
         id SERIAL PRIMARY KEY,
@@ -153,27 +106,6 @@ export default async function handler(
     `;
     messages.push('جدول "hourly_commute_logs" با موفقیت ایجاد یا تایید شد.');
 
-    try {
-      await client.sql`
-        ALTER TABLE hourly_commute_logs ALTER COLUMN exit_time DROP NOT NULL;
-      `;
-      messages.push('ستون "exit_time" در جدول ترددهای ساعتی برای ثبت ورود مجزا به‌روزرسانی شد.');
-    } catch (alterError: any) {
-        console.warn(`Could not alter hourly_commute_logs table (this may be expected if already altered): ${alterError.message}`);
-        messages.push('ستون "exit_time" از قبل به درستی تنظیم شده بود یا با خطای دیگری مواجه شد (این مورد در اجراهای بعدی طبیعی است).');
-    }
-
-    // Create trigger for hourly_commute_logs
-    await (client as any).query(`
-        DROP TRIGGER IF EXISTS update_hourly_commute_logs_updated_at ON hourly_commute_logs;
-        CREATE TRIGGER update_hourly_commute_logs_updated_at
-        BEFORE UPDATE ON hourly_commute_logs
-        FOR EACH ROW
-        EXECUTE FUNCTION update_updated_at_column();
-    `);
-    messages.push('تریگر به‌روزرسانی خودکار برای جدول "hourly_commute_logs" ایجاد شد.');
-
-    // Create commute_edit_logs table
     await client.sql`
       CREATE TABLE IF NOT EXISTS commute_edit_logs (
         id SERIAL PRIMARY KEY,
@@ -186,9 +118,8 @@ export default async function handler(
         new_value VARCHAR(100)
       );
     `;
-    messages.push('جدول "commute_edit_logs" برای ثبت ویرایش‌ها با موفقیت ایجاد یا تایید شد.');
-    
-    // Create app_users table
+    messages.push('جدول "commute_edit_logs" با موفقیت ایجاد یا تایید شد.');
+
     await client.sql`
       CREATE TABLE IF NOT EXISTS app_users (
         id SERIAL PRIMARY KEY,
@@ -199,7 +130,6 @@ export default async function handler(
     `;
     messages.push('جدول "app_users" با موفقیت ایجاد یا تایید شد.');
 
-    // Create personnel_documents table
     await client.sql`
       CREATE TABLE IF NOT EXISTS personnel_documents (
         id SERIAL PRIMARY KEY,
@@ -211,48 +141,76 @@ export default async function handler(
         uploaded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
     `;
-    messages.push('جدول "personnel_documents" برای ذخیره مدارک ایجاد شد.');
-    await client.sql`CREATE INDEX IF NOT EXISTS personnel_documents_personnel_code_idx ON personnel_documents (personnel_code);`;
-    messages.push('ایندکس برای جستجوی سریع مدارک ایجاد شد.');
+    messages.push('جدول "personnel_documents" ایجاد شد.');
+    
+    await client.sql`COMMIT`;
+    messages.push('تراکنش اصلی ایجاد جداول با موفقیت انجام شد.');
 
-    // Insert default users if they don't exist
+    // --- Phase 2: Add optional/backward-compatibility columns individually ---
+    // These are run outside the main transaction to prevent one failure from blocking all setup.
+    const columnsToAdd = [
+        { name: 'birth_year', type: 'VARCHAR(10)' },
+        { name: 'job_group', type: 'VARCHAR(100)' },
+        { name: 'sum_of_decree_factors', type: 'VARCHAR(100)' }
+    ];
+
+    for (const col of columnsToAdd) {
+        try {
+            await client.sql`ALTER TABLE personnel ADD COLUMN ${client.escapeIdentifier(col.name)} ${col.type}`;
+            messages.push(`ستون "${col.name}" برای سازگاری با نسخه‌های قدیمی اضافه شد.`);
+        } catch (e: any) {
+            if (e.message.includes('already exists') || e.code === '42701') {
+                messages.push(`ستون "${col.name}" از قبل وجود داشت.`);
+            } else {
+                throw e; // Re-throw if it's an unexpected error
+            }
+        }
+    }
+
+    // --- Phase 3: Create triggers, indexes, and default data ---
+    // This is also in a transaction for atomicity.
+    await client.sql`BEGIN`;
+
+    await client.sql`CREATE INDEX IF NOT EXISTS dependents_personnel_code_idx ON dependents (personnel_code);`;
+    await client.sql`CREATE INDEX IF NOT EXISTS personnel_documents_personnel_code_idx ON personnel_documents (personnel_code);`;
+    await client.sql`CREATE INDEX IF NOT EXISTS personnel_last_first_name_idx ON personnel (last_name, first_name);`;
+    messages.push('ایندکس‌های ضروری برای جستجوی سریع ایجاد شدند.');
+
+    await (client as any).query(`
+        CREATE OR REPLACE FUNCTION update_updated_at_column()
+        RETURNS TRIGGER AS $$
+        BEGIN
+           NEW.updated_at = NOW();
+           RETURN NEW;
+        END;
+        $$ language 'plpgsql';
+    `);
+    
+    await (client as any).query(`
+        DROP TRIGGER IF EXISTS update_commute_logs_updated_at ON commute_logs;
+        CREATE TRIGGER update_commute_logs_updated_at
+        BEFORE UPDATE ON commute_logs
+        FOR EACH ROW
+        EXECUTE FUNCTION update_updated_at_column();
+    `);
+
+     await (client as any).query(`
+        DROP TRIGGER IF EXISTS update_hourly_commute_logs_updated_at ON hourly_commute_logs;
+        CREATE TRIGGER update_hourly_commute_logs_updated_at
+        BEFORE UPDATE ON hourly_commute_logs
+        FOR EACH ROW
+        EXECUTE FUNCTION update_updated_at_column();
+    `);
+    messages.push('تریگرهای به‌روزرسانی خودکار برای جداول تردد ایجاد شدند.');
+    
     const adminPermissions = JSON.stringify({
-      dashboard: true,
-      personnel: true,
-      personnel_list: true,
-      dependents_info: true,
-      document_upload: true,
-      recruitment: true,
-      accounting_commitment: true,
-      disciplinary_committee: true,
-      performance_review: true,
-      job_group: true,
-      bonus_management: true,
-      security: true,
-      commuting_members: true,
-      log_commute: true,
-      commute_report: true,
-      settings: true,
-      user_management: true,
+      dashboard: true, personnel: true, personnel_list: true, dependents_info: true, document_upload: true,
+      recruitment: true, accounting_commitment: true, disciplinary_committee: true, performance_review: true, job_group: true, bonus_management: true,
+      security: true, commuting_members: true, log_commute: true, commute_report: true,
+      settings: true, user_management: true,
     });
     const guardPermissions = JSON.stringify({
-      dashboard: false,
-      personnel: false,
-      personnel_list: false,
-      dependents_info: false,
-      document_upload: false,
-      recruitment: false,
-      accounting_commitment: false,
-      disciplinary_committee: false,
-      performance_review: false,
-      job_group: false,
-      bonus_management: false,
-      security: true,
-      commuting_members: false,
-      log_commute: true,
-      commute_report: false,
-      settings: false,
-      user_management: false,
+      dashboard: false, personnel: false, security: true, log_commute: true,
     });
 
     await client.sql`
@@ -267,25 +225,25 @@ export default async function handler(
     `;
     messages.push('کاربران پیش‌فرض "ادمین" و "نگهبانی" ایجاد یا به‌روزرسانی شدند.');
 
+    await client.sql`COMMIT`;
+
+    // --- Phase 4: Optional performance enhancements ---
+    // This runs last and outside a transaction, so its failure doesn't affect the core setup.
     try {
         await client.sql`CREATE EXTENSION IF NOT EXISTS pg_trgm;`;
         messages.push('افزونه "pg_trgm" برای جستجوی سریع فعال شد.');
         await client.sql`CREATE INDEX IF NOT EXISTS personnel_first_name_trgm_idx ON personnel USING gin (first_name gin_trgm_ops);`;
         await client.sql`CREATE INDEX IF NOT EXISTS personnel_last_name_trgm_idx ON personnel USING gin (last_name gin_trgm_ops);`;
         messages.push('ایندکس‌های جستجوی سریع (GIN) برای پرسنل ایجاد شدند.');
-    } catch (extError) {
+    } catch (extError: any) {
         console.warn('Could not create pg_trgm extension or GIN indexes:', extError);
-        messages.push('هشدار: امکان فعال‌سازی افزونه "pg_trgm" یا ایندکس‌های GIN وجود نداشت. جستجو ممکن است کند باشد.');
+        messages.push('هشدار: امکان فعال‌سازی افزونه "pg_trgm" یا ایندکس‌های GIN وجود نداشت. جستجو ممکن است کند باشد (این خطا برای پلن‌های رایگان طبیعی است).');
     }
     
-    await client.sql`CREATE INDEX IF NOT EXISTS personnel_last_first_name_idx ON personnel (last_name, first_name);`;
-    messages.push('ایندکس مرتب‌سازی برای پرسنل ایجاد شد.');
-    
-    await (client as any).query('COMMIT');
     return response.status(200).json({ message: 'عملیات راه‌اندازی پایگاه داده با موفقیت انجام شد.', details: messages });
   
   } catch (error) {
-    await (client as any).query('ROLLBACK').catch((rbError: any) => console.error('Rollback failed:', rbError));
+    await client.sql`ROLLBACK`.catch((rbError: any) => console.error('Rollback failed:', rbError));
     console.error('Database setup failed:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     return response.status(500).json({ error: 'ایجاد جداول در پایگاه داده با خطا مواجه شد.', details: errorMessage });
