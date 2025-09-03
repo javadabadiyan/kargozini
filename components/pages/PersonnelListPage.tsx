@@ -290,7 +290,11 @@ const PersonnelListPage: React.FC = () => {
                   for (const header in HEADER_MAP) {
                       if (row.hasOwnProperty(header)) {
                           const dbKey = HEADER_MAP[header as keyof typeof HEADER_MAP];
-                          const value = row[header];
+                          let value = row[header];
+                          // Clean up value: remove RTL/LTR marks and trim whitespace
+                          if (typeof value === 'string') {
+                              value = value.replace(/[\u200E\u200F]/g, '').trim();
+                          }
                           (newRow as any)[dbKey] = (value === null || value === undefined) ? null : String(value);
                       }
                   }
@@ -325,15 +329,7 @@ const PersonnelListPage: React.FC = () => {
 
           } catch (err) {
               const message = err instanceof Error ? err.message : 'یک خطای ناشناخته در پردازش فایل رخ داد.';
-              let userFriendlyMessage = 'خطا در ورود اطلاعات از اکسل. ';
-              if (message.includes('duplicate key') || message.includes('تکراری')) {
-                userFriendlyMessage += 'لطفاً از عدم وجود کد ملی یا کد پرسنلی تکراری در فایل خود و در سیستم اطمینان حاصل کنید.';
-              } else if (message.includes('معتبری')) { // "هیچ رکورد معتبری..."
-                userFriendlyMessage = message;
-              } else {
-                userFriendlyMessage += 'لطفاً فرمت فایل اکسل و مقادیر داخل آن را بررسی کنید. جزئیات فنی: ' + message;
-              }
-              setStatus({ type: 'error', message: userFriendlyMessage });
+              setStatus({ type: 'error', message });
           } finally {
               if (fileInputRef.current) {
                   fileInputRef.current.value = "";

@@ -87,7 +87,15 @@ async function handlePostPersonnel(body: any, response: VercelResponse, pool: Ve
     } catch (error) {
         await client.sql`ROLLBACK`.catch(() => {});
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-        if (errorMessage.includes('duplicate key')) return response.status(409).json({ error: 'کد پرسنلی یا کد ملی تکراری است.' });
+        if (errorMessage.includes('duplicate key')) {
+            if (errorMessage.includes('personnel_personnel_code_key')) {
+                return response.status(409).json({ error: 'خطا: یک یا چند کد پرسنلی در فایل اکسل تکراری است و از قبل در سیستم وجود دارد.', details: errorMessage });
+            }
+            if (errorMessage.includes('personnel_national_id_key')) {
+                return response.status(409).json({ error: 'خطا: یک یا چند کد ملی در فایل اکسل تکراری است و از قبل در سیستم وجود دارد.', details: errorMessage });
+            }
+            return response.status(409).json({ error: 'خطا: مقدار تکراری برای یک فیلد یکتا (مانند کد پرسنلی یا کد ملی).', details: errorMessage });
+        }
         return response.status(500).json({ error: 'خطا در عملیات پایگاه داده.', details: errorMessage });
     } finally {
         client.release();
