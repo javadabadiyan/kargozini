@@ -31,7 +31,6 @@ export default async function handler(
         father_name VARCHAR(100),
         national_id VARCHAR(20) UNIQUE,
         id_number VARCHAR(20),
-        birth_year VARCHAR(10),
         birth_date VARCHAR(30),
         birth_place VARCHAR(100),
         issue_date VARCHAR(30),
@@ -46,22 +45,30 @@ export default async function handler(
         hire_date VARCHAR(30),
         education_level VARCHAR(100),
         field_of_study VARCHAR(100),
-        job_group VARCHAR(100),
-        sum_of_decree_factors VARCHAR(100),
         status VARCHAR(50)
       );
     `;
     messages.push('جدول "personnel" با موفقیت ایجاد یا تایید شد.');
 
-    // Add birth_year column if it doesn't exist for backward compatibility
-    try {
-        await client.sql`ALTER TABLE personnel ADD COLUMN birth_year VARCHAR(10);`;
-        messages.push('ستون "birth_year" برای سازگاری با نسخه‌های قدیمی اضافه شد.');
-    } catch (e: any) {
-        if (e.message.includes('already exists')) {
-            messages.push('ستون "birth_year" از قبل وجود داشت.');
-        } else {
-            throw e;
+    // Add columns for backward compatibility in a robust way
+    const columnsToAdd = [
+        { name: 'birth_year', type: 'VARCHAR(10)' },
+        { name: 'job_group', type: 'VARCHAR(100)' },
+        { name: 'sum_of_decree_factors', type: 'VARCHAR(100)' }
+    ];
+
+    for (const col of columnsToAdd) {
+        try {
+            await (client as any).query(`ALTER TABLE personnel ADD COLUMN ${col.name} ${col.type}`);
+            messages.push(`ستون "${col.name}" برای سازگاری با نسخه‌های قدیمی اضافه شد.`);
+        } catch (e: any) {
+            // Check for both "already exists" message and PostgreSQL's duplicate column error code '42701'
+            if (e.message.includes('already exists') || e.code === '42701') {
+                messages.push(`ستون "${col.name}" از قبل وجود داشت.`);
+            } else {
+                // Re-throw other errors to be caught by the main transaction try-catch block
+                throw e;
+            }
         }
     }
 
