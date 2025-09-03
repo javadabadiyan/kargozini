@@ -15,7 +15,8 @@ const AccountingCommitmentPage: React.FC = () => React.createElement(Placeholder
 const DisciplinaryCommitteePage: React.FC = () => React.createElement(PlaceholderPage, { title: "کمیته تشویق و انضباطی" });
 const PerformanceReviewPage: React.FC = () => React.createElement(PlaceholderPage, { title: "ارزیابی عملکرد" });
 const JobGroupPage: React.FC = () => React.createElement(PlaceholderPage, { title: "گروه شغلی پرسنل" });
-const BonusManagementPage: React.FC = () => React.createElement(PlaceholderPage, { title: "مدیریت کارانه" });
+const EnterBonusPage: React.FC = () => React.createElement(PlaceholderPage, { title: "وارد کردن کارانه" });
+const BonusAnalyzerPage: React.FC = () => React.createElement(PlaceholderPage, { title: "تحلیلگر هوشمند کارانه" });
 
 export const ALL_MENU_ITEMS: MenuItem[] = [
   { id: 'dashboard', label: 'داشبورد', icon: HomeIcon, page: DashboardPage },
@@ -34,7 +35,8 @@ export const ALL_MENU_ITEMS: MenuItem[] = [
       { id: 'disciplinary_committee', label: 'کمیته تشویق و انضباطی', icon: CircleIcon, page: DisciplinaryCommitteePage },
       { id: 'performance_review', label: 'ارزیابی عملکرد', icon: CircleIcon, page: PerformanceReviewPage },
       { id: 'job_group', label: 'گروه شغلی پرسنل', icon: CircleIcon, page: JobGroupPage },
-      { id: 'bonus_management', label: 'مدیریت کارانه', icon: CircleIcon, page: BonusManagementPage }
+      { id: 'enter_bonus', label: 'وارد کردن کارانه', icon: CircleIcon, page: EnterBonusPage },
+      { id: 'bonus_analyzer', label: 'تحلیلگر هوشمند کارانه', icon: CircleIcon, page: BonusAnalyzerPage }
     ]
   },
   {

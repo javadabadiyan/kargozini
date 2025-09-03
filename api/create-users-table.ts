@@ -213,7 +213,7 @@ export default async function handler(
     
     const adminPermissions = JSON.stringify({
       dashboard: true, personnel: true, personnel_list: true, dependents_info: true, document_upload: true,
-      recruitment: true, accounting_commitment: true, disciplinary_committee: true, performance_review: true, job_group: true, bonus_management: true,
+      recruitment: true, accounting_commitment: true, disciplinary_committee: true, performance_review: true, job_group: true, enter_bonus: true, bonus_analyzer: true,
       security: true, commuting_members: true, log_commute: true, commute_report: true,
       settings: true, user_management: true,
     });
