@@ -53,6 +53,18 @@ export default async function handler(
     `;
     messages.push('جدول "personnel" با موفقیت ایجاد یا تایید شد.');
 
+    // Add birth_year column if it doesn't exist for backward compatibility
+    try {
+        await client.sql`ALTER TABLE personnel ADD COLUMN birth_year VARCHAR(10);`;
+        messages.push('ستون "birth_year" برای سازگاری با نسخه‌های قدیمی اضافه شد.');
+    } catch (e: any) {
+        if (e.message.includes('already exists')) {
+            messages.push('ستون "birth_year" از قبل وجود داشت.');
+        } else {
+            throw e;
+        }
+    }
+
     // Create dependents table
     await client.sql`
       CREATE TABLE IF NOT EXISTS dependents (
