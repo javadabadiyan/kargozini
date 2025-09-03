@@ -208,7 +208,11 @@ async function handlePostDependents(request: VercelRequest, response: VercelResp
   try {
     await client.sql`BEGIN`;
     const columns = ['personnel_code', 'first_name', 'last_name', 'father_name', 'relation_type', 'birth_date', 'gender', 'birth_month', 'birth_day', 'id_number', 'national_id', 'issue_place', 'insurance_type'];
-    const updateSet = columns.filter(c => !['personnel_code', 'national_id'].includes(c)).map(c => `${c} = EXCLUDED.${c}`).join(', ');
+    const quotedColumns = columns.map(c => `"${c}"`);
+    const updateSet = columns
+      .filter(c => !['personnel_code', 'national_id'].includes(c))
+      .map(c => `"${c}" = EXCLUDED."${c}"`).join(', ');
+      
     const values: (string | null)[] = [];
     const valuePlaceholders: string[] = [];
     let paramIndex = 1;
@@ -217,7 +221,7 @@ async function handlePostDependents(request: VercelRequest, response: VercelResp
       for (const col of columns) { values.push(d[col as keyof NewDependent] ?? null); recordPlaceholders.push(`$${paramIndex++}`); }
       valuePlaceholders.push(`(${recordPlaceholders.join(', ')})`);
     }
-    const query = `INSERT INTO dependents (${columns.join(', ')}) VALUES ${valuePlaceholders.join(', ')} ON CONFLICT (personnel_code, national_id) DO UPDATE SET ${updateSet};`;
+    const query = `INSERT INTO dependents (${quotedColumns.join(', ')}) VALUES ${valuePlaceholders.join(', ')} ON CONFLICT ("personnel_code", "national_id") DO UPDATE SET ${updateSet};`;
     await (client as any).query(query, values);
     await client.sql`COMMIT`;
     return response.status(200).json({ message: `عملیات موفق. ${validList.length} رکورد پردازش شد.` });
