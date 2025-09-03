@@ -156,7 +156,8 @@ export default async function handler(
 
     for (const col of columnsToAdd) {
         try {
-            await client.sql`ALTER TABLE personnel ADD COLUMN ${client.escapeIdentifier(col.name)} ${col.type}`;
+            // FIX: Use client.query for DDL with dynamic identifiers, not client.sql which parameterizes them.
+            await (client as any).query(`ALTER TABLE personnel ADD COLUMN ${client.escapeIdentifier(col.name)} ${col.type}`);
             messages.push(`ستون "${col.name}" برای سازگاری با نسخه‌های قدیمی اضافه شد.`);
         } catch (e: any) {
             if (e.message.includes('already exists') || e.code === '42701') {
