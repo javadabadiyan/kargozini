@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import type { Personnel } from '../../types';
 import { holidays1403, PERSIAN_MONTHS } from '../holidays';
-import { UsersIcon, BuildingOffice2Icon, MapPinIcon, HeartIcon, BriefcaseIcon, CalendarDaysIcon, CakeIcon } from '../icons/Icons';
+import { UsersIcon, BuildingOffice2Icon, MapPinIcon, HeartIcon, BriefcaseIcon, CalendarDaysIcon, CakeIcon, DocumentReportIcon } from '../icons/Icons';
 
 // Helper to convert numbers to Persian digits
 const toPersianDigits = (s: string | number | null | undefined): string => {
@@ -68,7 +68,7 @@ const StatCard: React.FC<{ title: string; value: string; icon: React.ComponentTy
 );
 
 // Reusable component for lists of stats
-const StatListCard: React.FC<{ title: string; data: [string, number][]; icon: React.ComponentType<{ className?: string }> }> = ({ title, data, icon: Icon }) => (
+const StatListCard: React.FC<{ title: string; data: [string, string | number][]; icon: React.ComponentType<{ className?: string }> }> = ({ title, data, icon: Icon }) => (
     <div className="bg-white dark:bg-slate-800 p-5 rounded-xl shadow-md h-full flex flex-col">
         <div className="flex items-center mb-4">
             <Icon className="w-6 h-6 text-gray-500 ml-3" />
@@ -131,7 +131,7 @@ const DashboardPage: React.FC = () => {
     const [personnel, setPersonnel] = useState<Personnel[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [selectedStat, setSelectedStat] = useState('byDepartment');
+    const [selectedStat, setSelectedStat] = useState('generalSummary');
 
     useEffect(() => {
         const fetchPersonnel = async () => {
@@ -241,6 +241,7 @@ const DashboardPage: React.FC = () => {
     }, []);
     
     const statOptions = [
+        { key: 'generalSummary', label: 'خلاصه آمار کل' },
         { key: 'byDepartment', label: 'آمار بر اساس واحد' },
         { key: 'byServiceLocation', label: 'آمار بر اساس محل خدمت' },
         { key: 'byAgeGroup', label: 'آمار بر اساس گروه سنی' },
@@ -252,6 +253,16 @@ const DashboardPage: React.FC = () => {
     const renderSelectedStat = () => {
         if (!stats) return <div className="text-center p-10 text-gray-500">داده‌ای برای نمایش وجود ندارد.</div>;
         switch (selectedStat) {
+            case 'generalSummary':
+                const generalSummaryData: [string, string | number][] = [
+                    ['کل پرسنل', stats.total],
+                    ['میانگین سن', `${toPersianDigits(stats.averageAge)} سال`],
+                    ['نزدیک به بازنشستگی (۵۵-۵۹ سال)', stats.closeToRetirementCount],
+                    ['در سن بازنشستگی (۶۰+ سال)', stats.retiredCount],
+                    ['تعداد واحدها', stats.byDepartment.length],
+                    ['پرسنل متاهل', stats.byMaritalStatus.find(([k]) => k === 'متاهل')?.[1] || 0],
+                ];
+                return <StatListCard title="خلاصه آمار کل" data={generalSummaryData} icon={DocumentReportIcon} />;
             case 'byDepartment':
                 return <StatListCard title="آمار بر اساس واحد" data={stats.byDepartment} icon={BuildingOffice2Icon} />;
             case 'byServiceLocation':
@@ -279,15 +290,6 @@ const DashboardPage: React.FC = () => {
     
     return (
         <div className="space-y-6">
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-5">
-                <StatCard title="کل پرسنل" value={toPersianDigits(stats?.total || 0)} icon={UsersIcon} color="bg-blue-500" />
-                <StatCard title="میانگین سن" value={`${toPersianDigits(stats?.averageAge || 0)} سال`} icon={CakeIcon} color="bg-teal-500" />
-                <StatCard title="نزدیک به بازنشستگی" value={toPersianDigits(stats?.closeToRetirementCount || 0)} icon={UsersIcon} color="bg-amber-500" />
-                <StatCard title="در سن بازنشستگی" value={toPersianDigits(stats?.retiredCount || 0)} icon={UsersIcon} color="bg-red-500" />
-                <StatCard title="تعداد واحدها" value={toPersianDigits(stats?.byDepartment.length || 0)} icon={BuildingOffice2Icon} color="bg-green-500" />
-                <StatCard title="پرسنل متاهل" value={toPersianDigits(stats?.byMaritalStatus.find(([k]) => k === 'متاهل')?.[1] || 0)} icon={HeartIcon} color="bg-rose-500" />
-            </div>
-
             <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-md">
                 <label htmlFor="stat-selector" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     نمایش آمار بر اساس:
