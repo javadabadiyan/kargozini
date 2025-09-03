@@ -7,6 +7,7 @@ import EditDependentModal from '../EditDependentModal';
 declare const XLSX: any;
 
 const DEPENDENT_HEADER_MAP: { [key: string]: keyof Omit<Dependent, 'id'> } = {
+  'کد پرسنلی': 'personnel_code',
   'نام': 'first_name',
   'نام خانوادگی': 'last_name',
   'نام پدر': 'father_name',
@@ -17,13 +18,17 @@ const DEPENDENT_HEADER_MAP: { [key: string]: keyof Omit<Dependent, 'id'> } = {
   'روز تولد': 'birth_day',
   'شماره شناسنامه': 'id_number',
   'كد ملي بستگان': 'national_id',
-  'كد ملي سرپرست': 'personnel_code',
+  'كد ملي سرپرست': 'guardian_national_id',
   'محل صدور شناسنامه': 'issue_place',
   'نوع بيمه شده': 'insurance_type',
 };
 
 const EXPORT_HEADERS = Object.keys(DEPENDENT_HEADER_MAP);
-const TABLE_VIEW_HEADERS = [...EXPORT_HEADERS.filter(h => h !== 'كد ملي سرپرست'), 'عملیات'];
+const TABLE_VIEW_HEADERS = [
+    'نام', 'نام خانوادگی', 'نام پدر', 'نسبت', 'تاريخ تولد', 'جنسيت',
+    'ماه تولد', 'روز تولد', 'شماره شناسنامه', 'كد ملي بستگان',
+    'كد ملي سرپرست', 'محل صدور شناسنامه', 'نوع بيمه شده', 'عملیات'
+];
 
 
 const DependentsInfoPage: React.FC = () => {
@@ -129,7 +134,6 @@ const DependentsInfoPage: React.FC = () => {
         const workbook = XLSX.read(data, { type: 'array' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        // FIX: Use { raw: false } to read formatted text, preventing numbers from being parsed incorrectly (e.g., losing leading zeros).
         const json: any[] = XLSX.utils.sheet_to_json(worksheet, { raw: false });
 
         const mappedData = json.map(row => {
@@ -155,7 +159,6 @@ const DependentsInfoPage: React.FC = () => {
 
         const successData = await response.json();
         setImportStatus({ type: 'success', message: successData.message || 'اطلاعات با موفقیت وارد شد.' });
-        // Refresh dependents if the currently selected personnel was affected
         if (selectedPersonnel) {
            const fetchAgain = async () => {
              const res = await fetch(`/api/personnel?type=dependents&personnel_code=${selectedPersonnel.personnel_code}`);

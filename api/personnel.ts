@@ -203,7 +203,6 @@ async function handlePostDependents(request: VercelRequest, response: VercelResp
   const allDependents = request.body as NewDependent[];
   if (!Array.isArray(allDependents)) return response.status(400).json({ error: 'فرمت داده‌های ارسالی نامعتبر است.' });
 
-  // Data sanitization on the backend as a safety measure
   allDependents.forEach(d => {
       for (const key in d) {
           const typedKey = key as keyof NewDependent;
@@ -215,26 +214,20 @@ async function handlePostDependents(request: VercelRequest, response: VercelResp
       }
   });
   
-  // The 'personnel_code' field from the Excel is the supervisor's identifier (could be national_id or personnel_code).
   const validList = allDependents.filter(d => d.personnel_code && d.first_name && d.last_name && d.national_id);
   if (validList.length === 0) return response.status(400).json({ error: 'هیچ رکورد معتبری برای ورود یافت نشد.' });
 
-  // Pre-flight check: Validate supervisor identifiers and map them to personnel codes.
   const supervisorIdentifiersInFile = [...new Set(validList.map(d => d.personnel_code))];
   
   if (supervisorIdentifiersInFile.length > 0) {
-      // More robust check: Fetch all valid identifiers from the DB, clean them, and check against them in memory.
-      // This avoids potential issues with SQL type casting, array parameters, or subtle formatting mismatches.
       const { rows: allPersonnel } = await client.sql`SELECT national_id, personnel_code FROM personnel`;
 
       const identifierToPersonnelCodeMap = new Map<string, string>();
       for (const p of allPersonnel) {
-        // Ensure values are strings and trimmed before adding to the map
         const nationalId = p.national_id ? String(p.national_id).trim() : null;
         const personnelCode = p.personnel_code ? String(p.personnel_code).trim() : null;
         
         if (personnelCode) {
-            // Map both national_id and personnel_code to the canonical personnel_code
             if (nationalId) {
                 identifierToPersonnelCodeMap.set(nationalId, personnelCode);
             }
@@ -251,13 +244,11 @@ async function handlePostDependents(request: VercelRequest, response: VercelResp
           });
       }
       
-      // Replace the supervisor identifier with the correct personnel_code for insertion.
       for(const dependent of validList) {
-          const correctPersonnelCode = identifierToPersonnelCodeMap.get(dependent.personnel_code); // dependent.personnel_code here is the identifier from the file
+          const correctPersonnelCode = identifierToPersonnelCodeMap.get(dependent.personnel_code);
           if (correctPersonnelCode) {
               dependent.personnel_code = correctPersonnelCode;
           } else {
-              // This case should be caught by the check above, but as a safeguard:
               return response.status(500).json({ error: 'خطای داخلی سرور هنگام مپ کردن شناسه سرپرست به کد پرسنلی.' });
           }
       }
@@ -265,10 +256,10 @@ async function handlePostDependents(request: VercelRequest, response: VercelResp
   
   try {
     await client.sql`BEGIN`;
-    const BATCH_SIZE = 250; // Reduced batch size for safety
+    const BATCH_SIZE = 250;
     let totalProcessed = 0;
 
-    const columns = ['personnel_code', 'first_name', 'last_name', 'father_name', 'relation_type', 'birth_date', 'gender', 'birth_month', 'birth_day', 'id_number', 'national_id', 'issue_place', 'insurance_type'];
+    const columns = ['personnel_code', 'first_name', 'last_name', 'father_name', 'relation_type', 'birth_date', 'gender', 'birth_month', 'birth_day', 'id_number', 'national_id', 'guardian_national_id', 'issue_place', 'insurance_type'];
     const quotedColumns = columns.map(c => `"${c}"`);
     const updateSet = columns
       .filter(c => !['personnel_code', 'national_id'].includes(c))
@@ -328,6 +319,7 @@ async function handlePutDependent(request: VercelRequest, response: VercelRespon
                 birth_month = ${d.birth_month},
                 birth_day = ${d.birth_day},
                 id_number = ${d.id_number},
+                guardian_national_id = ${d.guardian_national_id},
                 issue_place = ${d.issue_place},
                 insurance_type = ${d.insurance_type}
             WHERE id = ${d.id} RETURNING *;

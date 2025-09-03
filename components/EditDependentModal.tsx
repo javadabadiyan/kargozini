@@ -43,6 +43,7 @@ const EditDependentModal: React.FC<EditDependentModalProps> = ({ dependent, onCl
     { key: 'birth_day', label: 'روز تولد' },
     { key: 'id_number', label: 'شماره شناسنامه' },
     { key: 'national_id', label: 'کد ملی بستگان' },
+    { key: 'guardian_national_id', label: 'کد ملی سرپرست' },
     { key: 'issue_place', label: 'محل صدور شناسنامه' },
     { key: 'insurance_type', label: 'نوع بیمه شده' },
   ];

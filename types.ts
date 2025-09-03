@@ -60,6 +60,7 @@ export interface Dependent {
   birth_day: string | null;
   id_number: string | null;
   national_id: string;
+  guardian_national_id: string | null;
   issue_place: string | null;
   insurance_type: string | null;
 }

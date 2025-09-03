@@ -66,6 +66,7 @@ export default async function handler(
         birth_day VARCHAR(20),
         id_number VARCHAR(20),
         national_id VARCHAR(20) NOT NULL,
+        guardian_national_id VARCHAR(20),
         issue_place VARCHAR(100),
         insurance_type VARCHAR(100),
         CONSTRAINT unique_dependent UNIQUE (personnel_code, national_id)

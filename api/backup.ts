@@ -23,7 +23,7 @@ const TABLE_COLUMNS: Record<string, string[]> = {
     dependents: [
       'personnel_code', 'first_name', 'last_name', 'father_name', 'relation_type', 
       'birth_date', 'gender', 'birth_month', 'birth_day', 'id_number', 
-      'national_id', 'issue_place', 'insurance_type'
+      'national_id', 'guardian_national_id', 'issue_place', 'insurance_type'
     ],
     app_users: ['username', 'password', 'permissions'],
     commute_logs: ['personnel_code', 'guard_name', 'entry_time', 'exit_time', 'created_at', 'updated_at'],
