@@ -203,25 +203,44 @@ async function handlePostDependents(request: VercelRequest, response: VercelResp
   const allDependents = request.body as NewDependent[];
   if (!Array.isArray(allDependents)) return response.status(400).json({ error: 'فرمت داده‌های ارسالی نامعتبر است.' });
   
+  // The 'personnel_code' field from the frontend now holds the head of household's NATIONAL ID.
   const validList = allDependents.filter(d => d.personnel_code && d.first_name && d.last_name && d.national_id);
   if (validList.length === 0) return response.status(400).json({ error: 'هیچ رکورد معتبری برای ورود یافت نشد.' });
 
-  // Pre-flight check for personnel_code existence
-  const personnelCodesInFile = [...new Set(validList.map(d => d.personnel_code))];
-  if (personnelCodesInFile.length > 0) {
-      // FIX: The `sql` tag helper handles array interpolation for ANY clauses automatically.
-      // The explicit `::text[]` cast is not needed and causes a type error.
-      const { rows: existingPersonnel } = await client.sql`
-          SELECT personnel_code FROM personnel WHERE personnel_code = ANY(${personnelCodesInFile});
-      `;
-      const existingCodes = new Set(existingPersonnel.map(p => p.personnel_code));
-      const missingCodes = personnelCodesInFile.filter(code => !existingCodes.has(code));
+  // Pre-flight check: Validate head of household national IDs and map them to personnel codes.
+  const headNationalIdsInFile = [...new Set(validList.map(d => d.personnel_code))];
+  
+  if (headNationalIdsInFile.length > 0) {
+      // FIX: The `sql` template literal from @vercel/postgres does not accept arrays as parameters, causing a type error.
+      // Switched to `client.query` which correctly handles array parameters for `ANY` clauses.
+      const { rows: existingHeads } = await client.query(
+          `SELECT national_id, personnel_code FROM personnel WHERE national_id = ANY($1::text[])`,
+          [headNationalIdsInFile]
+      );
+      
+      const nationalIdToPersonnelCodeMap = new Map<string, string>();
+      for (const p of existingHeads) {
+          nationalIdToPersonnelCodeMap.set(p.national_id, p.personnel_code);
+      }
 
-      if (missingCodes.length > 0) {
+      const missingNationalIds = headNationalIdsInFile.filter(id => !nationalIdToPersonnelCodeMap.has(id));
+
+      if (missingNationalIds.length > 0) {
           return response.status(400).json({
-              error: `کد پرسنلی سرپرست برای برخی از رکوردها در سیستم یافت نشد.`,
-              details: `لطفاً فایل اکسل خود را بررسی کنید. کدهای پرسنلی زیر در سیستم وجود ندارند: ${missingCodes.join(', ')}`
+              error: `کد ملی سرپرست برای برخی از رکوردها در سیستم یافت نشد.`,
+              details: `لطفاً فایل اکسل خود را بررسی کنید. سرپرستی با کدهای ملی زیر در سیستم وجود ندارد: ${missingNationalIds.join(', ')}`
           });
+      }
+      
+      // Replace the head national ID with the correct personnel_code for insertion.
+      for(const dependent of validList) {
+          const correctPersonnelCode = nationalIdToPersonnelCodeMap.get(dependent.personnel_code);
+          if (correctPersonnelCode) {
+              dependent.personnel_code = correctPersonnelCode;
+          } else {
+              // This case should be caught by the check above, but as a safeguard:
+              return response.status(500).json({ error: 'خطای داخلی سرور هنگام مپ کردن کد ملی به کد پرسنلی.' });
+          }
       }
   }
   
