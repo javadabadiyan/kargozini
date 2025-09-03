@@ -29,6 +29,8 @@ const HEADER_MAP: { [key: string]: keyof Omit<Personnel, 'id'> } = {
   'تاریخ استخدام': 'hire_date',
   'مدرک تحصیلی': 'education_level',
   'رشته تحصیلی': 'field_of_study',
+  'گروه شغلی': 'job_group',
+  'جمع عوامل حكمي': 'sum_of_decree_factors',
   'وضعیت': 'status',
 };
 
@@ -41,7 +43,7 @@ const DEFAULT_PERSONNEL: Omit<Personnel, 'id'> = {
   id_number: '', birth_date: '', birth_place: '', issue_date: '', issue_place: '',
   marital_status: '', military_status: '', job_title: '', position: '', employment_type: '',
   department: '', service_location: '', hire_date: '', education_level: '', field_of_study: '',
-  status: '',
+  job_group: '', sum_of_decree_factors: '', status: '',
 };
 
 // A custom hook for debouncing input
@@ -147,7 +149,7 @@ const PersonnelListPage: React.FC = () => {
         const mappedData = json.map(row => {
           const newRow: { [key in keyof Omit<Personnel, 'id'>]?: string | null } = {};
           for (const header in HEADER_MAP) {
-            const dbKey = HEADER_MAP[header];
+            const dbKey = HEADER_MAP[header as keyof typeof HEADER_MAP];
             const value = row[header];
             newRow[dbKey] = (value === null || value === undefined || String(value).trim() === '') 
               ? null 
@@ -202,7 +204,7 @@ const PersonnelListPage: React.FC = () => {
         const dataToExport = data.personnel.map((p: Personnel) => {
             const row: { [key: string]: any } = {};
             for(const header of EXPORT_HEADERS){
-                const key = HEADER_MAP[header];
+                const key = HEADER_MAP[header as keyof typeof HEADER_MAP];
                 row[header] = toPersianDigits(p[key]);
             }
             return row;
@@ -352,7 +354,7 @@ const PersonnelListPage: React.FC = () => {
             {!loading && !error && personnelList.length > 0 && personnelList.map((p) => (
               <tr key={p.id} className="hover:bg-slate-50">
                 {EXPORT_HEADERS.map(header => {
-                    const key = HEADER_MAP[header];
+                    const key = HEADER_MAP[header as keyof typeof HEADER_MAP];
                     return (
                         <td key={key} className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">{toPersianDigits(String(p[key] ?? ''))}</td>
                     );

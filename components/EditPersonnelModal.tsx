@@ -55,6 +55,8 @@ const EditPersonnelModal: React.FC<EditPersonnelModalProps> = ({ personnel, onCl
     { key: 'hire_date', label: 'تاریخ استخدام' },
     { key: 'education_level', label: 'مدرک تحصیلی' },
     { key: 'field_of_study', label: 'رشته تحصیلی' },
+    { key: 'job_group', label: 'گروه شغلی' },
+    { key: 'sum_of_decree_factors', label: 'جمع عوامل حكمي' },
     { key: 'status', label: 'وضعیت' },
   ];
 
@@ -95,7 +97,7 @@ const EditPersonnelModal: React.FC<EditPersonnelModalProps> = ({ personnel, onCl
                     type={field.type || 'text'}
                     id={field.key}
                     name={field.key}
-                    value={String(formData[field.key] ?? '')}
+                    value={String(formData[field.key as keyof typeof formData] ?? '')}
                     onChange={handleChange}
                     className={inputClass}
                     readOnly={field.key === 'personnel_code' && !isNew} // Make personnel_code readonly on edit

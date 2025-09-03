@@ -45,6 +45,8 @@ export default async function handler(
         hire_date VARCHAR(30),
         education_level VARCHAR(100),
         field_of_study VARCHAR(100),
+        job_group VARCHAR(100),
+        sum_of_decree_factors VARCHAR(100),
         status VARCHAR(50)
       );
     `;

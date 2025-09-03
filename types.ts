@@ -41,6 +41,8 @@ export interface Personnel {
   hire_date: string;
   education_level: string;
   field_of_study: string;
+  job_group: string | null;
+  sum_of_decree_factors: string | null;
   status: string;
 }
 
