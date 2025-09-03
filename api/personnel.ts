@@ -111,6 +111,39 @@ async function handlePutPersonnel(request: VercelRequest, response: VercelRespon
   return response.status(200).json({ message: 'اطلاعات پرسنل به‌روزرسانی شد.', personnel: rows[0] });
 }
 
+async function handleDeletePersonnel(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+  const { id, deleteAll } = request.query;
+
+  if (deleteAll === 'true') {
+    try {
+      await pool.sql`TRUNCATE TABLE personnel RESTART IDENTITY CASCADE;`;
+      return response.status(200).json({ message: 'تمام اطلاعات پرسنل با موفقیت حذف شد.' });
+    } catch (error) {
+       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+       return response.status(500).json({ error: 'خطا در حذف کلی اطلاعات پرسنل.', details: errorMessage });
+    }
+  }
+
+  if (id && typeof id === 'string') {
+    const personId = parseInt(id, 10);
+    if (isNaN(personId)) {
+      return response.status(400).json({ error: 'شناسه پرسنل نامعتبر است.' });
+    }
+    try {
+      const result = await pool.sql`DELETE FROM personnel WHERE id = ${personId};`;
+      if (result.rowCount === 0) {
+        return response.status(404).json({ error: 'پرسنلی با این شناسه یافت نشد.' });
+      }
+      return response.status(200).json({ message: 'پرسنل با موفقیت حذف شد.' });
+    } catch (error) {
+       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+       return response.status(500).json({ error: 'خطا در حذف پرسنل.', details: errorMessage });
+    }
+  }
+
+  return response.status(400).json({ error: 'برای حذف، شناسه پرسنل یا پارامتر حذف کلی الزامی است.' });
+}
+
 
 // =================================================================================
 // DEPENDENTS HANDLERS
@@ -303,6 +336,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
         return response.status(400).json({ error: 'نوع داده نامعتبر است.' });
       
       case 'DELETE':
+        if (type === 'personnel') return await handleDeletePersonnel(request, response, pool);
         if (type === 'documents') return await handleDeleteDocument(request, response, pool);
         return response.status(400).json({ error: 'نوع داده برای حذف نامعتبر است.' });
 

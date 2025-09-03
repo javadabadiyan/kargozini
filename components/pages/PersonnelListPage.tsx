@@ -1,12 +1,9 @@
 
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import type { Personnel } from '../../types';
 import EditPersonnelModal from '../EditPersonnelModal';
-import { PencilIcon, SearchIcon } from '../icons/Icons';
-
-// Type alias for SheetJS, assuming it's loaded from a global script
-declare const XLSX: any;
+import { PencilIcon, SearchIcon, TrashIcon } from '../icons/Icons';
 
 const HEADER_MAP: { [key: string]: keyof Omit<Personnel, 'id'> } = {
   'کد پرسنلی': 'personnel_code',
@@ -36,8 +33,8 @@ const HEADER_MAP: { [key: string]: keyof Omit<Personnel, 'id'> } = {
 };
 
 
-const EXPORT_HEADERS = Object.keys(HEADER_MAP);
-const TABLE_HEADERS = [...EXPORT_HEADERS, 'عملیات'];
+const TABLE_HEADERS_KEYS = Object.keys(HEADER_MAP);
+const TABLE_HEADERS = [...TABLE_HEADERS_KEYS, 'عملیات'];
 const PAGE_SIZE = 20;
 
 const DEFAULT_PERSONNEL: Omit<Personnel, 'id'> = {
@@ -64,15 +61,11 @@ const useDebounce = <T,>(value: T, delay: number): T => {
 
 
 const PersonnelListPage: React.FC = () => {
-  // FIX: Re-implementing the entire component logic which was missing.
-  // This includes state definitions, data fetching logic, and event handlers,
-  // resolving all "Cannot find name" errors.
   const [personnelList, setPersonnelList] = useState<Personnel[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [importStatus, setImportStatus] = useState<{ type: 'info' | 'success' | 'error'; message: string } | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
+  const [status, setStatus] = useState<{ type: 'info' | 'success' | 'error'; message: string } | null>(null);
+  
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingPersonnel, setEditingPersonnel] = useState<Personnel | null>(null);
   
@@ -81,6 +74,7 @@ const PersonnelListPage: React.FC = () => {
 
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
+  const [totalCount, setTotalCount] = useState(0);
 
   const toPersianDigits = (s: string | null | undefined): string => {
     if (s === null || s === undefined) return '';
@@ -109,6 +103,7 @@ const PersonnelListPage: React.FC = () => {
       const data = await response.json();
       setPersonnelList(data.personnel || []);
       setTotalPages(Math.ceil((data.totalCount || 0) / PAGE_SIZE));
+      setTotalCount(data.totalCount || 0);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'یک خطای ناشناخته رخ داد');
     } finally {
@@ -117,7 +112,6 @@ const PersonnelListPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    // When the debounced search term changes, always go back to page 1
     if (currentPage !== 1) {
         setCurrentPage(1);
     } else {
@@ -127,109 +121,10 @@ const PersonnelListPage: React.FC = () => {
   }, [debouncedSearchTerm]);
 
   useEffect(() => {
-    // Fetch personnel whenever the current page changes
     fetchPersonnel(currentPage, debouncedSearchTerm);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage]);
   
-
-  const handleFileImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    setImportStatus({ type: 'info', message: 'در حال پردازش فایل اکسل...' });
-
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      try {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const json: any[] = XLSX.utils.sheet_to_json(worksheet);
-
-        const mappedData = json.map(row => {
-          const newRow: { [key in keyof Omit<Personnel, 'id'>]?: string | null } = {};
-          for (const header in HEADER_MAP) {
-            const dbKey = HEADER_MAP[header as keyof typeof HEADER_MAP];
-            const value = row[header];
-            newRow[dbKey] = (value === null || value === undefined || String(value).trim() === '') 
-              ? null 
-              : String(value);
-          }
-          return newRow;
-        });
-
-        setImportStatus({ type: 'info', message: 'در حال ارسال اطلاعات به سرور...' });
-
-        const response = await fetch('/api/personnel?type=personnel', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(mappedData),
-        });
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            let errorMessage = 'خطا در ورود اطلاعات';
-            try {
-              const errorJson = JSON.parse(errorText);
-              errorMessage = errorJson.error || errorJson.details || errorMessage;
-            } catch (jsonError) {
-              console.error("Server Error Response:", errorText);
-              errorMessage = `خطای سرور (${response.status}). لطفا دوباره تلاش کنید یا با پشتیبانی تماس بگیرید.`;
-            }
-            throw new Error(errorMessage);
-        }
-
-        const successData = await response.json();
-        setImportStatus({ type: 'success', message: successData.message || 'اطلاعات با موفقیت وارد شد. لیست به‌روزرسانی می‌شود.' });
-        await fetchPersonnel(currentPage, debouncedSearchTerm); // Re-fetch current page
-
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'خطایی در پردازش فایل رخ داد.';
-        setImportStatus({ type: 'error', message });
-      } finally {
-         if(fileInputRef.current) fileInputRef.current.value = "";
-         setTimeout(() => setImportStatus(null), 5000);
-      }
-    };
-    reader.readAsArrayBuffer(file);
-  };
-
-  const handleExport = async () => {
-    // Note: This exports all personnel, not just the current page.
-    // This could be slow if there are many records.
-    setImportStatus({type: 'info', message: 'در حال آماده‌سازی فایل اکسل...'});
-    try {
-        const response = await fetch('/api/personnel?type=personnel&pageSize=100000'); // A bit of a hack to get all users
-        const data = await response.json();
-        const dataToExport = data.personnel.map((p: Personnel) => {
-            const row: { [key: string]: any } = {};
-            for(const header of EXPORT_HEADERS){
-                const key = HEADER_MAP[header as keyof typeof HEADER_MAP];
-                row[header] = toPersianDigits(p[key]);
-            }
-            return row;
-        });
-
-        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, 'Personnel');
-        XLSX.writeFile(workbook, 'Personnel_List.xlsx');
-        setImportStatus(null);
-    } catch(err) {
-        const message = err instanceof Error ? err.message : 'خطا در خروجی گرفتن.';
-        setImportStatus({type: 'error', message});
-        setTimeout(() => setImportStatus(null), 5000);
-    }
-  };
-
-  const handleDownloadSample = () => {
-    const ws = XLSX.utils.aoa_to_sheet([EXPORT_HEADERS]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'نمونه');
-    XLSX.writeFile(wb, 'Sample_Personnel_File.xlsx');
-  };
 
   const handleEditClick = (personnel: Personnel) => {
     setEditingPersonnel(personnel);
@@ -251,9 +146,8 @@ const PersonnelListPage: React.FC = () => {
     const endpoint = '/api/personnel?type=personnel';
     const method = isNew ? 'POST' : 'PUT';
 
-    setImportStatus({ type: 'info', message: 'در حال ذخیره اطلاعات...' });
+    setStatus({ type: 'info', message: 'در حال ذخیره اطلاعات...' });
     try {
-      // For new personnel, remove the placeholder id before sending
       const payload = { ...updatedPersonnel };
       if (isNew) {
         delete (payload as any).id;
@@ -280,7 +174,7 @@ const PersonnelListPage: React.FC = () => {
       const savedData = await response.json();
       
       if (isNew) {
-        setImportStatus({ type: 'success', message: 'پرسنل جدید با موفقیت اضافه شد.' });
+        setStatus({ type: 'success', message: 'پرسنل جدید با موفقیت اضافه شد.' });
         if (debouncedSearchTerm) setSearchTerm('');
         setCurrentPage(1); 
         if (!debouncedSearchTerm) {
@@ -290,16 +184,80 @@ const PersonnelListPage: React.FC = () => {
         setPersonnelList(prevList =>
           prevList.map(p => (p.id === savedData.personnel.id ? savedData.personnel : p))
         );
-        setImportStatus({ type: 'success', message: 'اطلاعات با موفقیت به‌روزرسانی شد.' });
+        setStatus({ type: 'success', message: 'اطلاعات با موفقیت به‌روزرسانی شد.' });
       }
       handleCloseModal();
     } catch (err) {
       const message = err instanceof Error ? err.message : 'یک خطای ناشناخته رخ داد.';
-      setImportStatus({ type: 'error', message });
+      setStatus({ type: 'error', message });
     } finally {
-      setTimeout(() => setImportStatus(null), 5000);
+      setTimeout(() => setStatus(null), 5000);
     }
   };
+  
+  const handleDeleteClick = async (id: number) => {
+      if (window.confirm('آیا از حذف این پرسنل اطمینان دارید؟ این عمل قابل بازگشت نیست.')) {
+        setStatus({ type: 'info', message: 'در حال حذف پرسنل...' });
+        try {
+          const response = await fetch(`/api/personnel?type=personnel&id=${id}`, {
+            method: 'DELETE',
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'خطا در حذف پرسنل');
+          }
+          
+          const result = await response.json();
+          setStatus({ type: 'success', message: result.message });
+          // Refresh data, stay on the same page or go to prev if it's the last item
+          if (personnelList.length === 1 && currentPage > 1) {
+            setCurrentPage(currentPage - 1);
+          } else {
+            fetchPersonnel(currentPage, debouncedSearchTerm);
+          }
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'یک خطای ناشناخته رخ داد.';
+          setStatus({ type: 'error', message });
+        } finally {
+          setTimeout(() => setStatus(null), 5000);
+        }
+      }
+    };
+    
+    const handleDeleteAll = async () => {
+      const confirmation = window.prompt('این عمل تمام اطلاعات پرسنل را حذف می‌کند و قابل بازگشت نیست. برای تایید، عبارت "حذف کلی" را وارد کنید.');
+      if (confirmation === 'حذف کلی') {
+        setStatus({ type: 'info', message: 'در حال حذف تمام اطلاعات...' });
+        try {
+          const response = await fetch('/api/personnel?type=personnel&deleteAll=true', {
+            method: 'DELETE',
+          });
+
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'خطا در حذف کلی اطلاعات');
+          }
+          
+          const result = await response.json();
+          setStatus({ type: 'success', message: result.message });
+          // Reset view
+          setSearchTerm('');
+          if(currentPage !== 1) {
+            setCurrentPage(1);
+          } else {
+             fetchPersonnel(1, '');
+          }
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'یک خطای ناشناخته رخ داد.';
+          setStatus({ type: 'error', message });
+        } finally {
+          setTimeout(() => setStatus(null), 5000);
+        }
+      } else if (confirmation !== null) {
+          alert('عبارت وارد شده صحیح نیست. عملیات لغو شد.');
+      }
+    };
 
 
   const statusColor = {
@@ -327,17 +285,14 @@ const PersonnelListPage: React.FC = () => {
           </div>
           <div className="flex items-center gap-2 flex-wrap">
               <button onClick={handleOpenAddModal} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">افزودن پرسنل</button>
-              <button onClick={handleDownloadSample} className="text-sm text-blue-600 hover:underline">دانلود نمونه</button>
-              <input type="file" accept=".xlsx, .xls" ref={fileInputRef} onChange={handleFileImport} className="hidden" id="excel-import" />
-              <label htmlFor="excel-import" className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 cursor-pointer transition-colors">بازیابی از فایل</label>
-              <button onClick={handleExport} disabled={personnelList.length === 0} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 transition-colors">تهیه پشتیبان</button>
+              <button onClick={handleDeleteAll} disabled={totalCount === 0} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors">حذف کلی اطلاعات</button>
           </div>
         </div>
       </div>
 
-      {importStatus && (
-        <div className={`p-4 mb-4 text-sm rounded-lg ${statusColor[importStatus.type]}`} role="alert">
-          {importStatus.message}
+      {status && (
+        <div className={`p-4 mb-4 text-sm rounded-lg ${statusColor[status.type]}`} role="alert">
+          {status.message}
         </div>
       )}
 
@@ -355,20 +310,29 @@ const PersonnelListPage: React.FC = () => {
             {error && <tr><td colSpan={TABLE_HEADERS.length} className="text-center p-4 text-red-500">{error}</td></tr>}
             {!loading && !error && personnelList.length > 0 && personnelList.map((p) => (
               <tr key={p.id} className="hover:bg-slate-50">
-                {EXPORT_HEADERS.map(header => {
+                {TABLE_HEADERS_KEYS.map(header => {
                     const key = HEADER_MAP[header as keyof typeof HEADER_MAP];
                     return (
                         <td key={key} className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">{toPersianDigits(String(p[key] ?? ''))}</td>
                     );
                 })}
                 <td className="px-4 py-3 whitespace-nowrap text-sm text-center">
-                  <button 
-                    onClick={() => handleEditClick(p)}
-                    className="text-blue-600 hover:text-blue-800 p-1 rounded-full hover:bg-blue-100 transition-colors"
-                    aria-label={`ویرایش ${p.first_name} ${p.last_name}`}
-                  >
-                    <PencilIcon className="w-5 h-5" />
-                  </button>
+                    <div className="flex items-center justify-center gap-2">
+                      <button 
+                        onClick={() => handleEditClick(p)}
+                        className="text-blue-600 hover:text-blue-800 p-1 rounded-full hover:bg-blue-100 transition-colors"
+                        aria-label={`ویرایش ${p.first_name} ${p.last_name}`}
+                      >
+                        <PencilIcon className="w-5 h-5" />
+                      </button>
+                       <button 
+                        onClick={() => handleDeleteClick(p.id)}
+                        className="text-red-600 hover:text-red-800 p-1 rounded-full hover:bg-red-100 transition-colors"
+                        aria-label={`حذف ${p.first_name} ${p.last_name}`}
+                      >
+                        <TrashIcon className="w-5 h-5" />
+                      </button>
+                    </div>
                 </td>
               </tr>
             ))}
@@ -377,7 +341,7 @@ const PersonnelListPage: React.FC = () => {
                 <td colSpan={TABLE_HEADERS.length} className="text-center p-4 text-gray-500">
                   {searchTerm
                     ? "هیچ پرسنلی با مشخصات وارد شده یافت نشد."
-                    : "هیچ پرسنلی یافت نشد. می‌توانید از طریق فایل اکسل اطلاعات را وارد کنید."}
+                    : "هیچ پرسنلی یافت نشد. می‌توانید یک پرسنل جدید اضافه کنید."}
                 </td>
               </tr>
             )}
