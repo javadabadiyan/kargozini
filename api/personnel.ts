@@ -205,6 +205,25 @@ async function handlePostDependents(request: VercelRequest, response: VercelResp
   
   const validList = allDependents.filter(d => d.personnel_code && d.first_name && d.last_name && d.national_id);
   if (validList.length === 0) return response.status(400).json({ error: 'هیچ رکورد معتبری برای ورود یافت نشد.' });
+
+  // Pre-flight check for personnel_code existence
+  const personnelCodesInFile = [...new Set(validList.map(d => d.personnel_code))];
+  if (personnelCodesInFile.length > 0) {
+      // FIX: The `sql` tag helper handles array interpolation for ANY clauses automatically.
+      // The explicit `::text[]` cast is not needed and causes a type error.
+      const { rows: existingPersonnel } = await client.sql`
+          SELECT personnel_code FROM personnel WHERE personnel_code = ANY(${personnelCodesInFile});
+      `;
+      const existingCodes = new Set(existingPersonnel.map(p => p.personnel_code));
+      const missingCodes = personnelCodesInFile.filter(code => !existingCodes.has(code));
+
+      if (missingCodes.length > 0) {
+          return response.status(400).json({
+              error: `کد پرسنلی سرپرست برای برخی از رکوردها در سیستم یافت نشد.`,
+              details: `لطفاً فایل اکسل خود را بررسی کنید. کدهای پرسنلی زیر در سیستم وجود ندارند: ${missingCodes.join(', ')}`
+          });
+      }
+  }
   
   try {
     await client.sql`BEGIN`;
@@ -247,12 +266,9 @@ async function handlePostDependents(request: VercelRequest, response: VercelResp
     await client.sql`ROLLBACK`.catch(() => {});
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     console.error("Error in handlePostDependents:", error);
-    if (errorMessage.includes('foreign key constraint')) {
-        return response.status(400).json({ error: 'یک یا چند کد پرسنلی (یا کد ملی سرپرست) در فایل شما در لیست پرسنل اصلی وجود ندارد.' });
-    }
     return response.status(500).json({ 
         error: 'خطا در عملیات پایگاه داده.', 
-        details: `این خطا ممکن است به دلیل حجم زیاد داده، فرمت نادرست فایل اکسل، یا عدم وجود کد پرسنلی سرپرست در سیستم باشد. جزئیات فنی: ${errorMessage}` 
+        details: `این خطا ممکن است به دلیل فرمت نادرست فایل اکسل یا داده‌های نامعتبر باشد. جزئیات فنی: ${errorMessage}` 
     });
   }
 }
