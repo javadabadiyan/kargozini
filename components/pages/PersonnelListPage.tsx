@@ -291,9 +291,9 @@ const PersonnelListPage: React.FC = () => {
                       if (row.hasOwnProperty(header)) {
                           const dbKey = HEADER_MAP[header as keyof typeof HEADER_MAP];
                           let value = row[header];
-                          // Clean up value: remove RTL/LTR marks and trim whitespace
+                          // Clean up value: remove various invisible characters and trim whitespace
                           if (typeof value === 'string') {
-                              value = value.replace(/[\u200E\u200F]/g, '').trim();
+                              value = value.replace(/[\u200B-\u200D\u200E\u200F\uFEFF]/g, '').trim();
                           }
                           (newRow as any)[dbKey] = (value === null || value === undefined) ? null : String(value);
                       }
@@ -315,7 +315,7 @@ const PersonnelListPage: React.FC = () => {
 
               const result = await response.json();
               if (!response.ok) {
-                  throw new Error(result.error || result.details || 'خطا در ورود اطلاعات از فایل اکسل');
+                  throw new Error(result.error || result.details || 'خطا در ورود اطلاعات از اکسل');
               }
               
               setStatus({ type: 'success', message: result.message || 'اطلاعات با موفقیت وارد شد.' });

@@ -11,36 +11,45 @@ type NewCommutingMember = Omit<CommutingMember, 'id'>;
 // PERSONNEL HANDLERS
 // =================================================================================
 async function handleGetPersonnel(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
-  const page = parseInt(request.query.page as string) || 1;
-  const pageSize = parseInt(request.query.pageSize as string) || 20;
-  const searchTerm = (request.query.searchTerm as string) || '';
-  const offset = (page - 1) * pageSize;
-  const searchQuery = `%${searchTerm}%`;
+  try {
+    const page = parseInt(request.query.page as string) || 1;
+    const pageSize = parseInt(request.query.pageSize as string) || 20;
+    const searchTerm = (request.query.searchTerm as string) || '';
+    const offset = (page - 1) * pageSize;
+    const searchQuery = `%${searchTerm}%`;
 
-  let countResult;
-  let dataResult;
+    let countResult;
+    let dataResult;
 
-  if (searchTerm) {
-      countResult = await pool.sql`
-          SELECT COUNT(*) FROM personnel
-          WHERE first_name ILIKE ${searchQuery} OR last_name ILIKE ${searchQuery} OR personnel_code ILIKE ${searchQuery} OR national_id ILIKE ${searchQuery};
-      `;
-      dataResult = await pool.sql`
-          SELECT * FROM personnel
-          WHERE first_name ILIKE ${searchQuery} OR last_name ILIKE ${searchQuery} OR personnel_code ILIKE ${searchQuery} OR national_id ILIKE ${searchQuery}
-          ORDER BY last_name, first_name
-          LIMIT ${pageSize} OFFSET ${offset};
-      `;
-  } else {
-      countResult = await pool.sql`SELECT COUNT(*) FROM personnel;`;
-      dataResult = await pool.sql`
-          SELECT * FROM personnel
-          ORDER BY last_name, first_name
-          LIMIT ${pageSize} OFFSET ${offset};
-      `;
+    if (searchTerm) {
+        countResult = await pool.sql`
+            SELECT COUNT(*) FROM personnel
+            WHERE first_name ILIKE ${searchQuery} OR last_name ILIKE ${searchQuery} OR personnel_code ILIKE ${searchQuery} OR national_id ILIKE ${searchQuery};
+        `;
+        dataResult = await pool.sql`
+            SELECT * FROM personnel
+            WHERE first_name ILIKE ${searchQuery} OR last_name ILIKE ${searchQuery} OR personnel_code ILIKE ${searchQuery} OR national_id ILIKE ${searchQuery}
+            ORDER BY last_name, first_name
+            LIMIT ${pageSize} OFFSET ${offset};
+        `;
+    } else {
+        countResult = await pool.sql`SELECT COUNT(*) FROM personnel;`;
+        dataResult = await pool.sql`
+            SELECT * FROM personnel
+            ORDER BY last_name, first_name
+            LIMIT ${pageSize} OFFSET ${offset};
+        `;
+    }
+    const totalCount = parseInt(countResult.rows[0].count, 10);
+    return response.status(200).json({ personnel: dataResult.rows, totalCount });
+  } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error during fetch';
+      console.error("Error in handleGetPersonnel:", errorMessage);
+      if (errorMessage.includes('does not exist')) {
+          return response.status(500).json({ error: 'جدول "personnel" در پایگاه داده یافت نشد.', details: 'لطفاً مطمئن شوید که جداول پایگاه داده به درستی ایجاد شده‌اند.'});
+      }
+      return response.status(500).json({ error: 'خطا در دریافت لیست پرسنل از پایگاه داده.', details: errorMessage });
   }
-  const totalCount = parseInt(countResult.rows[0].count, 10);
-  return response.status(200).json({ personnel: dataResult.rows, totalCount });
 }
 
 async function handlePostPersonnel(body: any, response: VercelResponse, pool: VercelPool) {
@@ -87,16 +96,31 @@ async function handlePostPersonnel(body: any, response: VercelResponse, pool: Ve
     } catch (error) {
         await client.sql`ROLLBACK`.catch(() => {});
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-        if (errorMessage.includes('duplicate key')) {
-            if (errorMessage.includes('personnel_personnel_code_key')) {
-                return response.status(409).json({ error: 'خطا: یک یا چند کد پرسنلی در فایل اکسل تکراری است و از قبل در سیستم وجود دارد.', details: errorMessage });
-            }
-            if (errorMessage.includes('personnel_national_id_key')) {
-                return response.status(409).json({ error: 'خطا: یک یا چند کد ملی در فایل اکسل تکراری است و از قبل در سیستم وجود دارد.', details: errorMessage });
-            }
-            return response.status(409).json({ error: 'خطا: مقدار تکراری برای یک فیلد یکتا (مانند کد پرسنلی یا کد ملی).', details: errorMessage });
+        console.error("Error in handlePostPersonnel:", errorMessage);
+
+        if (errorMessage.includes('personnel_national_id_key')) {
+            return response.status(409).json({ 
+                error: 'خطا: کد ملی تکراری است. یک یا چند کد ملی در فایل اکسل شما از قبل در سیستم وجود دارد.'
+            });
         }
-        return response.status(500).json({ error: 'خطا در عملیات پایگاه داده.', details: errorMessage });
+        
+        if (errorMessage.includes('personnel_personnel_code_key')) {
+             return response.status(409).json({ 
+                error: 'خطا: کد پرسنلی تکراری است. سیستم باید این موارد را به‌روزرسانی کند اما با خطا مواجه شد.'
+            });
+        }
+
+        if (errorMessage.includes('duplicate key')) {
+            return response.status(409).json({ 
+                error: 'خطا: یک مقدار تکراری (مانند کد ملی یا کد پرسنلی) در فایل شما وجود دارد.',
+                details: errorMessage
+            });
+        }
+        
+        return response.status(500).json({ 
+            error: 'خطا در عملیات پایگاه داده.',
+            details: `جزئیات فنی: ${errorMessage}` 
+        });
     } finally {
         client.release();
     }
