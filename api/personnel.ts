@@ -223,21 +223,23 @@ async function handlePostDependents(request: VercelRequest, response: VercelResp
   const supervisorIdentifiersInFile = [...new Set(validList.map(d => d.personnel_code))];
   
   if (supervisorIdentifiersInFile.length > 0) {
-      // FIX: Add TRIM() to the query to make the lookup robust against whitespace issues in the DB.
-      const { rows: existingHeads } = await client.query(
-          `SELECT TRIM(national_id) as national_id, TRIM(personnel_code) as personnel_code 
-           FROM personnel 
-           WHERE TRIM(national_id) = ANY($1::text[]) OR TRIM(personnel_code) = ANY($1::text[])`,
-          [supervisorIdentifiersInFile]
-      );
-      
+      // More robust check: Fetch all valid identifiers from the DB, clean them, and check against them in memory.
+      // This avoids potential issues with SQL type casting, array parameters, or subtle formatting mismatches.
+      const { rows: allPersonnel } = await client.sql`SELECT national_id, personnel_code FROM personnel`;
+
       const identifierToPersonnelCodeMap = new Map<string, string>();
-      for (const p of existingHeads) {
-          // Since we TRIM'd in the SELECT, p.national_id and p.personnel_code are already trimmed.
-          if (p.national_id) {
-            identifierToPersonnelCodeMap.set(p.national_id, p.personnel_code);
-          }
-          identifierToPersonnelCodeMap.set(p.personnel_code, p.personnel_code);
+      for (const p of allPersonnel) {
+        // Ensure values are strings and trimmed before adding to the map
+        const nationalId = p.national_id ? String(p.national_id).trim() : null;
+        const personnelCode = p.personnel_code ? String(p.personnel_code).trim() : null;
+        
+        if (personnelCode) {
+            // Map both national_id and personnel_code to the canonical personnel_code
+            if (nationalId) {
+                identifierToPersonnelCodeMap.set(nationalId, personnelCode);
+            }
+            identifierToPersonnelCodeMap.set(personnelCode, personnelCode);
+        }
       }
 
       const missingIdentifiers = supervisorIdentifiersInFile.filter(id => !identifierToPersonnelCodeMap.has(id));
