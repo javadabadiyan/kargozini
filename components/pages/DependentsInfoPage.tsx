@@ -129,7 +129,8 @@ const DependentsInfoPage: React.FC = () => {
         const workbook = XLSX.read(data, { type: 'array' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        const json: any[] = XLSX.utils.sheet_to_json(worksheet);
+        // FIX: Use { raw: false } to read formatted text, preventing numbers from being parsed incorrectly (e.g., losing leading zeros).
+        const json: any[] = XLSX.utils.sheet_to_json(worksheet, { raw: false });
 
         const mappedData = json.map(row => {
           const newRow: { [key in keyof Omit<Dependent, 'id'>]?: string | null } = {};
