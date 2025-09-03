@@ -56,12 +56,18 @@ export default async function handler(
       CREATE TABLE IF NOT EXISTS dependents (
         id SERIAL PRIMARY KEY,
         personnel_code VARCHAR(50) NOT NULL REFERENCES personnel(personnel_code) ON DELETE CASCADE,
-        relation_type VARCHAR(100),
         first_name VARCHAR(100) NOT NULL,
         last_name VARCHAR(100) NOT NULL,
-        national_id VARCHAR(20) NOT NULL,
+        father_name VARCHAR(100),
+        relation_type VARCHAR(100),
         birth_date VARCHAR(30),
         gender VARCHAR(20),
+        birth_month VARCHAR(20),
+        birth_day VARCHAR(20),
+        id_number VARCHAR(20),
+        national_id VARCHAR(20) NOT NULL,
+        issue_place VARCHAR(100),
+        insurance_type VARCHAR(100),
         CONSTRAINT unique_dependent UNIQUE (personnel_code, national_id)
       );
     `;

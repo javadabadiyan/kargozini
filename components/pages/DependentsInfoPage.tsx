@@ -1,6 +1,3 @@
-
-
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { SearchIcon, UserIcon, UsersIcon } from '../icons/Icons';
 import type { Personnel, Dependent } from '../../types';
@@ -9,16 +6,24 @@ import type { Personnel, Dependent } from '../../types';
 declare const XLSX: any;
 
 const DEPENDENT_HEADER_MAP: { [key: string]: keyof Omit<Dependent, 'id'> } = {
-  'کد پرسنلی': 'personnel_code',
-  'نوع وابستگی': 'relation_type',
   'نام': 'first_name',
   'نام خانوادگی': 'last_name',
-  'کد ملی': 'national_id',
-  'تاریخ تولد': 'birth_date',
-  'جنسیت': 'gender',
+  'نام پدر': 'father_name',
+  'نسبت': 'relation_type',
+  'تاريخ تولد': 'birth_date',
+  'جنسيت': 'gender',
+  'ماه تولد': 'birth_month',
+  'روز تولد': 'birth_day',
+  'شماره شناسنامه': 'id_number',
+  'كد ملي بستگان': 'national_id',
+  'كد ملي سرپرست': 'personnel_code',
+  'محل صدور شناسنامه': 'issue_place',
+  'نوع بيمه شده': 'insurance_type',
 };
 
 const EXPORT_HEADERS = Object.keys(DEPENDENT_HEADER_MAP);
+const TABLE_VIEW_HEADERS = EXPORT_HEADERS.filter(h => h !== 'كد ملي سرپرست');
+
 
 const DependentsInfoPage: React.FC = () => {
   const [personnelList, setPersonnelList] = useState<Personnel[]>([]);
@@ -125,7 +130,7 @@ const DependentsInfoPage: React.FC = () => {
         const mappedData = json.map(row => {
           const newRow: { [key in keyof Omit<Dependent, 'id'>]?: string | null } = {};
           for (const header in DEPENDENT_HEADER_MAP) {
-            const dbKey = DEPENDENT_HEADER_MAP[header];
+            const dbKey = DEPENDENT_HEADER_MAP[header as keyof typeof DEPENDENT_HEADER_MAP];
             const value = row[header];
             newRow[dbKey] = (value === null || value === undefined) ? null : String(value);
           }
@@ -176,7 +181,7 @@ const DependentsInfoPage: React.FC = () => {
         const dataToExport = data.dependents.map((d: Dependent) => {
             const row: { [key: string]: any } = {};
             for(const header of EXPORT_HEADERS){
-                const key = DEPENDENT_HEADER_MAP[header];
+                const key = DEPENDENT_HEADER_MAP[header as keyof typeof DEPENDENT_HEADER_MAP];
                 row[header] = toPersianDigits(d[key]);
             }
             return row;
@@ -287,7 +292,7 @@ const DependentsInfoPage: React.FC = () => {
                           <table className="min-w-full divide-y divide-gray-200">
                               <thead className="bg-gray-100">
                                   <tr>
-                                      {EXPORT_HEADERS.slice(1).map(header => ( // Hide "کد پرسنلی"
+                                      {TABLE_VIEW_HEADERS.map(header => (
                                           <th key={header} scope="col" className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">{header}</th>
                                       ))}
                                   </tr>
@@ -295,8 +300,8 @@ const DependentsInfoPage: React.FC = () => {
                               <tbody className="bg-white divide-y divide-gray-200">
                                   {dependents.map(d => (
                                       <tr key={d.id}>
-                                          {EXPORT_HEADERS.slice(1).map(header => (
-                                              <td key={header} className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">{toPersianDigits(String(d[DEPENDENT_HEADER_MAP[header]] ?? ''))}</td>
+                                          {TABLE_VIEW_HEADERS.map(header => (
+                                              <td key={header} className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">{toPersianDigits(String(d[DEPENDENT_HEADER_MAP[header as keyof typeof DEPENDENT_HEADER_MAP]] ?? ''))}</td>
                                           ))}
                                       </tr>
                                   ))}

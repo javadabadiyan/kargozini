@@ -50,12 +50,18 @@ export interface Personnel {
 export interface Dependent {
   id: number;
   personnel_code: string;
-  relation_type: string;
   first_name: string;
   last_name: string;
-  national_id: string;
+  father_name: string | null;
+  relation_type: string;
   birth_date: string;
   gender: string;
+  birth_month: string | null;
+  birth_day: string | null;
+  id_number: string | null;
+  national_id: string;
+  issue_place: string | null;
+  insurance_type: string | null;
 }
 
 export interface CommutingMember {

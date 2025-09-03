@@ -207,7 +207,7 @@ async function handlePostDependents(request: VercelRequest, response: VercelResp
   
   try {
     await client.sql`BEGIN`;
-    const columns = ['personnel_code', 'relation_type', 'first_name', 'last_name', 'national_id', 'birth_date', 'gender'];
+    const columns = ['personnel_code', 'first_name', 'last_name', 'father_name', 'relation_type', 'birth_date', 'gender', 'birth_month', 'birth_day', 'id_number', 'national_id', 'issue_place', 'insurance_type'];
     const updateSet = columns.filter(c => !['personnel_code', 'national_id'].includes(c)).map(c => `${c} = EXCLUDED.${c}`).join(', ');
     const values: (string | null)[] = [];
     const valuePlaceholders: string[] = [];
@@ -224,7 +224,7 @@ async function handlePostDependents(request: VercelRequest, response: VercelResp
   } catch (error) {
     await client.sql`ROLLBACK`.catch(() => {});
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-    if (errorMessage.includes('foreign key constraint')) return response.status(400).json({ error: 'یک یا چند کد پرسنلی در فایل شما در لیست پرسنل اصلی وجود ندارد.' });
+    if (errorMessage.includes('foreign key constraint')) return response.status(400).json({ error: 'یک یا چند کد پرسنلی (یا کد ملی سرپرست) در فایل شما در لیست پرسنل اصلی وجود ندارد.' });
     return response.status(500).json({ error: 'خطا در عملیات پایگاه داده.', details: errorMessage });
   }
 }
