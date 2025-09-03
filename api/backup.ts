@@ -39,7 +39,7 @@ async function handleGet(response: VercelResponse, client: VercelPoolClient) {
     try {
         const backupData: { [key: string]: any[] } = {};
         for (const table of TABLES_IN_ORDER) {
-            const { rows } = await client.query(`SELECT * FROM ${table}`);
+            const { rows } = await (client as any).query(`SELECT * FROM ${table}`);
             backupData[table] = rows;
         }
         return response.status(200).json(backupData);
@@ -58,8 +58,10 @@ async function handlePost(request: VercelRequest, response: VercelResponse, clie
     }
 
     try {
-        await client.query('BEGIN');
-        await client.query(`TRUNCATE ${TABLES_IN_ORDER.join(', ')} RESTART IDENTITY CASCADE`);
+        // FIX: Use client.sql for transaction control
+        await client.sql`BEGIN`;
+        // FIX: Cast client to any to use the query method for dynamic queries
+        await (client as any).query(`TRUNCATE ${TABLES_IN_ORDER.join(', ')} RESTART IDENTITY CASCADE`);
         for (const table of TABLES_IN_ORDER) {
             const rows = backupData[table];
             if (rows.length === 0) continue;
@@ -81,14 +83,17 @@ async function handlePost(request: VercelRequest, response: VercelResponse, clie
             }
             if (values.length > 0) {
                  const query = `INSERT INTO ${table} (${columnNames}) VALUES ${valuePlaceholders.join(', ')}`;
-                 await client.query(query, values);
+                 // FIX: Cast client to any to use the query method for dynamic queries
+                 await (client as any).query(query, values);
             }
         }
 
-        await client.query('COMMIT');
+        // FIX: Use client.sql for transaction control
+        await client.sql`COMMIT`;
         return response.status(200).json({ message: 'اطلاعات با موفقیت بازیابی شد.' });
     } catch (error) {
-        await client.query('ROLLBACK').catch(rbError => console.error('Rollback failed:', rbError));
+        // FIX: Use client.sql for transaction control
+        await client.sql`ROLLBACK`.catch(rbError => console.error('Rollback failed:', rbError));
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         return response.status(500).json({ error: 'Failed to restore from backup.', details: errorMessage });
     }
@@ -96,12 +101,16 @@ async function handlePost(request: VercelRequest, response: VercelResponse, clie
 
 async function handleDelete(response: VercelResponse, client: VercelPoolClient) {
     try {
-        await client.query('BEGIN');
-        await client.query(`TRUNCATE ${TABLES_IN_ORDER.join(', ')} RESTART IDENTITY CASCADE`);
-        await client.query('COMMIT');
+        // FIX: Use client.sql for transaction control
+        await client.sql`BEGIN`;
+        // FIX: Cast client to any to use the query method for dynamic queries
+        await (client as any).query(`TRUNCATE ${TABLES_IN_ORDER.join(', ')} RESTART IDENTITY CASCADE`);
+        // FIX: Use client.sql for transaction control
+        await client.sql`COMMIT`;
         return response.status(200).json({ message: 'تمام اطلاعات با موفقیت پاک شد.' });
     } catch(error) {
-        await client.query('ROLLBACK').catch(rbError => console.error('Rollback failed:', rbError));
+        // FIX: Use client.sql for transaction control
+        await client.sql`ROLLBACK`.catch(rbError => console.error('Rollback failed:', rbError));
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         return response.status(500).json({ error: 'Failed to delete all data.', details: errorMessage });
     }

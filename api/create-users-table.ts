@@ -177,6 +177,22 @@ export default async function handler(
     `;
     messages.push('جدول "app_users" با موفقیت ایجاد یا تایید شد.');
 
+    // Create personnel_documents table
+    await client.sql`
+      CREATE TABLE IF NOT EXISTS personnel_documents (
+        id SERIAL PRIMARY KEY,
+        personnel_code VARCHAR(50) NOT NULL REFERENCES personnel(personnel_code) ON DELETE CASCADE,
+        title VARCHAR(255) NOT NULL,
+        file_name VARCHAR(255) NOT NULL,
+        file_type VARCHAR(100) NOT NULL,
+        file_data TEXT NOT NULL,
+        uploaded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `;
+    messages.push('جدول "personnel_documents" برای ذخیره مدارک ایجاد شد.');
+    await client.sql`CREATE INDEX IF NOT EXISTS personnel_documents_personnel_code_idx ON personnel_documents (personnel_code);`;
+    messages.push('ایندکس برای جستجوی سریع مدارک ایجاد شد.');
+
     // Insert default users if they don't exist
     const adminPermissions = JSON.stringify({
       dashboard: true,
@@ -209,7 +225,7 @@ export default async function handler(
       performance_review: false,
       job_group: false,
       bonus_management: false,
-      security: false,
+      security: true,
       commuting_members: false,
       log_commute: true,
       commute_report: false,

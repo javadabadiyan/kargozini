@@ -209,6 +209,18 @@ const LogCommutePage: React.FC = () => {
             return newSet;
         });
     };
+
+    const toggleUnitOpen = (unit: string) => {
+        setOpenUnits(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(unit)) {
+                newSet.delete(unit);
+            } else {
+                newSet.add(unit);
+            }
+            return newSet;
+        });
+    };
     
     const getTimestampOverride = (time: { hour: string, minute: string }) => {
         if (!logDate.year || !logDate.month || !logDate.day || !time.hour || !time.minute) return null;
@@ -462,17 +474,19 @@ const LogCommutePage: React.FC = () => {
                         const allInUnitSelected = members.every(m => selectedPersonnel.has(m.personnel_code));
                         return (
                             <div key={unit} className="mb-2">
-                                <button onClick={() => setOpenUnits(prev => new Set(prev).add(unit))} className="w-full flex justify-between items-center p-2 bg-gray-100 rounded-md">
-                                    <div className="flex items-center">
-                                        <input type="checkbox" checked={allInUnitSelected} onChange={() => handleUnitSelectionToggle(members)} className="ml-2 w-4 h-4"/>
+                                <div className="w-full flex justify-between items-center p-2 bg-gray-100 rounded-md">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" checked={allInUnitSelected} onChange={() => handleUnitSelectionToggle(members)} className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"/>
                                         <span className="font-semibold text-sm">{unit}</span>
-                                    </div>
-                                    <ChevronDownIcon className="w-4 h-4" />
-                                </button>
-                                <div className="pr-4 mt-1 space-y-1">
+                                    </label>
+                                    <button type="button" onClick={() => toggleUnitOpen(unit)} className="p-1 rounded-full hover:bg-gray-200">
+                                        <ChevronDownIcon className={`w-5 h-5 text-gray-500 transition-transform duration-200 ${openUnits.has(unit) ? '' : '-rotate-90'}`} />
+                                    </button>
+                                </div>
+                                <div className={`pr-4 mt-1 space-y-1 overflow-hidden transition-all ease-in-out duration-300 ${openUnits.has(unit) ? 'max-h-96' : 'max-h-0'}`}>
                                     {members.map(member => (
                                         <label key={member.personnel_code} className="flex items-center p-2 rounded-md hover:bg-slate-50 cursor-pointer">
-                                            <input type="checkbox" checked={selectedPersonnel.has(member.personnel_code)} onChange={() => handlePersonnelToggle(member.personnel_code)} className="ml-2 w-4 h-4"/>
+                                            <input type="checkbox" checked={selectedPersonnel.has(member.personnel_code)} onChange={() => handlePersonnelToggle(member.personnel_code)} className="ml-2 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"/>
                                             <div className="flex flex-col">
                                                 <span className="text-sm">{member.full_name}</span>
                                                 <span className="text-xs text-gray-500 font-sans tracking-wider">کد: {toPersianDigits(member.personnel_code)}</span>

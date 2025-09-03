@@ -60,7 +60,7 @@ async function handlePostPersonnel(body: any, response: VercelResponse, pool: Ve
             for (let i = 0; i < validPersonnelList.length; i += BATCH_SIZE) {
                 const batch = validPersonnelList.slice(i, i + BATCH_SIZE);
                 if (batch.length === 0) continue;
-                await (client as any).query('BEGIN');
+                await client.sql`BEGIN`;
                 const values: (string | null)[] = [];
                 const valuePlaceholders: string[] = [];
                 let paramIndex = 1;
@@ -71,7 +71,7 @@ async function handlePostPersonnel(body: any, response: VercelResponse, pool: Ve
                 }
                 const query = `INSERT INTO personnel (${columnNames}) VALUES ${valuePlaceholders.join(', ')} ON CONFLICT (personnel_code) DO UPDATE SET ${updateSet};`;
                 await (client as any).query(query, values);
-                await (client as any).query('COMMIT');
+                await client.sql`COMMIT`;
                 totalProcessed += batch.length;
             }
             return response.status(200).json({ message: `عملیات موفق. ${totalProcessed} رکورد پردازش شد.` });
@@ -85,7 +85,7 @@ async function handlePostPersonnel(body: any, response: VercelResponse, pool: Ve
             return response.status(201).json({ message: 'پرسنل جدید با موفقیت اضافه شد.', personnel: rows[0] });
         }
     } catch (error) {
-        await (client as any).query('ROLLBACK').catch(() => {});
+        await client.sql`ROLLBACK`.catch(() => {});
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
         if (errorMessage.includes('duplicate key')) return response.status(409).json({ error: 'کد پرسنلی یا کد ملی تکراری است.' });
         return response.status(500).json({ error: 'خطا در عملیات پایگاه داده.', details: errorMessage });
@@ -125,21 +125,28 @@ async function handlePostDependents(request: VercelRequest, response: VercelResp
   const validList = allDependents.filter(d => d.personnel_code && d.first_name && d.last_name && d.national_id);
   if (validList.length === 0) return response.status(400).json({ error: 'هیچ رکورد معتبری برای ورود یافت نشد.' });
   
-  await client.query('BEGIN');
-  const columns = ['personnel_code', 'relation_type', 'first_name', 'last_name', 'national_id', 'birth_date', 'gender'];
-  const updateSet = columns.filter(c => !['personnel_code', 'national_id'].includes(c)).map(c => `${c} = EXCLUDED.${c}`).join(', ');
-  const values: (string | null)[] = [];
-  const valuePlaceholders: string[] = [];
-  let paramIndex = 1;
-  for (const d of validList) {
-    const recordPlaceholders: string[] = [];
-    for (const col of columns) { values.push(d[col as keyof NewDependent] ?? null); recordPlaceholders.push(`$${paramIndex++}`); }
-    valuePlaceholders.push(`(${recordPlaceholders.join(', ')})`);
+  try {
+    await client.sql`BEGIN`;
+    const columns = ['personnel_code', 'relation_type', 'first_name', 'last_name', 'national_id', 'birth_date', 'gender'];
+    const updateSet = columns.filter(c => !['personnel_code', 'national_id'].includes(c)).map(c => `${c} = EXCLUDED.${c}`).join(', ');
+    const values: (string | null)[] = [];
+    const valuePlaceholders: string[] = [];
+    let paramIndex = 1;
+    for (const d of validList) {
+      const recordPlaceholders: string[] = [];
+      for (const col of columns) { values.push(d[col as keyof NewDependent] ?? null); recordPlaceholders.push(`$${paramIndex++}`); }
+      valuePlaceholders.push(`(${recordPlaceholders.join(', ')})`);
+    }
+    const query = `INSERT INTO dependents (${columns.join(', ')}) VALUES ${valuePlaceholders.join(', ')} ON CONFLICT (personnel_code, national_id) DO UPDATE SET ${updateSet};`;
+    await (client as any).query(query, values);
+    await client.sql`COMMIT`;
+    return response.status(200).json({ message: `عملیات موفق. ${validList.length} رکورد پردازش شد.` });
+  } catch (error) {
+    await client.sql`ROLLBACK`.catch(() => {});
+    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+    if (errorMessage.includes('foreign key constraint')) return response.status(400).json({ error: 'یک یا چند کد پرسنلی در فایل شما در لیست پرسنل اصلی وجود ندارد.' });
+    return response.status(500).json({ error: 'خطا در عملیات پایگاه داده.', details: errorMessage });
   }
-  const query = `INSERT INTO dependents (${columns.join(', ')}) VALUES ${valuePlaceholders.join(', ')} ON CONFLICT (personnel_code, national_id) DO UPDATE SET ${updateSet};`;
-  await client.query(query, values);
-  await client.query('COMMIT');
-  return response.status(200).json({ message: `عملیات موفق. ${validList.length} رکورد پردازش شد.` });
 }
 
 // =================================================================================
@@ -156,30 +163,97 @@ async function handlePostCommutingMembers(body: any, response: VercelResponse, c
         const validList = allMembers.filter(m => m.personnel_code && m.full_name);
         if (validList.length === 0) return response.status(400).json({ error: 'هیچ رکورد معتبری یافت نشد.' });
         
-        await client.query('BEGIN');
-        const columns = ['personnel_code', 'full_name', 'department', 'position'];
-        const columnNames = columns.map(c => c === 'position' ? `"${c}"` : c).join(', ');
-        const updateSet = columns.filter(c => c !== 'personnel_code').map(c => `${c === 'position' ? `"${c}"` : c} = EXCLUDED.${c === 'position' ? `"${c}"` : c}`).join(', ');
-        const values: (string | null)[] = [];
-        const valuePlaceholders: string[] = [];
-        let paramIndex = 1;
-        for (const member of validList) {
-            const recordPlaceholders: string[] = [];
-            for (const col of columns) { values.push(member[col as keyof NewCommutingMember] ?? null); recordPlaceholders.push(`$${paramIndex++}`); }
-            valuePlaceholders.push(`(${recordPlaceholders.join(', ')})`);
+        try {
+            await client.sql`BEGIN`;
+            const columns = ['personnel_code', 'full_name', 'department', 'position'];
+            const columnNames = columns.map(c => c === 'position' ? `"${c}"` : c).join(', ');
+            const updateSet = columns.filter(c => c !== 'personnel_code').map(c => `${c === 'position' ? `"${c}"` : c} = EXCLUDED.${c === 'position' ? `"${c}"` : c}`).join(', ');
+            const values: (string | null)[] = [];
+            const valuePlaceholders: string[] = [];
+            let paramIndex = 1;
+            for (const member of validList) {
+                const recordPlaceholders: string[] = [];
+                for (const col of columns) { values.push(member[col as keyof NewCommutingMember] ?? null); recordPlaceholders.push(`$${paramIndex++}`); }
+                valuePlaceholders.push(`(${recordPlaceholders.join(', ')})`);
+            }
+            const query = `INSERT INTO commuting_members (${columnNames}) VALUES ${valuePlaceholders.join(', ')} ON CONFLICT (personnel_code) DO UPDATE SET ${updateSet};`;
+            await (client as any).query(query, values);
+            await client.sql`COMMIT`;
+            return response.status(200).json({ message: `عملیات موفق. ${validList.length} رکورد پردازش شد.` });
+        } catch (error) {
+            await client.sql`ROLLBACK`.catch(() => {});
+            const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+            if (errorMessage.includes('duplicate key')) return response.status(409).json({ error: 'کد پرسنلی تکراری است.' });
+            return response.status(500).json({ error: 'خطا در عملیات پایگاه داده.', details: errorMessage });
         }
-        const query = `INSERT INTO commuting_members (${columnNames}) VALUES ${valuePlaceholders.join(', ')} ON CONFLICT (personnel_code) DO UPDATE SET ${updateSet};`;
-        await client.query(query, values);
-        await client.query('COMMIT');
-        return response.status(200).json({ message: `عملیات موفق. ${validList.length} رکورد پردازش شد.` });
     } else { // Single
         const m: NewCommutingMember = body;
         if (!m || !m.personnel_code || !m.full_name) return response.status(400).json({ error: 'کد پرسنلی و نام کامل الزامی است.' });
         const { rows } = await client.sql`
-            INSERT INTO commuting_members (personnel_code, full_name, department, "position") VALUES (${m.personnel_code}, ${m.full_name}, ${m.department}, ${m.position})
+            INSERT INTO commuting_members (personnel_code, full_name, department, "position") 
+            VALUES (${m.personnel_code}, ${m.full_name}, ${m.department}, ${m.position})
+            ON CONFLICT (personnel_code) DO UPDATE SET
+                full_name = EXCLUDED.full_name,
+                department = EXCLUDED.department,
+                "position" = EXCLUDED."position"
             RETURNING *;`;
-        return response.status(201).json({ message: 'عضو جدید اضافه شد.', member: rows[0] });
+        return response.status(201).json({ message: 'عضو جدید اضافه یا به‌روزرسانی شد.', member: rows[0] });
     }
+}
+
+// =================================================================================
+// DOCUMENT HANDLERS
+// =================================================================================
+async function handleGetDocuments(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+    const { personnel_code } = request.query;
+    if (!personnel_code || typeof personnel_code !== 'string') {
+        return response.status(400).json({ error: 'کد پرسنلی الزامی است.' });
+    }
+    const { rows } = await pool.sql`
+        SELECT id, personnel_code, title, file_name, file_type, uploaded_at 
+        FROM personnel_documents WHERE personnel_code = ${personnel_code} 
+        ORDER BY uploaded_at DESC;
+    `;
+    return response.status(200).json({ documents: rows });
+}
+
+async function handleGetDocumentData(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+    const { id } = request.query;
+    if (!id || typeof id !== 'string') {
+        return response.status(400).json({ error: 'شناسه مدرک الزامی است.' });
+    }
+    const { rows } = await pool.sql`
+        SELECT file_name, file_type, file_data FROM personnel_documents WHERE id = ${parseInt(id, 10)};
+    `;
+    if (rows.length === 0) {
+        return response.status(404).json({ error: 'مدرک یافت نشد.' });
+    }
+    return response.status(200).json({ document: rows[0] });
+}
+
+async function handlePostDocument(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+    const { personnel_code, title, file_name, file_type, file_data } = request.body;
+    if (!personnel_code || !title || !file_name || !file_type || !file_data) {
+        return response.status(400).json({ error: 'تمام فیلدها الزامی هستند.' });
+    }
+    const { rows } = await pool.sql`
+        INSERT INTO personnel_documents (personnel_code, title, file_name, file_type, file_data)
+        VALUES (${personnel_code}, ${title}, ${file_name}, ${file_type}, ${file_data})
+        RETURNING id, personnel_code, title, file_name, file_type, uploaded_at;
+    `;
+    return response.status(201).json({ message: 'مدرک با موفقیت آپلود شد.', document: rows[0] });
+}
+
+async function handleDeleteDocument(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+    const { id } = request.query;
+    if (!id || typeof id !== 'string') {
+        return response.status(400).json({ error: 'شناسه مدرک الزامی است.' });
+    }
+    const result = await pool.sql`DELETE FROM personnel_documents WHERE id = ${parseInt(id, 10)};`;
+    if (result.rowCount === 0) {
+        return response.status(404).json({ error: 'مدرک برای حذف یافت نشد.' });
+    }
+    return response.status(200).json({ message: 'مدرک با موفقیت حذف شد.' });
 }
 
 
@@ -199,6 +273,8 @@ export default async function handler(request: VercelRequest, response: VercelRe
         if (type === 'personnel') return await handleGetPersonnel(request, response, pool);
         if (type === 'dependents') return await handleGetDependents(request, response, pool);
         if (type === 'commuting_members') return await handleGetCommutingMembers(response, pool);
+        if (type === 'documents') return await handleGetDocuments(request, response, pool);
+        if (type === 'document_data') return await handleGetDocumentData(request, response, pool);
         return response.status(400).json({ error: 'نوع داده نامعتبر است.' });
 
       case 'POST': {
@@ -207,6 +283,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
           if (type === 'personnel') return await handlePostPersonnel(request.body, response, pool); // Uses its own client logic
           if (type === 'dependents') return await handlePostDependents(request, response, client);
           if (type === 'commuting_members') return await handlePostCommutingMembers(request.body, response, client);
+          if (type === 'documents') return await handlePostDocument(request, response, pool);
           return response.status(400).json({ error: 'نوع داده نامعتبر است.' });
         } finally {
           client.release();
@@ -217,9 +294,13 @@ export default async function handler(request: VercelRequest, response: VercelRe
         if (type === 'personnel') return await handlePutPersonnel(request, response, pool);
         // Other types don't have PUT handlers for now
         return response.status(400).json({ error: 'نوع داده نامعتبر است.' });
+      
+      case 'DELETE':
+        if (type === 'documents') return await handleDeleteDocument(request, response, pool);
+        return response.status(400).json({ error: 'نوع داده برای حذف نامعتبر است.' });
 
       default:
-        response.setHeader('Allow', ['GET', 'POST', 'PUT']);
+        response.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']);
         return response.status(405).json({ error: `Method ${request.method} Not Allowed` });
     }
   } catch (error) {

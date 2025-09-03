@@ -22,7 +22,8 @@ async function handlePost(request: VercelRequest, response: VercelResponse, pool
 
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    // FIX: Use client.sql for transaction control
+    await client.sql`BEGIN`;
     let processedCount = 0;
     for (const user of usersData) {
         if (!user.username || !user.password) continue;
@@ -36,10 +37,12 @@ async function handlePost(request: VercelRequest, response: VercelResponse, pool
         `;
         processedCount++;
     }
-    await client.query('COMMIT');
+    // FIX: Use client.sql for transaction control
+    await client.sql`COMMIT`;
     return response.status(201).json({ message: `${processedCount} کاربر با موفقیت افزوده/به‌روزرسانی شد.` });
   } catch (error) {
-    await client.query('ROLLBACK');
+    // FIX: Use client.sql for transaction control
+    await client.sql`ROLLBACK`;
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return response.status(500).json({ error: 'Failed to create/update user.', details: errorMessage });
   } finally {

@@ -1,6 +1,6 @@
 import React from 'react';
 import type { MenuItem } from '../types';
-import { HomeIcon, UsersIcon, CircleIcon, DocumentTextIcon, BriefcaseIcon, ShieldCheckIcon, DocumentReportIcon, CogIcon } from './icons/Icons';
+import { HomeIcon, UsersIcon, CircleIcon, DocumentTextIcon, BriefcaseIcon, ShieldCheckIcon, DocumentReportIcon, CogIcon, DocumentPlusIcon } from './icons/Icons';
 import PersonnelListPage from './pages/PersonnelListPage';
 import DependentsInfoPage from './pages/DependentsInfoPage';
 import PlaceholderPage from './pages/PlaceholderPage';
@@ -9,9 +9,8 @@ import LogCommutePage from './pages/LogCommutePage';
 import CommuteReportPage from './pages/CommuteReportPage';
 import SettingsPage from './pages/SettingsPage';
 import DashboardPage from './pages/DashboardPage';
+import DocumentUploadPage from './pages/DocumentUploadPage';
 
-// FIX: Replaced JSX syntax with React.createElement to be valid in a .ts file. This resolves the parsing errors.
-const DocumentUploadPage: React.FC = () => React.createElement(PlaceholderPage, { title: "بارگذاری مدارک" });
 const AccountingCommitmentPage: React.FC = () => React.createElement(PlaceholderPage, { title: "نامه تعهد حسابداری" });
 const DisciplinaryCommitteePage: React.FC = () => React.createElement(PlaceholderPage, { title: "کمیته تشویق و انضباطی" });
 const PerformanceReviewPage: React.FC = () => React.createElement(PlaceholderPage, { title: "ارزیابی عملکرد" });
@@ -25,7 +24,7 @@ export const ALL_MENU_ITEMS: MenuItem[] = [
     children: [
       { id: 'personnel_list', label: 'لیست پرسنل', icon: CircleIcon, page: PersonnelListPage },
       { id: 'dependents_info', label: 'اطلاعات بستگان', icon: CircleIcon, page: DependentsInfoPage },
-      { id: 'document_upload', label: 'بارگذاری مدارک', icon: DocumentTextIcon, page: DocumentUploadPage }
+      { id: 'document_upload', label: 'بارگذاری مدارک', icon: DocumentPlusIcon, page: DocumentUploadPage }
     ]
   },
   { 

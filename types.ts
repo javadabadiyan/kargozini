@@ -126,3 +126,13 @@ export interface CommuteEditLog {
   new_value: string | null;
   record_date: string;
 }
+
+export interface PersonnelDocument {
+  id: number;
+  personnel_code: string;
+  title: string;
+  file_name: string;
+  file_type: string;
+  file_data?: string; // base64 encoded, optional for list view
+  uploaded_at: string; // ISO string
+}

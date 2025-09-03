@@ -59,7 +59,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout, user }) => 
   const closeSidebar = () => setIsSidebarOpen(false);
 
   return (
-    <div className="flex h-screen bg-slate-50 dark:bg-slate-900 relative lg:overflow-hidden">
+    <div className="flex h-screen bg-slate-50 dark:bg-slate-900">
       <Sidebar 
         setActivePage={handleSetPage} 
         activePageId={activePageId} 
