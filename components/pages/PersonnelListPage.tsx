@@ -1,9 +1,12 @@
 
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { Personnel } from '../../types';
 import EditPersonnelModal from '../EditPersonnelModal';
-import { PencilIcon, SearchIcon, TrashIcon } from '../icons/Icons';
+import { PencilIcon, SearchIcon, TrashIcon, DownloadIcon, UploadIcon } from '../icons/Icons';
+
+// Type alias for SheetJS, assuming it's loaded from a global script
+declare const XLSX: any;
 
 const HEADER_MAP: { [key: string]: keyof Omit<Personnel, 'id'> } = {
   'کد پرسنلی': 'personnel_code',
@@ -75,6 +78,8 @@ const PersonnelListPage: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [totalCount, setTotalCount] = useState(0);
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const toPersianDigits = (s: string | null | undefined): string => {
     if (s === null || s === undefined) return '';
@@ -259,6 +264,78 @@ const PersonnelListPage: React.FC = () => {
       }
     };
 
+  const handleDownloadSample = () => {
+    const ws = XLSX.utils.aoa_to_sheet([TABLE_HEADERS_KEYS]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'نمونه پرسنل');
+    XLSX.writeFile(wb, 'Sample_Personnel_File.xlsx');
+  };
+
+  const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      setStatus({ type: 'info', message: 'در حال پردازش فایل اکسل...' });
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+          try {
+              const data = new Uint8Array(e.target?.result as ArrayBuffer);
+              const workbook = XLSX.read(data, { type: 'array' });
+              const sheetName = workbook.SheetNames[0];
+              const worksheet = workbook.Sheets[sheetName];
+              const json: any[] = XLSX.utils.sheet_to_json(worksheet);
+
+              const mappedData: Omit<Personnel, 'id'>[] = json.map(row => {
+                  const newRow: Partial<Omit<Personnel, 'id'>> = {};
+                  for (const header in HEADER_MAP) {
+                      if (row.hasOwnProperty(header)) {
+                          const dbKey = HEADER_MAP[header as keyof typeof HEADER_MAP];
+                          const value = row[header];
+                          (newRow as any)[dbKey] = (value === null || value === undefined) ? null : String(value);
+                      }
+                  }
+                  return newRow as Omit<Personnel, 'id'>;
+              });
+              
+              const validData = mappedData.filter(p => p.personnel_code && p.first_name && p.last_name);
+
+              if (validData.length === 0) {
+                  throw new Error("هیچ رکورد معتبری در فایل اکسل یافت نشد. لطفاً از وجود ستون‌های 'کد پرسنلی'، 'نام' و 'نام خانوادگی' اطمینان حاصل کنید.");
+              }
+
+              const response = await fetch('/api/personnel?type=personnel', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(validData),
+              });
+
+              const result = await response.json();
+              if (!response.ok) {
+                  throw new Error(result.error || result.details || 'خطا در ورود اطلاعات از فایل اکسل');
+              }
+              
+              setStatus({ type: 'success', message: result.message || 'اطلاعات با موفقیت وارد شد.' });
+              
+              setSearchTerm('');
+              if (currentPage !== 1) {
+                  setCurrentPage(1);
+              } else {
+                  fetchPersonnel(1, '');
+              }
+
+          } catch (err) {
+              const message = err instanceof Error ? err.message : 'خطایی در پردازش فایل رخ داد.';
+              setStatus({ type: 'error', message });
+          } finally {
+              if (fileInputRef.current) {
+                  fileInputRef.current.value = "";
+              }
+              setTimeout(() => setStatus(null), 5000);
+          }
+      };
+      reader.readAsArrayBuffer(file);
+  };
+
 
   const statusColor = {
     info: 'bg-blue-100 text-blue-800',
@@ -284,6 +361,16 @@ const PersonnelListPage: React.FC = () => {
               <SearchIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+              <button onClick={handleDownloadSample} className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 border border-gray-300 text-sm rounded-lg hover:bg-gray-200 transition-colors">
+                <DownloadIcon className="w-4 h-4" />
+                دانلود نمونه
+              </button>
+              <input type="file" ref={fileInputRef} onChange={handleFileImport} className="hidden" id="excel-import" accept=".xlsx, .xls" />
+              <label htmlFor="excel-import" className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 cursor-pointer transition-colors text-sm font-medium">
+                <UploadIcon className="w-4 h-4" />
+                ورود از اکسل
+              </label>
+              <div className="w-px h-6 bg-gray-200 mx-2 hidden sm:block"></div>
               <button onClick={handleOpenAddModal} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">افزودن پرسنل</button>
               <button onClick={handleDeleteAll} disabled={totalCount === 0} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors">حذف کلی اطلاعات</button>
           </div>
