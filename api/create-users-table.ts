@@ -31,6 +31,7 @@ export default async function handler(
         father_name VARCHAR(100),
         national_id VARCHAR(20) UNIQUE,
         id_number VARCHAR(20),
+        birth_year VARCHAR(10),
         birth_date VARCHAR(30),
         birth_place VARCHAR(100),
         issue_date VARCHAR(30),

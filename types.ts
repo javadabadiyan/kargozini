@@ -27,6 +27,7 @@ export interface Personnel {
   father_name: string;
   national_id: string;
   id_number: string;
+  birth_year: string | null;
   birth_date: string;
   birth_place: string;
   issue_date: string;

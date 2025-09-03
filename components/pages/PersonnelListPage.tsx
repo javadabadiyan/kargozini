@@ -15,6 +15,7 @@ const HEADER_MAP: { [key: string]: keyof Omit<Personnel, 'id'> } = {
   'نام پدر': 'father_name',
   'کد ملی': 'national_id',
   'شماره شناسنامه': 'id_number',
+  'سال تولد': 'birth_year',
   'تاریخ تولد': 'birth_date',
   'محل تولد': 'birth_place',
   'تاریخ صدور': 'issue_date',
@@ -34,13 +35,14 @@ const HEADER_MAP: { [key: string]: keyof Omit<Personnel, 'id'> } = {
   'وضعیت': 'status',
 };
 
+
 const EXPORT_HEADERS = Object.keys(HEADER_MAP);
 const TABLE_HEADERS = [...EXPORT_HEADERS, 'عملیات'];
 const PAGE_SIZE = 20;
 
 const DEFAULT_PERSONNEL: Omit<Personnel, 'id'> = {
   personnel_code: '', first_name: '', last_name: '', father_name: '', national_id: '',
-  id_number: '', birth_date: '', birth_place: '', issue_date: '', issue_place: '',
+  id_number: '', birth_year: '', birth_date: '', birth_place: '', issue_date: '', issue_place: '',
   marital_status: '', military_status: '', job_title: '', position: '', employment_type: '',
   department: '', service_location: '', hire_date: '', education_level: '', field_of_study: '',
   job_group: '', sum_of_decree_factors: '', status: '',

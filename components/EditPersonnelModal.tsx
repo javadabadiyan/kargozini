@@ -41,6 +41,7 @@ const EditPersonnelModal: React.FC<EditPersonnelModalProps> = ({ personnel, onCl
     { key: 'father_name', label: 'نام پدر' },
     { key: 'national_id', label: 'کد ملی' },
     { key: 'id_number', label: 'شماره شناسنامه' },
+    { key: 'birth_year', label: 'سال تولد' },
     { key: 'birth_date', label: 'تاریخ تولد' },
     { key: 'birth_place', label: 'محل تولد' },
     { key: 'issue_date', label: 'تاریخ صدور' },
