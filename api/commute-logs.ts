@@ -163,17 +163,33 @@ async function handlePostDaily(request: VercelRequest, response: VercelResponse,
         } else { // Single/Multi-person log
             const { personnelCode, guardName, action, timestampOverride } = body;
             if (!personnelCode || !guardName || !action || !['entry', 'exit'].includes(action)) return response.status(400).json({ error: 'اطلاعات ارسالی ناقص یا نامعتبر است.' });
-            const effectiveTime = timestampOverride ? new Date(timestampOverride).toISOString() : 'NOW()';
-            const { rows: openLogs } = await pool.sql`SELECT id FROM commute_logs WHERE personnel_code = ${personnelCode} AND exit_time IS NULL AND entry_time >= date_trunc('day', ${effectiveTime}::timestamptz) AND entry_time < date_trunc('day', ${effectiveTime}::timestamptz) + interval '1 day';`;
+
+            // FIX: Always use an ISO string, never the 'NOW()' string literal which fails with parameterization.
+            const effectiveTime = timestampOverride ? new Date(timestampOverride).toISOString() : new Date().toISOString();
+
+            // FIX: Use DATE() with timezone conversion for correct day boundary checks.
+            const { rows: openLogs } = await pool.sql`
+                SELECT id 
+                FROM commute_logs 
+                WHERE personnel_code = ${personnelCode} 
+                  AND exit_time IS NULL 
+                  AND DATE(entry_time AT TIME ZONE 'Asia/Tehran') = DATE(${effectiveTime}::timestamptz AT TIME ZONE 'Asia/Tehran');
+            `;
             const openLog = openLogs[0];
+
             if (action === 'entry') {
                 if (openLog) return response.status(409).json({ error: 'برای این پرسنل یک ورود باز در این روز ثبت شده است.' });
-                const { rows: newLog } = await pool.sql`INSERT INTO commute_logs (personnel_code, guard_name, entry_time) VALUES (${personnelCode}, ${guardName}, ${effectiveTime}) RETURNING *;`;
+                const { rows: newLog } = await pool.sql`
+                    INSERT INTO commute_logs (personnel_code, guard_name, entry_time) 
+                    VALUES (${personnelCode}, ${guardName}, ${effectiveTime}) RETURNING *;
+                `;
                 return response.status(201).json({ message: 'ورود با موفقیت ثبت شد.', log: newLog[0] });
             }
             if (action === 'exit') {
                 if (!openLog) return response.status(404).json({ error: 'هیچ ورود بازی برای این پرسنل در این روز یافت نشد.' });
-                const { rows: updatedLog } = await pool.sql`UPDATE commute_logs SET exit_time = ${effectiveTime} WHERE id = ${openLog.id} RETURNING *;`;
+                const { rows: updatedLog } = await pool.sql`
+                    UPDATE commute_logs SET exit_time = ${effectiveTime} WHERE id = ${openLog.id} RETURNING *;
+                `;
                 return response.status(200).json({ message: 'خروج با موفقیت ثبت شد.', log: updatedLog[0] });
             }
             return response.status(400).json({ error: 'عملیات نامعتبر است.' });
