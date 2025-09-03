@@ -14,9 +14,9 @@ const TABLES_IN_ORDER = [
 const TABLE_COLUMNS: Record<string, string[]> = {
     personnel: [
       'personnel_code', 'first_name', 'last_name', 'father_name', 'national_id', 'id_number',
-      'birth_date', 'birth_place', 'issue_date', 'issue_place', 'marital_status', 'military_status',
+      'birth_year', 'birth_date', 'birth_place', 'issue_date', 'issue_place', 'marital_status', 'military_status',
       'job_title', 'position', 'employment_type', 'department', 'service_location', 'hire_date',
-      'education_level', 'field_of_study', 'status'
+      'education_level', 'field_of_study', 'job_group', 'sum_of_decree_factors', 'status'
     ],
     commuting_members: ['personnel_code', 'full_name', 'department', 'position'],
     dependents: [

@@ -283,7 +283,7 @@ const PersonnelListPage: React.FC = () => {
               const workbook = XLSX.read(data, { type: 'array' });
               const sheetName = workbook.SheetNames[0];
               const worksheet = workbook.Sheets[sheetName];
-              const json: any[] = XLSX.utils.sheet_to_json(worksheet);
+              const json: any[] = XLSX.utils.sheet_to_json(worksheet, { raw: false, dateNF: 'yyyy/mm/dd' });
 
               const mappedData: Omit<Personnel, 'id'>[] = json.map(row => {
                   const newRow: Partial<Omit<Personnel, 'id'>> = {};
@@ -324,8 +324,16 @@ const PersonnelListPage: React.FC = () => {
               }
 
           } catch (err) {
-              const message = err instanceof Error ? err.message : 'خطایی در پردازش فایل رخ داد.';
-              setStatus({ type: 'error', message });
+              const message = err instanceof Error ? err.message : 'یک خطای ناشناخته در پردازش فایل رخ داد.';
+              let userFriendlyMessage = 'خطا در ورود اطلاعات از اکسل. ';
+              if (message.includes('duplicate key') || message.includes('تکراری')) {
+                userFriendlyMessage += 'لطفاً از عدم وجود کد ملی یا کد پرسنلی تکراری در فایل خود و در سیستم اطمینان حاصل کنید.';
+              } else if (message.includes('معتبری')) { // "هیچ رکورد معتبری..."
+                userFriendlyMessage = message;
+              } else {
+                userFriendlyMessage += 'لطفاً فرمت فایل اکسل و مقادیر داخل آن را بررسی کنید. جزئیات فنی: ' + message;
+              }
+              setStatus({ type: 'error', message: userFriendlyMessage });
           } finally {
               if (fileInputRef.current) {
                   fileInputRef.current.value = "";
