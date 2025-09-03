@@ -74,7 +74,7 @@ const StatListCard: React.FC<{ title: string; data: [string, number][]; icon: Re
             <Icon className="w-6 h-6 text-gray-500 ml-3" />
             <h3 className="text-lg font-bold text-gray-800 dark:text-white">{title}</h3>
         </div>
-        <div className="overflow-y-auto flex-1 pr-2">
+        <div className="overflow-y-auto flex-1 pr-2 max-h-96">
             <ul className="space-y-3">
                 {data.map(([key, value]) => (
                     <li key={key} className="flex justify-between items-center text-sm">
@@ -87,10 +87,51 @@ const StatListCard: React.FC<{ title: string; data: [string, number][]; icon: Re
     </div>
 );
 
+const HolidayCalendarCard: React.FC<{ holidayInfo: { holidaysByMonth: number[], upcomingHolidays: any[] } }> = ({ holidayInfo }) => (
+    <div className="bg-white dark:bg-slate-800 p-5 rounded-xl shadow-md">
+        <div className="flex items-center mb-4">
+            <CalendarDaysIcon className="w-6 h-6 text-gray-500 ml-3" />
+            <h3 className="text-lg font-bold text-gray-800 dark:text-white">تقویم تعطیلات رسمی سال ۱۴۰۳</h3>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div>
+                <h4 className="font-semibold mb-3 text-gray-700 dark:text-gray-200">تعداد روزهای تعطیل در هر ماه</h4>
+                <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                    {PERSIAN_MONTHS.map((month, index) => (
+                        <div key={month} className="flex justify-between items-center text-sm border-b border-dashed pb-2 dark:border-slate-700">
+                            <span className="text-gray-600 dark:text-gray-300">{month}</span>
+                            <span className="font-bold bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-full">{toPersianDigits(holidayInfo.holidaysByMonth[index])}</span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+            <div>
+                <h4 className="font-semibold mb-3 text-gray-700 dark:text-gray-200">تعطیلات رسمی پیش رو</h4>
+                <ul className="space-y-3">
+                    {holidayInfo.upcomingHolidays.map((holiday, index) => (
+                        <li key={index} className="flex items-start p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
+                            <div className="text-center mr-4 flex-shrink-0">
+                                <p className="font-bold text-lg text-blue-600 dark:text-blue-400">{toPersianDigits(holiday.date[2])}</p>
+                                <p className="text-xs text-gray-500 dark:text-gray-400">{PERSIAN_MONTHS[holiday.date[1] - 1]}</p>
+                            </div>
+                            <p className="text-sm text-gray-700 dark:text-gray-200">{holiday.description}</p>
+                        </li>
+                    ))}
+                     {holidayInfo.upcomingHolidays.length === 0 && (
+                        <p className="text-sm text-center text-gray-500 dark:text-gray-400 p-4">تعطیلی رسمی در ادامه سال یافت نشد.</p>
+                    )}
+                </ul>
+            </div>
+        </div>
+    </div>
+);
+
+
 const DashboardPage: React.FC = () => {
     const [personnel, setPersonnel] = useState<Personnel[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [selectedStat, setSelectedStat] = useState('byDepartment');
 
     useEffect(() => {
         const fetchPersonnel = async () => {
@@ -198,6 +239,35 @@ const DashboardPage: React.FC = () => {
         
         return { holidaysByMonth, upcomingHolidays };
     }, []);
+    
+    const statOptions = [
+        { key: 'byDepartment', label: 'آمار بر اساس واحد' },
+        { key: 'byServiceLocation', label: 'آمار بر اساس محل خدمت' },
+        { key: 'byAgeGroup', label: 'آمار بر اساس گروه سنی' },
+        { key: 'byPosition', label: 'آمار بر اساس سمت' },
+        { key: 'byMaritalStatus', label: 'آمار بر اساس وضعیت تاهل' },
+        { key: 'holidays', label: 'تقویم تعطیلات' },
+    ];
+
+    const renderSelectedStat = () => {
+        if (!stats) return <div className="text-center p-10 text-gray-500">داده‌ای برای نمایش وجود ندارد.</div>;
+        switch (selectedStat) {
+            case 'byDepartment':
+                return <StatListCard title="آمار بر اساس واحد" data={stats.byDepartment} icon={BuildingOffice2Icon} />;
+            case 'byServiceLocation':
+                return <StatListCard title="آمار بر اساس محل خدمت" data={stats.byServiceLocation} icon={MapPinIcon} />;
+            case 'byAgeGroup':
+                return <StatListCard title="آمار بر اساس گروه سنی" data={stats.byAgeGroup} icon={CakeIcon} />;
+            case 'byPosition':
+                return <StatListCard title="آمار بر اساس سمت" data={stats.byPosition} icon={BriefcaseIcon} />;
+            case 'byMaritalStatus':
+                return <StatListCard title="آمار بر اساس وضعیت تاهل" data={stats.byMaritalStatus} icon={HeartIcon} />;
+            case 'holidays':
+                return <HolidayCalendarCard holidayInfo={holidayInfo} />;
+            default:
+                return null;
+        }
+    };
 
     if (loading) {
         return <div className="text-center p-10">در حال بارگذاری اطلاعات داشبورد...</div>;
@@ -218,52 +288,24 @@ const DashboardPage: React.FC = () => {
                 <StatCard title="پرسنل متاهل" value={toPersianDigits(stats?.byMaritalStatus.find(([k]) => k === 'متاهل')?.[1] || 0)} icon={HeartIcon} color="bg-rose-500" />
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                 {stats && <StatListCard title="آمار بر اساس واحد" data={stats.byDepartment} icon={BuildingOffice2Icon} />}
-                 {stats && <StatListCard title="آمار بر اساس محل خدمت" data={stats.byServiceLocation} icon={MapPinIcon} />}
-                 {stats && <StatListCard title="آمار بر اساس گروه سنی" data={stats.byAgeGroup} icon={CakeIcon} />}
+            <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-md">
+                <label htmlFor="stat-selector" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    نمایش آمار بر اساس:
+                </label>
+                <select 
+                    id="stat-selector"
+                    value={selectedStat}
+                    onChange={(e) => setSelectedStat(e.target.value)}
+                    className="w-full md:w-1/3 p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:border-slate-600 dark:text-white"
+                >
+                    {statOptions.map(opt => (
+                        <option key={opt.key} value={opt.key}>{opt.label}</option>
+                    ))}
+                </select>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {stats && <StatListCard title="آمار بر اساس سمت" data={stats.byPosition} icon={BriefcaseIcon} />}
-                {stats && <StatListCard title="آمار بر اساس وضعیت تاهل" data={stats.byMaritalStatus} icon={HeartIcon} />}
-            </div>
-            
-            <div className="bg-white dark:bg-slate-800 p-5 rounded-xl shadow-md">
-                <div className="flex items-center mb-4">
-                    <CalendarDaysIcon className="w-6 h-6 text-gray-500 ml-3" />
-                    <h3 className="text-lg font-bold text-gray-800 dark:text-white">تقویم تعطیلات رسمی سال ۱۴۰۳</h3>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div>
-                        <h4 className="font-semibold mb-3 text-gray-700 dark:text-gray-200">تعداد روزهای تعطیل در هر ماه</h4>
-                        <div className="grid grid-cols-2 gap-x-6 gap-y-3">
-                            {PERSIAN_MONTHS.map((month, index) => (
-                                <div key={month} className="flex justify-between items-center text-sm border-b border-dashed pb-2 dark:border-slate-700">
-                                    <span className="text-gray-600 dark:text-gray-300">{month}</span>
-                                    <span className="font-bold bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-full">{toPersianDigits(holidayInfo.holidaysByMonth[index])}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                    <div>
-                        <h4 className="font-semibold mb-3 text-gray-700 dark:text-gray-200">تعطیلات رسمی پیش رو</h4>
-                        <ul className="space-y-3">
-                            {holidayInfo.upcomingHolidays.map((holiday, index) => (
-                                <li key={index} className="flex items-start p-3 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
-                                    <div className="text-center mr-4 flex-shrink-0">
-                                        <p className="font-bold text-lg text-blue-600 dark:text-blue-400">{toPersianDigits(holiday.date[2])}</p>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400">{PERSIAN_MONTHS[holiday.date[1] - 1]}</p>
-                                    </div>
-                                    <p className="text-sm text-gray-700 dark:text-gray-200">{holiday.description}</p>
-                                </li>
-                            ))}
-                             {holidayInfo.upcomingHolidays.length === 0 && (
-                                <p className="text-sm text-center text-gray-500 dark:text-gray-400 p-4">تعطیلی رسمی در ادامه سال یافت نشد.</p>
-                            )}
-                        </ul>
-                    </div>
-                </div>
+            <div className="min-h-[400px]">
+                {renderSelectedStat()}
             </div>
         </div>
     );
