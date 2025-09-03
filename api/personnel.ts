@@ -215,41 +215,44 @@ async function handlePostDependents(request: VercelRequest, response: VercelResp
       }
   });
   
-  // The 'personnel_code' field from the frontend now holds the head of household's NATIONAL ID.
+  // The 'personnel_code' field from the Excel is the supervisor's identifier (could be national_id or personnel_code).
   const validList = allDependents.filter(d => d.personnel_code && d.first_name && d.last_name && d.national_id);
   if (validList.length === 0) return response.status(400).json({ error: 'هیچ رکورد معتبری برای ورود یافت نشد.' });
 
-  // Pre-flight check: Validate head of household national IDs and map them to personnel codes.
-  const headNationalIdsInFile = [...new Set(validList.map(d => d.personnel_code))];
+  // Pre-flight check: Validate supervisor identifiers and map them to personnel codes.
+  const supervisorIdentifiersInFile = [...new Set(validList.map(d => d.personnel_code))];
   
-  if (headNationalIdsInFile.length > 0) {
+  if (supervisorIdentifiersInFile.length > 0) {
       const { rows: existingHeads } = await client.query(
-          `SELECT national_id, personnel_code FROM personnel WHERE national_id = ANY($1::text[])`,
-          [headNationalIdsInFile]
+          `SELECT national_id, personnel_code FROM personnel WHERE national_id = ANY($1::text[]) OR personnel_code = ANY($1::text[])`,
+          [supervisorIdentifiersInFile]
       );
       
-      const nationalIdToPersonnelCodeMap = new Map<string, string>();
+      const identifierToPersonnelCodeMap = new Map<string, string>();
       for (const p of existingHeads) {
-          nationalIdToPersonnelCodeMap.set(p.national_id, p.personnel_code);
+          if (p.national_id) {
+            identifierToPersonnelCodeMap.set(p.national_id, p.personnel_code);
+          }
+          identifierToPersonnelCodeMap.set(p.personnel_code, p.personnel_code);
       }
 
-      const missingNationalIds = headNationalIdsInFile.filter(id => !nationalIdToPersonnelCodeMap.has(id));
+      const missingIdentifiers = supervisorIdentifiersInFile.filter(id => !identifierToPersonnelCodeMap.has(id));
 
-      if (missingNationalIds.length > 0) {
+      if (missingIdentifiers.length > 0) {
           return response.status(400).json({
-              error: `کد ملی سرپرست برای برخی از رکوردها در سیستم یافت نشد.`,
-              details: `لطفاً فایل اکسل خود را بررسی کنید. سرپرستی با کدهای ملی زیر در سیستم وجود ندارد: ${missingNationalIds.join(', ')}`
+              error: `شناسه سرپرست (کد ملی یا کد پرسنلی) برای برخی از رکوردها در سیستم یافت نشد.`,
+              details: `لطفاً فایل اکسل خود را بررسی کنید. سرپرستی با شناسه‌های زیر در سیستم وجود ندارد: ${missingIdentifiers.join(', ')}`
           });
       }
       
-      // Replace the head national ID with the correct personnel_code for insertion.
+      // Replace the supervisor identifier with the correct personnel_code for insertion.
       for(const dependent of validList) {
-          const correctPersonnelCode = nationalIdToPersonnelCodeMap.get(dependent.personnel_code);
+          const correctPersonnelCode = identifierToPersonnelCodeMap.get(dependent.personnel_code); // dependent.personnel_code here is the identifier from the file
           if (correctPersonnelCode) {
               dependent.personnel_code = correctPersonnelCode;
           } else {
               // This case should be caught by the check above, but as a safeguard:
-              return response.status(500).json({ error: 'خطای داخلی سرور هنگام مپ کردن کد ملی به کد پرسنلی.' });
+              return response.status(500).json({ error: 'خطای داخلی سرور هنگام مپ کردن شناسه سرپرست به کد پرسنلی.' });
           }
       }
   }
