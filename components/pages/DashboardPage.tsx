@@ -263,6 +263,10 @@ const DashboardPage: React.FC = () => {
             byPositionPersonnel: groupPersonnelByKey('position'),
             byMaritalStatus: toSortedArray(groupAndCount('marital_status')),
             byMaritalStatusPersonnel: groupPersonnelByKey('marital_status'),
+            byJobGroup: toSortedArray(groupAndCount('job_group')),
+            byJobGroupPersonnel: groupPersonnelByKey('job_group'),
+            byDecreeFactors: toSortedArray(groupAndCount('sum_of_decree_factors')),
+            byDecreeFactorsPersonnel: groupPersonnelByKey('sum_of_decree_factors'),
             averageAge,
             closeToRetirementList,
             retiredList,
@@ -313,6 +317,8 @@ const DashboardPage: React.FC = () => {
         { key: 'byAgeGroup', label: 'آمار بر اساس گروه سنی' },
         { key: 'byServiceYears', label: 'آمار بر اساس سابقه خدمت' },
         { key: 'byPosition', label: 'آمار بر اساس سمت' },
+        { key: 'byJobGroup', label: 'آمار بر اساس گروه شغلی' },
+        { key: 'byDecreeFactors', label: 'آمار بر اساس جمع عوامل حکمی' },
         { key: 'byMaritalStatus', label: 'آمار بر اساس وضعیت تاهل' },
         { key: 'holidays', label: 'تقویم تعطیلات' },
     ];
@@ -340,6 +346,10 @@ const DashboardPage: React.FC = () => {
                         />;
             case 'byPosition':
                 return <StatListCard title="آمار بر اساس سمت" data={stats.byPosition} icon={BriefcaseIcon} onItemClick={(key) => handleStatClick(`لیست پرسنل با سمت: ${key}`, stats.byPositionPersonnel[key], 'general')} />;
+            case 'byJobGroup':
+                return <StatListCard title="آمار بر اساس گروه شغلی" data={stats.byJobGroup} icon={DocumentReportIcon} onItemClick={(key) => handleStatClick(`لیست پرسنل با گروه شغلی: ${key}`, stats.byJobGroupPersonnel[key], 'general')} />;
+            case 'byDecreeFactors':
+                return <StatListCard title="آمار بر اساس جمع عوامل حکمی" data={stats.byDecreeFactors} icon={DocumentReportIcon} onItemClick={(key) => handleStatClick(`لیست پرسنل با جمع عوامل حکمی: ${key}`, stats.byDecreeFactorsPersonnel[key], 'general')} />;
             case 'byMaritalStatus':
                 return <StatListCard title="آمار بر اساس وضعیت تاهل" data={stats.byMaritalStatus} icon={HeartIcon} onItemClick={(key) => handleStatClick(`لیست پرسنل با وضعیت تاهل: ${key}`, stats.byMaritalStatusPersonnel[key], 'general')} />;
             case 'holidays':
