@@ -5,7 +5,8 @@ interface RetirementInfoModalProps {
   isOpen: boolean;
   onClose: () => void;
   title: string;
-  personnel: (Personnel & { age: number })[];
+  personnel: (Personnel & { age?: number; serviceYears?: number })[];
+  mode?: 'age' | 'service';
 }
 
 const toPersianDigits = (s: string | number | null | undefined): string => {
@@ -13,8 +14,13 @@ const toPersianDigits = (s: string | number | null | undefined): string => {
     return String(s).replace(/[0-9]/g, (w) => '۰۱۲۳۴۵۶۷۸۹'[parseInt(w, 10)]);
 };
 
-const RetirementInfoModal: React.FC<RetirementInfoModalProps> = ({ isOpen, onClose, title, personnel }) => {
+const RetirementInfoModal: React.FC<RetirementInfoModalProps> = ({ isOpen, onClose, title, personnel, mode = 'age' }) => {
   if (!isOpen) return null;
+
+  const headers = mode === 'age'
+    ? ['نام کامل', 'کد پرسنلی', 'تاریخ تولد', 'سن']
+    : ['نام کامل', 'کد پرسنلی', 'تاریخ استخدام', 'سابقه (سال)'];
+
 
   return (
     <div
@@ -45,10 +51,9 @@ const RetirementInfoModal: React.FC<RetirementInfoModalProps> = ({ isOpen, onClo
           <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700">
             <thead className="bg-gray-50 dark:bg-slate-700">
               <tr>
-                <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 dark:text-gray-300 uppercase">نام کامل</th>
-                <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 dark:text-gray-300 uppercase">کد پرسنلی</th>
-                <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 dark:text-gray-300 uppercase">تاریخ تولد</th>
-                <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 dark:text-gray-300 uppercase">سن</th>
+                 {headers.map(header => (
+                  <th key={header} className="px-4 py-3 text-right text-xs font-bold text-gray-600 dark:text-gray-300 uppercase">{header}</th>
+                ))}
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-slate-800 divide-y divide-gray-200 dark:divide-slate-700">
@@ -56,8 +61,17 @@ const RetirementInfoModal: React.FC<RetirementInfoModalProps> = ({ isOpen, onClo
                 <tr key={p.id}>
                   <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-800 dark:text-gray-100">{p.first_name} {p.last_name}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{toPersianDigits(p.personnel_code)}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{toPersianDigits(p.birth_date)}</td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{toPersianDigits(p.age)}</td>
+                  {mode === 'age' ? (
+                    <>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{toPersianDigits(p.birth_date)}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{toPersianDigits(p.age)}</td>
+                    </>
+                  ) : (
+                     <>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{toPersianDigits(p.hire_date)}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{toPersianDigits(p.serviceYears)}</td>
+                    </>
+                  )}
                 </tr>
               ))}
             </tbody>

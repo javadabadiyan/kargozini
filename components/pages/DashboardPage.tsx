@@ -37,7 +37,7 @@ const getCurrentPersianDate = (): { year: number; month: number; day: number } =
     return { year, month, day };
 };
 
-const persianDateToAge = (birthDateStr: string | null | undefined, currentDate: { year: number; month: number; day: number }): number | null => {
+const persianDateToAge = (birthDateStr: string | null | undefined, currentDate: { year: number }): number | null => {
     if (!birthDateStr || typeof birthDateStr !== 'string') return null;
 
     const englishBirthDateStr = toEnglishDigits(birthDateStr);
@@ -52,6 +52,17 @@ const persianDateToAge = (birthDateStr: string | null | undefined, currentDate: 
     const age = currentDate.year - birthYear;
 
     return age < 0 ? 0 : age;
+};
+
+const persianDateToServiceYears = (hireDateStr: string | null | undefined, currentDate: { year: number }): number | null => {
+    if (!hireDateStr || typeof hireDateStr !== 'string') return null;
+    const englishHireDateStr = toEnglishDigits(hireDateStr);
+    const match = englishHireDateStr.match(/^(\d{4})/);
+    if (!match) return null;
+    const hireYear = parseInt(match[1], 10);
+    if (isNaN(hireYear)) return null;
+    const serviceYears = currentDate.year - hireYear;
+    return serviceYears < 0 ? 0 : serviceYears;
 };
 
 
@@ -69,7 +80,12 @@ const StatCard: React.FC<{ title: string; value: string; icon: React.ComponentTy
 );
 
 // Reusable component for lists of stats
-const StatListCard: React.FC<{ title: string; data: [string, string | number][]; icon: React.ComponentType<{ className?: string }> }> = ({ title, data, icon: Icon }) => (
+const StatListCard: React.FC<{ 
+    title: string; 
+    data: [string, string | number][]; 
+    icon: React.ComponentType<{ className?: string }>;
+    onItemClick?: (key: string) => void;
+}> = ({ title, data, icon: Icon, onItemClick }) => (
     <div className="bg-white dark:bg-slate-800 p-5 rounded-xl shadow-md h-full flex flex-col">
         <div className="flex items-center mb-4">
             <Icon className="w-6 h-6 text-gray-500 ml-3" />
@@ -80,7 +96,16 @@ const StatListCard: React.FC<{ title: string; data: [string, string | number][];
                 {data.map(([key, value]) => (
                     <li key={key} className="flex justify-between items-center text-sm">
                         <span className="text-gray-600 dark:text-gray-300">{key || 'نامشخص'}</span>
-                        <span className="font-semibold bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-full">{toPersianDigits(value)}</span>
+                        {onItemClick ? (
+                             <button 
+                                onClick={() => onItemClick(key)}
+                                className="font-semibold bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/50 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                            >
+                                {toPersianDigits(value)}
+                            </button>
+                        ) : (
+                            <span className="font-semibold bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-full">{toPersianDigits(value)}</span>
+                        )}
                     </li>
                 ))}
             </ul>
@@ -135,7 +160,7 @@ const DashboardPage: React.FC = () => {
     const [selectedStat, setSelectedStat] = useState('byDepartment');
     
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [modalData, setModalData] = useState<{ title: string; personnel: (Personnel & { age: number })[] }>({ title: '', personnel: [] });
+    const [modalData, setModalData] = useState<{ title: string; personnel: any[]; mode: 'age' | 'service' }>({ title: '', personnel: [], mode: 'age' });
 
 
     useEffect(() => {
@@ -171,37 +196,53 @@ const DashboardPage: React.FC = () => {
         const toSortedArray = (obj: Record<string, number>) => Object.entries(obj).sort(([, a], [, b]) => b - a);
         
         const currentDate = getCurrentPersianDate();
+        
         const ages: number[] = [];
         const closeToRetirementList: (Personnel & { age: number })[] = [];
         const retiredList: (Personnel & { age: number })[] = [];
-        const ageGroups: Record<string, number> = {
-            'زیر ۳۰ سال': 0,
-            '۳۱-۴۰ سال': 0,
-            '۴۱-۵۰ سال': 0,
-            '۵۱-۶۰ سال': 0,
-            'بیشتر از ۶۰': 0,
-            'نامشخص': 0,
-        };
+        const ageGroups: Record<string, number> = { 'زیر ۳۰ سال': 0, '۳۱-۴۰ سال': 0, '۴۱-۵۰ سال': 0, '۵۱-۶۰ سال': 0, 'بیشتر از ۶۰': 0, 'نامشخص': 0 };
+        const byAgeGroupPersonnel: Record<string, (Personnel & { age: number })[]> = { 'زیر ۳۰ سال': [], '۳۱-۴۰ سال': [], '۴۱-۵۰ سال': [], '۵۱-۶۰ سال': [], 'بیشتر از ۶۰': [], 'نامشخص': [] };
+        
+        const serviceYearsList: number[] = [];
+        const serviceYearGroups: Record<string, number> = { 'کمتر از ۵ سال': 0, '۵ تا ۱۰ سال': 0, '۱۱ تا ۱۵ سال': 0, '۱۶ تا ۲۰ سال': 0, 'بیشتر از ۲۰ سال': 0, 'نامشخص': 0 };
+        const byServiceYearsPersonnel: Record<string, (Personnel & { serviceYears: number })[]> = { 'کمتر از ۵ سال': [], '۵ تا ۱۰ سال': [], '۱۱ تا ۱۵ سال': [], '۱۶ تا ۲۰ سال': [], 'بیشتر از ۲۰ سال': [], 'نامشخص': [] };
+
 
         personnel.forEach(p => {
             const age = persianDateToAge(p.birth_date, currentDate);
+            const personnelWithAge = { ...p, age: age ?? -1 };
             if (age !== null) {
                 ages.push(age);
-                if (age >= 55 && age < 60) closeToRetirementList.push({ ...p, age });
-                if (age >= 60) retiredList.push({ ...p, age });
+                if (age >= 55 && age < 60) closeToRetirementList.push(personnelWithAge);
+                if (age >= 60) retiredList.push(personnelWithAge);
 
-                if (age <= 30) ageGroups['زیر ۳۰ سال']++;
-                else if (age >= 31 && age <= 40) ageGroups['۳۱-۴۰ سال']++;
-                else if (age >= 41 && age <= 50) ageGroups['۴۱-۵۰ سال']++;
-                else if (age >= 51 && age <= 60) ageGroups['۵۱-۶۰ سال']++;
-                else if (age > 60) ageGroups['بیشتر از ۶۰']++;
+                if (age <= 30) { ageGroups['زیر ۳۰ سال']++; byAgeGroupPersonnel['زیر ۳۰ سال'].push(personnelWithAge); }
+                else if (age <= 40) { ageGroups['۳۱-۴۰ سال']++; byAgeGroupPersonnel['۳۱-۴۰ سال'].push(personnelWithAge); }
+                else if (age <= 50) { ageGroups['۴۱-۵۰ سال']++; byAgeGroupPersonnel['۴۱-۵۰ سال'].push(personnelWithAge); }
+                else if (age <= 60) { ageGroups['۵۱-۶۰ سال']++; byAgeGroupPersonnel['۵۱-۶۰ سال'].push(personnelWithAge); }
+                else if (age > 60) { ageGroups['بیشتر از ۶۰']++; byAgeGroupPersonnel['بیشتر از ۶۰'].push(personnelWithAge); }
             } else {
                 ageGroups['نامشخص']++;
+                byAgeGroupPersonnel['نامشخص'].push(personnelWithAge);
+            }
+            
+            const serviceYears = persianDateToServiceYears(p.hire_date, currentDate);
+            const personnelWithService = { ...p, serviceYears: serviceYears ?? -1 };
+            if (serviceYears !== null) {
+                serviceYearsList.push(serviceYears);
+                if (serviceYears < 5) { serviceYearGroups['کمتر از ۵ سال']++; byServiceYearsPersonnel['کمتر از ۵ سال'].push(personnelWithService); }
+                else if (serviceYears <= 10) { serviceYearGroups['۵ تا ۱۰ سال']++; byServiceYearsPersonnel['۵ تا ۱۰ سال'].push(personnelWithService); }
+                else if (serviceYears <= 15) { serviceYearGroups['۱۱ تا ۱۵ سال']++; byServiceYearsPersonnel['۱۱ تا ۱۵ سال'].push(personnelWithService); }
+                else if (serviceYears <= 20) { serviceYearGroups['۱۶ تا ۲۰ سال']++; byServiceYearsPersonnel['۱۶ تا ۲۰ سال'].push(personnelWithService); }
+                else { serviceYearGroups['بیشتر از ۲۰ سال']++; byServiceYearsPersonnel['بیشتر از ۲۰ سال'].push(personnelWithService); }
+            } else {
+                 serviceYearGroups['نامشخص']++; 
+                 byServiceYearsPersonnel['نامشخص'].push(personnelWithService);
             }
         });
 
         const averageAge = ages.length > 0 ? Math.round(ages.reduce((a, b) => a + b, 0) / ages.length) : 0;
-
+        const averageService = serviceYearsList.length > 0 ? Math.round(serviceYearsList.reduce((a, b) => a + b, 0) / serviceYearsList.length) : 0;
 
         return {
             total: personnel.length,
@@ -212,7 +253,11 @@ const DashboardPage: React.FC = () => {
             averageAge,
             closeToRetirementList,
             retiredList,
-            byAgeGroup: toSortedArray(ageGroups)
+            byAgeGroup: toSortedArray(ageGroups),
+            byAgeGroupPersonnel,
+            averageService,
+            byServiceYears: toSortedArray(serviceYearGroups),
+            byServiceYearsPersonnel
         };
     }, [personnel]);
 
@@ -244,8 +289,8 @@ const DashboardPage: React.FC = () => {
         return { holidaysByMonth, upcomingHolidays };
     }, []);
     
-    const handleStatClick = (title: string, personnelList: (Personnel & { age: number })[]) => {
-        setModalData({ title, personnel: personnelList });
+    const handleStatClick = (title: string, personnelList: any[], mode: 'age' | 'service') => {
+        setModalData({ title, personnel: personnelList, mode });
         setIsModalOpen(true);
     };
 
@@ -253,6 +298,7 @@ const DashboardPage: React.FC = () => {
         { key: 'byDepartment', label: 'آمار بر اساس واحد' },
         { key: 'byServiceLocation', label: 'آمار بر اساس محل خدمت' },
         { key: 'byAgeGroup', label: 'آمار بر اساس گروه سنی' },
+        { key: 'byServiceYears', label: 'آمار بر اساس سابقه خدمت' },
         { key: 'byPosition', label: 'آمار بر اساس سمت' },
         { key: 'byMaritalStatus', label: 'آمار بر اساس وضعیت تاهل' },
         { key: 'holidays', label: 'تقویم تعطیلات' },
@@ -266,7 +312,19 @@ const DashboardPage: React.FC = () => {
             case 'byServiceLocation':
                 return <StatListCard title="آمار بر اساس محل خدمت" data={stats.byServiceLocation} icon={MapPinIcon} />;
             case 'byAgeGroup':
-                return <StatListCard title="آمار بر اساس گروه سنی" data={stats.byAgeGroup} icon={CakeIcon} />;
+                return <StatListCard 
+                            title="آمار بر اساس گروه سنی" 
+                            data={stats.byAgeGroup} 
+                            icon={CakeIcon} 
+                            onItemClick={(key) => handleStatClick(`لیست پرسنل: ${key}`, stats.byAgeGroupPersonnel[key], 'age')}
+                        />;
+             case 'byServiceYears':
+                return <StatListCard 
+                            title="آمار بر اساس سابقه خدمت" 
+                            data={stats.byServiceYears} 
+                            icon={BriefcaseIcon} 
+                            onItemClick={(key) => handleStatClick(`لیست پرسنل: ${key}`, stats.byServiceYearsPersonnel[key], 'service')}
+                        />;
             case 'byPosition':
                 return <StatListCard title="آمار بر اساس سمت" data={stats.byPosition} icon={BriefcaseIcon} />;
             case 'byMaritalStatus':
@@ -289,16 +347,17 @@ const DashboardPage: React.FC = () => {
     return (
         <div className="space-y-6">
             {stats && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                     <StatCard title="کل پرسنل" value={toPersianDigits(stats.total)} icon={UsersIcon} color="bg-blue-500" />
                     <StatCard title="میانگین سن" value={`${toPersianDigits(stats.averageAge)} سال`} icon={CakeIcon} color="bg-green-500" />
+                    <StatCard title="میانگین سابقه" value={`${toPersianDigits(stats.averageService)} سال`} icon={BriefcaseIcon} color="bg-indigo-500" />
                     
                     <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-md flex items-center space-x-3 space-x-reverse">
                         <div className="p-2.5 rounded-full bg-orange-500">
                             <CalendarDaysIcon className="w-6 h-6 text-white" />
                         </div>
                         <div>
-                            <button onClick={() => handleStatClick('لیست پرسنل نزدیک به بازنشستگی', stats.closeToRetirementList)} className="text-2xl font-bold text-gray-800 dark:text-white hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded">
+                            <button onClick={() => handleStatClick('لیست پرسنل نزدیک به بازنشستگی', stats.closeToRetirementList, 'age')} className="text-2xl font-bold text-gray-800 dark:text-white hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded">
                                 {toPersianDigits(stats.closeToRetirementList.length)}
                             </button>
                             <p className="text-sm text-gray-500 dark:text-gray-400">نزدیک به بازنشستگی (۵۵-۵۹)</p>
@@ -310,7 +369,7 @@ const DashboardPage: React.FC = () => {
                             <CalendarDaysIcon className="w-6 h-6 text-white" />
                         </div>
                         <div>
-                            <button onClick={() => handleStatClick('لیست پرسنل در سن بازنشستگی', stats.retiredList)} className="text-2xl font-bold text-gray-800 dark:text-white hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded">
+                            <button onClick={() => handleStatClick('لیست پرسنل در سن بازنشستگی', stats.retiredList, 'age')} className="text-2xl font-bold text-gray-800 dark:text-white hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded">
                                 {toPersianDigits(stats.retiredList.length)}
                             </button>
                             <p className="text-sm text-gray-500 dark:text-gray-400">در سن بازنشستگی (۶۰+)</p>
@@ -344,6 +403,7 @@ const DashboardPage: React.FC = () => {
                 onClose={() => setIsModalOpen(false)}
                 title={modalData.title}
                 personnel={modalData.personnel}
+                mode={modalData.mode}
             />
         </div>
     );
