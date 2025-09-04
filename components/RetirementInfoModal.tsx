@@ -6,7 +6,7 @@ interface RetirementInfoModalProps {
   onClose: () => void;
   title: string;
   personnel: (Personnel & { age?: number; serviceYears?: number })[];
-  mode?: 'age' | 'service';
+  mode?: 'age' | 'service' | 'general';
 }
 
 const toPersianDigits = (s: string | number | null | undefined): string => {
@@ -14,12 +14,14 @@ const toPersianDigits = (s: string | number | null | undefined): string => {
     return String(s).replace(/[0-9]/g, (w) => '۰۱۲۳۴۵۶۷۸۹'[parseInt(w, 10)]);
 };
 
-const RetirementInfoModal: React.FC<RetirementInfoModalProps> = ({ isOpen, onClose, title, personnel, mode = 'age' }) => {
+const RetirementInfoModal: React.FC<RetirementInfoModalProps> = ({ isOpen, onClose, title, personnel, mode = 'general' }) => {
   if (!isOpen) return null;
 
   const headers = mode === 'age'
     ? ['نام کامل', 'کد پرسنلی', 'تاریخ تولد', 'سن']
-    : ['نام کامل', 'کد پرسنلی', 'تاریخ استخدام', 'سابقه (سال)'];
+    : mode === 'service'
+    ? ['نام کامل', 'کد پرسنلی', 'تاریخ استخدام', 'سابقه (سال)']
+    : ['نام کامل', 'کد پرسنلی', 'واحد', 'سمت'];
 
 
   return (
@@ -66,10 +68,15 @@ const RetirementInfoModal: React.FC<RetirementInfoModalProps> = ({ isOpen, onClo
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{toPersianDigits(p.birth_date)}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{toPersianDigits(p.age)}</td>
                     </>
-                  ) : (
+                  ) : mode === 'service' ? (
                      <>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{toPersianDigits(p.hire_date)}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{toPersianDigits(p.serviceYears)}</td>
+                    </>
+                  ) : (
+                    <>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{p.department || '---'}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">{p.position || '---'}</td>
                     </>
                   )}
                 </tr>

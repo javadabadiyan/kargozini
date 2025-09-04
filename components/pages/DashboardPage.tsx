@@ -160,7 +160,7 @@ const DashboardPage: React.FC = () => {
     const [selectedStat, setSelectedStat] = useState('byDepartment');
     
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [modalData, setModalData] = useState<{ title: string; personnel: any[]; mode: 'age' | 'service' }>({ title: '', personnel: [], mode: 'age' });
+    const [modalData, setModalData] = useState<{ title: string; personnel: any[]; mode: 'age' | 'service' | 'general' }>({ title: '', personnel: [], mode: 'general' });
 
 
     useEffect(() => {
@@ -191,6 +191,15 @@ const DashboardPage: React.FC = () => {
                 acc[value] = (acc[value] || 0) + 1;
                 return acc;
             }, {} as Record<string, number>);
+        };
+
+        const groupPersonnelByKey = (key: keyof Personnel) => {
+            return personnel.reduce((acc, p) => {
+                const value = p[key] || 'نامشخص';
+                if (!acc[value]) acc[value] = [];
+                acc[value].push(p);
+                return acc;
+            }, {} as Record<string, Personnel[]>);
         };
         
         const toSortedArray = (obj: Record<string, number>) => Object.entries(obj).sort(([, a], [, b]) => b - a);
@@ -247,9 +256,13 @@ const DashboardPage: React.FC = () => {
         return {
             total: personnel.length,
             byDepartment: toSortedArray(groupAndCount('department')),
+            byDepartmentPersonnel: groupPersonnelByKey('department'),
             byServiceLocation: toSortedArray(groupAndCount('service_location')),
+            byServiceLocationPersonnel: groupPersonnelByKey('service_location'),
             byPosition: toSortedArray(groupAndCount('position')),
+            byPositionPersonnel: groupPersonnelByKey('position'),
             byMaritalStatus: toSortedArray(groupAndCount('marital_status')),
+            byMaritalStatusPersonnel: groupPersonnelByKey('marital_status'),
             averageAge,
             closeToRetirementList,
             retiredList,
@@ -289,7 +302,7 @@ const DashboardPage: React.FC = () => {
         return { holidaysByMonth, upcomingHolidays };
     }, []);
     
-    const handleStatClick = (title: string, personnelList: any[], mode: 'age' | 'service') => {
+    const handleStatClick = (title: string, personnelList: any[], mode: 'age' | 'service' | 'general') => {
         setModalData({ title, personnel: personnelList, mode });
         setIsModalOpen(true);
     };
@@ -308,9 +321,9 @@ const DashboardPage: React.FC = () => {
         if (!stats) return <div className="text-center p-10 text-gray-500">داده‌ای برای نمایش وجود ندارد.</div>;
         switch (selectedStat) {
             case 'byDepartment':
-                return <StatListCard title="آمار بر اساس واحد" data={stats.byDepartment} icon={BuildingOffice2Icon} />;
+                return <StatListCard title="آمار بر اساس واحد" data={stats.byDepartment} icon={BuildingOffice2Icon} onItemClick={(key) => handleStatClick(`لیست پرسنل واحد: ${key}`, stats.byDepartmentPersonnel[key], 'general')} />;
             case 'byServiceLocation':
-                return <StatListCard title="آمار بر اساس محل خدمت" data={stats.byServiceLocation} icon={MapPinIcon} />;
+                return <StatListCard title="آمار بر اساس محل خدمت" data={stats.byServiceLocation} icon={MapPinIcon} onItemClick={(key) => handleStatClick(`لیست پرسنل محل خدمت: ${key}`, stats.byServiceLocationPersonnel[key], 'general')} />;
             case 'byAgeGroup':
                 return <StatListCard 
                             title="آمار بر اساس گروه سنی" 
@@ -326,9 +339,9 @@ const DashboardPage: React.FC = () => {
                             onItemClick={(key) => handleStatClick(`لیست پرسنل: ${key}`, stats.byServiceYearsPersonnel[key], 'service')}
                         />;
             case 'byPosition':
-                return <StatListCard title="آمار بر اساس سمت" data={stats.byPosition} icon={BriefcaseIcon} />;
+                return <StatListCard title="آمار بر اساس سمت" data={stats.byPosition} icon={BriefcaseIcon} onItemClick={(key) => handleStatClick(`لیست پرسنل با سمت: ${key}`, stats.byPositionPersonnel[key], 'general')} />;
             case 'byMaritalStatus':
-                return <StatListCard title="آمار بر اساس وضعیت تاهل" data={stats.byMaritalStatus} icon={HeartIcon} />;
+                return <StatListCard title="آمار بر اساس وضعیت تاهل" data={stats.byMaritalStatus} icon={HeartIcon} onItemClick={(key) => handleStatClick(`لیست پرسنل با وضعیت تاهل: ${key}`, stats.byMaritalStatusPersonnel[key], 'general')} />;
             case 'holidays':
                 return <HolidayCalendarCard holidayInfo={holidayInfo} />;
             default:
