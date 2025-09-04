@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import type { Personnel } from '../../types';
 import { holidays1403, PERSIAN_MONTHS } from '../holidays';
 import { UsersIcon, BuildingOffice2Icon, MapPinIcon, HeartIcon, BriefcaseIcon, CalendarDaysIcon, CakeIcon, DocumentReportIcon } from '../icons/Icons';
+import RetirementInfoModal from '../RetirementInfoModal';
 
 // Helper to convert numbers to Persian digits
 const toPersianDigits = (s: string | number | null | undefined): string => {
@@ -131,7 +132,11 @@ const DashboardPage: React.FC = () => {
     const [personnel, setPersonnel] = useState<Personnel[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [selectedStat, setSelectedStat] = useState('generalSummary');
+    const [selectedStat, setSelectedStat] = useState('byDepartment');
+    
+    const [isModalOpen, setIsModalOpen] = useState(false);
+    const [modalData, setModalData] = useState<{ title: string; personnel: (Personnel & { age: number })[] }>({ title: '', personnel: [] });
+
 
     useEffect(() => {
         const fetchPersonnel = async () => {
@@ -165,11 +170,10 @@ const DashboardPage: React.FC = () => {
         
         const toSortedArray = (obj: Record<string, number>) => Object.entries(obj).sort(([, a], [, b]) => b - a);
         
-        // Age calculations
         const currentDate = getCurrentPersianDate();
         const ages: number[] = [];
-        let closeToRetirementCount = 0; // 55-59
-        let retiredCount = 0; // 60+
+        const closeToRetirementList: (Personnel & { age: number })[] = [];
+        const retiredList: (Personnel & { age: number })[] = [];
         const ageGroups: Record<string, number> = {
             'زیر ۳۰ سال': 0,
             '۳۱-۴۰ سال': 0,
@@ -183,8 +187,8 @@ const DashboardPage: React.FC = () => {
             const age = persianDateToAge(p.birth_date, currentDate);
             if (age !== null) {
                 ages.push(age);
-                if (age >= 55 && age < 60) closeToRetirementCount++;
-                if (age >= 60) retiredCount++;
+                if (age >= 55 && age < 60) closeToRetirementList.push({ ...p, age });
+                if (age >= 60) retiredList.push({ ...p, age });
 
                 if (age <= 30) ageGroups['زیر ۳۰ سال']++;
                 else if (age >= 31 && age <= 40) ageGroups['۳۱-۴۰ سال']++;
@@ -206,8 +210,8 @@ const DashboardPage: React.FC = () => {
             byPosition: toSortedArray(groupAndCount('position')),
             byMaritalStatus: toSortedArray(groupAndCount('marital_status')),
             averageAge,
-            closeToRetirementCount,
-            retiredCount,
+            closeToRetirementList,
+            retiredList,
             byAgeGroup: toSortedArray(ageGroups)
         };
     }, [personnel]);
@@ -240,8 +244,12 @@ const DashboardPage: React.FC = () => {
         return { holidaysByMonth, upcomingHolidays };
     }, []);
     
+    const handleStatClick = (title: string, personnelList: (Personnel & { age: number })[]) => {
+        setModalData({ title, personnel: personnelList });
+        setIsModalOpen(true);
+    };
+
     const statOptions = [
-        { key: 'generalSummary', label: 'خلاصه آمار کل' },
         { key: 'byDepartment', label: 'آمار بر اساس واحد' },
         { key: 'byServiceLocation', label: 'آمار بر اساس محل خدمت' },
         { key: 'byAgeGroup', label: 'آمار بر اساس گروه سنی' },
@@ -253,16 +261,6 @@ const DashboardPage: React.FC = () => {
     const renderSelectedStat = () => {
         if (!stats) return <div className="text-center p-10 text-gray-500">داده‌ای برای نمایش وجود ندارد.</div>;
         switch (selectedStat) {
-            case 'generalSummary':
-                const generalSummaryData: [string, string | number][] = [
-                    ['کل پرسنل', stats.total],
-                    ['میانگین سن', `${toPersianDigits(stats.averageAge)} سال`],
-                    ['نزدیک به بازنشستگی (۵۵-۵۹ سال)', stats.closeToRetirementCount],
-                    ['در سن بازنشستگی (۶۰+ سال)', stats.retiredCount],
-                    ['تعداد واحدها', stats.byDepartment.length],
-                    ['پرسنل متاهل', stats.byMaritalStatus.find(([k]) => k === 'متاهل')?.[1] || 0],
-                ];
-                return <StatListCard title="خلاصه آمار کل" data={generalSummaryData} icon={DocumentReportIcon} />;
             case 'byDepartment':
                 return <StatListCard title="آمار بر اساس واحد" data={stats.byDepartment} icon={BuildingOffice2Icon} />;
             case 'byServiceLocation':
@@ -290,9 +288,40 @@ const DashboardPage: React.FC = () => {
     
     return (
         <div className="space-y-6">
+            {stats && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <StatCard title="کل پرسنل" value={toPersianDigits(stats.total)} icon={UsersIcon} color="bg-blue-500" />
+                    <StatCard title="میانگین سن" value={`${toPersianDigits(stats.averageAge)} سال`} icon={CakeIcon} color="bg-green-500" />
+                    
+                    <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-md flex items-center space-x-3 space-x-reverse">
+                        <div className="p-2.5 rounded-full bg-orange-500">
+                            <CalendarDaysIcon className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                            <button onClick={() => handleStatClick('لیست پرسنل نزدیک به بازنشستگی', stats.closeToRetirementList)} className="text-2xl font-bold text-gray-800 dark:text-white hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded">
+                                {toPersianDigits(stats.closeToRetirementList.length)}
+                            </button>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">نزدیک به بازنشستگی (۵۵-۵۹)</p>
+                        </div>
+                    </div>
+                    
+                    <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-md flex items-center space-x-3 space-x-reverse">
+                        <div className="p-2.5 rounded-full bg-red-500">
+                            <CalendarDaysIcon className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                            <button onClick={() => handleStatClick('لیست پرسنل در سن بازنشستگی', stats.retiredList)} className="text-2xl font-bold text-gray-800 dark:text-white hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded">
+                                {toPersianDigits(stats.retiredList.length)}
+                            </button>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">در سن بازنشستگی (۶۰+)</p>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-md">
                 <label htmlFor="stat-selector" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    نمایش آمار بر اساس:
+                    نمایش آمار تفصیلی بر اساس:
                 </label>
                 <select 
                     id="stat-selector"
@@ -309,6 +338,13 @@ const DashboardPage: React.FC = () => {
             <div className="min-h-[400px]">
                 {renderSelectedStat()}
             </div>
+
+            <RetirementInfoModal 
+                isOpen={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                title={modalData.title}
+                personnel={modalData.personnel}
+            />
         </div>
     );
 };
