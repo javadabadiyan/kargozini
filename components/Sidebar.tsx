@@ -12,7 +12,15 @@ const SidebarMenuItem: React.FC<{
   permissions: UserPermissions;
 }> = ({ item, activeItem, setActiveItem, openItems, toggleItem, permissions }) => {
   const isParent = !!item.children;
-  const isActive = activeItem === item.id || item.children?.some(child => child.id === activeItem);
+
+  const hasActiveChild = (menuItems: MenuItem[] | undefined): boolean => {
+    if (!menuItems) return false;
+    return menuItems.some(child => 
+      child.id === activeItem || hasActiveChild(child.children)
+    );
+  };
+  const isActive = activeItem === item.id || hasActiveChild(item.children);
+
   const isOpen = openItems[item.id] ?? false;
 
   const handleClick = () => {
@@ -22,12 +30,6 @@ const SidebarMenuItem: React.FC<{
       setActiveItem(item.id, item.page);
     }
   };
-  
-  const handleChildClick = (child: MenuItem) => {
-     if(child.page) {
-       setActiveItem(child.id, child.page);
-     }
-  }
 
   const baseClasses = 'w-full flex items-center p-3 my-1 rounded-lg transition-colors duration-200 cursor-pointer';
   const activeClasses = 'bg-blue-600 text-white shadow-lg';
@@ -46,19 +48,48 @@ const SidebarMenuItem: React.FC<{
         </div>
         <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? 'max-h-96' : 'max-h-0'}`}>
           <div className="mr-6 border-r-2 border-slate-600 pr-4">
-          {item.children?.filter(child => permissions[child.id]).map(child => (
-            <div key={child.id} onClick={() => handleChildClick(child)} 
-              className={`flex items-center p-2 my-1 rounded-lg transition-colors duration-200 cursor-pointer text-sm ${activeItem === child.id ? 'text-blue-400 font-semibold' : 'text-gray-400 hover:text-white'}`}>
-              <child.icon className={`w-5 h-5 ms-2 ${activeItem === child.id ? 'text-blue-400' : ''}`} />
-              <span className="mr-2">{child.label}</span>
-            </div>
-          ))}
+            {item.children?.filter(child => permissions[child.id] || (child.children && child.children.some(c => permissions[c.id]))).map(child => {
+              if (child.children) { // Nested parent item
+                const isChildOpen = openItems[child.id] ?? false;
+                const isChildActive = hasActiveChild([child]);
+                 return (
+                 <div key={child.id}>
+                    <div onClick={() => toggleItem(child.id)} className={`flex items-center justify-between p-2 my-1 rounded-lg transition-colors duration-200 cursor-pointer text-sm ${isChildActive ? 'text-blue-400 font-semibold' : 'text-gray-400 hover:text-white'}`}>
+                        <div className="flex items-center">
+                          <child.icon className={`w-5 h-5 ms-2 ${isChildActive ? 'text-blue-400' : ''}`} />
+                          <span className="mr-2">{child.label}</span>
+                        </div>
+                        {isChildOpen ? <ChevronUpIcon className="w-4 h-4"/> : <ChevronDownIcon className="w-4 h-4"/>}
+                    </div>
+                     <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isChildOpen ? 'max-h-96' : 'max-h-0'}`}>
+                        <div className="mr-4 border-r-2 border-slate-700 pr-2">
+                            {child.children?.filter(grandchild => permissions[grandchild.id]).map(grandchild => (
+                                <div key={grandchild.id} onClick={() => grandchild.page && setActiveItem(grandchild.id, grandchild.page)} className={`flex items-center p-2 my-1 rounded-lg transition-colors duration-200 cursor-pointer text-xs ${activeItem === grandchild.id ? 'text-blue-500 font-bold' : 'text-gray-400 hover:text-white'}`}>
+                                    <grandchild.icon className={`w-4 h-4 ms-2 ${activeItem === grandchild.id ? 'text-blue-500' : ''}`} />
+                                    <span className="mr-2">{grandchild.label}</span>
+                                </div>
+                            ))}
+                        </div>
+                     </div>
+                 </div>
+                );
+              }
+              // Leaf child item
+              return (
+                <div key={child.id} onClick={() => child.page && setActiveItem(child.id, child.page)} 
+                  className={`flex items-center p-2 my-1 rounded-lg transition-colors duration-200 cursor-pointer text-sm ${activeItem === child.id ? 'text-blue-400 font-semibold' : 'text-gray-400 hover:text-white'}`}>
+                  <child.icon className={`w-5 h-5 ms-2 ${activeItem === child.id ? 'text-blue-400' : ''}`} />
+                  <span className="mr-2">{child.label}</span>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
     );
   }
 
+  // Top-level leaf node logic
   return (
     <div
       onClick={handleClick}
@@ -129,8 +160,16 @@ export const Sidebar: React.FC<{
 }> = ({ setActivePage, activePageId, isOpen, onClose, user }) => {
   const { permissions } = user;
   const menuItems = useMemo(() => {
+    const hasVisibleChild = (item: MenuItem, userPermissions: UserPermissions): boolean => {
+        if (!item.children) return false;
+        return item.children.some(child => {
+            if (userPermissions[child.id]) return true;
+            return hasVisibleChild(child, userPermissions);
+        });
+    };
+
     return ALL_MENU_ITEMS.filter(item => 
-      permissions[item.id] || (item.children && item.children.some(child => permissions[child.id]))
+      permissions[item.id] || hasVisibleChild(item, permissions)
     );
   }, [permissions]);
 
