@@ -11,7 +11,6 @@ import SettingsPage from './pages/SettingsPage';
 import DashboardPage from './pages/DashboardPage';
 import DocumentUploadPage from './pages/DocumentUploadPage';
 import AccountingCommitmentPage from './pages/AccountingCommitmentPage';
-import CommitmentLetterArchivePage from './pages/CommitmentLetterArchivePage';
 
 const DisciplinaryCommitteePage: React.FC = () => React.createElement(PlaceholderPage, { title: "کمیته تشویق و انضباطی" });
 const PerformanceReviewPage: React.FC = () => React.createElement(PlaceholderPage, { title: "ارزیابی عملکرد" });
@@ -33,13 +32,10 @@ export const ALL_MENU_ITEMS: MenuItem[] = [
     id: 'recruitment', label: 'کارگزینی', icon: BriefcaseIcon,
     children: [
       { 
-        id: 'accounting_commitment_parent',
+        id: 'accounting_commitment',
         label: 'نامه تعهد حسابداری', 
         icon: DocumentReportIcon,
-        children: [
-          { id: 'accounting_commitment', label: 'صدور نامه تعهد', icon: CircleIcon, page: AccountingCommitmentPage },
-          { id: 'commitment_letter_archive', label: 'بایگانی نامه‌ها', icon: CircleIcon, page: CommitmentLetterArchivePage }
-        ]
+        page: AccountingCommitmentPage
       },
       { id: 'disciplinary_committee', label: 'کمیته تشویق و انضباطی', icon: CircleIcon, page: DisciplinaryCommitteePage },
       { id: 'performance_review', label: 'ارزیابی عملکرد', icon: CircleIcon, page: PerformanceReviewPage },
