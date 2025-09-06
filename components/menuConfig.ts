@@ -10,8 +10,8 @@ import CommuteReportPage from './pages/CommuteReportPage';
 import SettingsPage from './pages/SettingsPage';
 import DashboardPage from './pages/DashboardPage';
 import DocumentUploadPage from './pages/DocumentUploadPage';
+import AccountingCommitmentPage from './pages/AccountingCommitmentPage';
 
-const AccountingCommitmentPage: React.FC = () => React.createElement(PlaceholderPage, { title: "صدور نامه تعهد حسابداری" });
 const CommitmentLetterArchivePage: React.FC = () => React.createElement(PlaceholderPage, { title: "بایگانی نامه ها" });
 const DisciplinaryCommitteePage: React.FC = () => React.createElement(PlaceholderPage, { title: "کمیته تشویق و انضباطی" });
 const PerformanceReviewPage: React.FC = () => React.createElement(PlaceholderPage, { title: "ارزیابی عملکرد" });
