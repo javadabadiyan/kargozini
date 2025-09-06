@@ -215,6 +215,10 @@ const AccountingCommitmentPage: React.FC = () => {
                             <label htmlFor="loanAmount" className="block text-sm font-medium text-gray-700 mb-1">مبلغ وام (ریال)</label>
                             <input type="text" id="loanAmount" value={formatCurrency(loanAmount)} onChange={e => setLoanAmount(e.target.value.replace(/,/g, ''))} className="w-full p-2 border border-gray-300 rounded-md" />
                         </div>
+                         <div>
+                            <label htmlFor="sumOfDecreeFactors" className="block text-sm font-medium text-gray-700 mb-1">جمع عوامل حکم ضامن (ریال)</label>
+                            <input type="text" id="sumOfDecreeFactors" value={formatCurrency(sumOfDecreeFactors)} onChange={e => setSumOfDecreeFactors(e.target.value.replace(/,/g, ''))} className="w-full p-2 border border-gray-300 rounded-md" />
+                        </div>
                         
                         <div>
                             <h4 className="block text-sm font-medium text-gray-700 mb-2">اطلاعات وام گیرنده (دستی)</h4>
@@ -228,10 +232,6 @@ const AccountingCommitmentPage: React.FC = () => {
 
                         <SearchablePersonnelInput label="ضامن" searchTerm={guarantorSearch} setSearchTerm={setGuarantorSearch} results={guarantorResults} onSelect={handleSelectGuarantor} selectedPerson={selectedGuarantor} />
                         
-                        <div>
-                            <label htmlFor="sumOfDecreeFactors" className="block text-sm font-medium text-gray-700 mb-1">جمع عوامل حکم ضامن (ریال)</label>
-                            <input type="text" id="sumOfDecreeFactors" value={formatCurrency(sumOfDecreeFactors)} onChange={e => setSumOfDecreeFactors(e.target.value.replace(/,/g, ''))} className="w-full p-2 border border-gray-300 rounded-md" />
-                        </div>
                     </div>
                      <div className="flex items-center gap-2">
                         <button onClick={handlePrint} disabled={!isReady} className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed">
@@ -255,22 +255,38 @@ const AccountingCommitmentPage: React.FC = () => {
                         </div>
                         <div className="text-justify leading-loose">
                             <p>
-                                احتراماً حسابداری این شرکت تعهد می نماید در صورت عدم پرداخت اقساط وام به مبلغ 
+                                احتراماً حسابداری این شرکت تعهد می نماید در صورت عدم پرداخت اقساط وام به مبلغ
+                                {' '}
                                 <span className="font-bold px-1">{toPersianDigits(formatCurrency(loanAmount))}</span>
-                                ({numberToPersianWords(loanAmount)}) ریال بنام آقای 
+                                {' '}
+                                ({numberToPersianWords(loanAmount)}) ریال بنام آقای
+                                {' '}
                                 <span className="font-bold px-1">{recipientInfo.firstName ? `${recipientInfo.firstName} ${recipientInfo.lastName}` : '...'}</span>
-                                فرزند 
-                                <span className="font-bold px-1">{recipientInfo.fatherName || '...'}</span>
-                                با کد ملی
-                                <span className="font-bold px-1">{recipientInfo.nationalId ? toPersianDigits(recipientInfo.nationalId) : '...'}</span>
-                                از حقوق ضامن نامبرده آقای
-                                <span className="font-bold px-1">{selectedGuarantor ? `${selectedGuarantor.first_name} ${selectedGuarantor.last_name}` : '...'}</span>
+                                {' '}
                                 فرزند
+                                {' '}
+                                <span className="font-bold px-1">{recipientInfo.fatherName || '...'}</span>
+                                {' '}
+                                با کد ملی
+                                {' '}
+                                <span className="font-bold px-1">{recipientInfo.nationalId ? toPersianDigits(recipientInfo.nationalId) : '...'}</span>
+                                {' '}
+                                از حقوق ضامن نامبرده آقای
+                                {' '}
+                                <span className="font-bold px-1">{selectedGuarantor ? `${selectedGuarantor.first_name} ${selectedGuarantor.last_name}` : '...'}</span>
+                                {' '}
+                                فرزند
+                                {' '}
                                 <span className="font-bold px-1">{selectedGuarantor ? selectedGuarantor.father_name : '...'}</span>
+                                {' '}
                                 با کد پرسنلی
+                                {' '}
                                 <span className="font-bold px-1">{selectedGuarantor ? toPersianDigits(selectedGuarantor.personnel_code) : '...'}</span>
+                                {' '}
                                 و جمع عوامل حکمی
+                                {' '}
                                 <span className="font-bold px-1">{sumOfDecreeFactors ? toPersianDigits(formatCurrency(sumOfDecreeFactors)) : '...'}</span>
+                                {' '}
                                 ریال در این شرکت شاغل باشد بعد از اعلام بانک و با رعایت سقف قانونی کسر و به حساب آن بانک واریز نماید.
                             </p>
                             <p className="mt-8">
