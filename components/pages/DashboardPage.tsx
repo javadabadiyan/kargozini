@@ -158,6 +158,7 @@ const DashboardPage: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [selectedStat, setSelectedStat] = useState('byDepartment');
+    const [selectedTopStatKey, setSelectedTopStatKey] = useState('total');
     
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalData, setModalData] = useState<{ title: string; personnel: any[]; mode: 'age' | 'service' | 'general' }>({ title: '', personnel: [], mode: 'general' });
@@ -278,6 +279,35 @@ const DashboardPage: React.FC = () => {
         };
     }, [personnel]);
 
+    const topStats = useMemo(() => {
+        if (!stats) return [];
+        return [
+            { key: 'total', label: 'کل پرسنل', value: toPersianDigits(stats.total), icon: UsersIcon, color: 'bg-blue-500', modalData: null },
+            { key: 'avgAge', label: 'میانگین سن', value: `${toPersianDigits(stats.averageAge)} سال`, icon: CakeIcon, color: 'bg-green-500', modalData: null },
+            { key: 'avgService', label: 'میانگین سابقه', value: `${toPersianDigits(stats.averageService)} سال`, icon: BriefcaseIcon, color: 'bg-indigo-500', modalData: null },
+            { 
+                key: 'nearRetirement', 
+                label: 'نزدیک به بازنشستگی (۵۵-۵۹)', 
+                value: toPersianDigits(stats.closeToRetirementList.length), 
+                icon: CalendarDaysIcon, 
+                color: 'bg-orange-500', 
+                modalData: { title: 'لیست پرسنل نزدیک به بازنشستگی', personnel: stats.closeToRetirementList, mode: 'age' as const } 
+            },
+            { 
+                key: 'atRetirement', 
+                label: 'در سن بازنشستگی (۶۰+)', 
+                value: toPersianDigits(stats.retiredList.length), 
+                icon: CalendarDaysIcon, 
+                color: 'bg-red-500', 
+                modalData: { title: 'لیست پرسنل در سن بازنشستگی', personnel: stats.retiredList, mode: 'age' as const } 
+            }
+        ];
+    }, [stats]);
+    
+    const selectedTopStat = useMemo(() => {
+        return topStats.find(s => s.key === selectedTopStatKey);
+    }, [selectedTopStatKey, topStats]);
+
     const holidayInfo = useMemo(() => {
         const holidaysByMonth: number[] = Array(12).fill(0);
         holidays1403.forEach(holiday => {
@@ -370,34 +400,41 @@ const DashboardPage: React.FC = () => {
     return (
         <div className="space-y-6">
             {stats && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                    <StatCard title="کل پرسنل" value={toPersianDigits(stats.total)} icon={UsersIcon} color="bg-blue-500" />
-                    <StatCard title="میانگین سن" value={`${toPersianDigits(stats.averageAge)} سال`} icon={CakeIcon} color="bg-green-500" />
-                    <StatCard title="میانگین سابقه" value={`${toPersianDigits(stats.averageService)} سال`} icon={BriefcaseIcon} color="bg-indigo-500" />
-                    
-                    <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-md flex items-center space-x-3 space-x-reverse">
-                        <div className="p-2.5 rounded-full bg-orange-500">
-                            <CalendarDaysIcon className="w-6 h-6 text-white" />
-                        </div>
-                        <div>
-                            <button onClick={() => handleStatClick('لیست پرسنل نزدیک به بازنشستگی', stats.closeToRetirementList, 'age')} className="text-2xl font-bold text-gray-800 dark:text-white hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded">
-                                {toPersianDigits(stats.closeToRetirementList.length)}
-                            </button>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">نزدیک به بازنشستگی (۵۵-۵۹)</p>
-                        </div>
+                 <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-md flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                         <label htmlFor="top-stat-selector" className="text-sm font-medium text-gray-700 dark:text-gray-300">نمایش آمار:</label>
+                         <select 
+                            id="top-stat-selector"
+                            value={selectedTopStatKey}
+                            onChange={(e) => setSelectedTopStatKey(e.target.value)}
+                            className="p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:border-slate-600 dark:text-white"
+                        >
+                            {topStats.map(stat => (
+                                <option key={stat.key} value={stat.key}>{stat.label}</option>
+                            ))}
+                        </select>
                     </div>
-                    
-                    <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-md flex items-center space-x-3 space-x-reverse">
-                        <div className="p-2.5 rounded-full bg-red-500">
-                            <CalendarDaysIcon className="w-6 h-6 text-white" />
+
+                    {selectedTopStat && (
+                        <div className="flex items-center space-x-3 space-x-reverse">
+                            <div className={`p-2.5 rounded-full ${selectedTopStat.color}`}>
+                                <selectedTopStat.icon className="w-8 h-8 text-white" />
+                            </div>
+                            <div>
+                                {selectedTopStat.modalData ? (
+                                    <button 
+                                        onClick={() => handleStatClick(selectedTopStat.modalData!.title, selectedTopStat.modalData!.personnel, selectedTopStat.modalData!.mode)} 
+                                        className="text-3xl font-bold text-gray-800 dark:text-white hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+                                    >
+                                        {selectedTopStat.value}
+                                    </button>
+                                ) : (
+                                    <p className="text-3xl font-bold text-gray-800 dark:text-white">{selectedTopStat.value}</p>
+                                )}
+                                <p className="text-sm text-gray-500 dark:text-gray-400">{selectedTopStat.label}</p>
+                            </div>
                         </div>
-                        <div>
-                            <button onClick={() => handleStatClick('لیست پرسنل در سن بازنشستگی', stats.retiredList, 'age')} className="text-2xl font-bold text-gray-800 dark:text-white hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded">
-                                {toPersianDigits(stats.retiredList.length)}
-                            </button>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">در سن بازنشستگی (۶۰+)</p>
-                        </div>
-                    </div>
+                    )}
                 </div>
             )}
 
