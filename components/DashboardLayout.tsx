@@ -75,13 +75,16 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout, user }) => 
            aria-hidden="true"
          ></div>
       )}
-      <main className="flex-1 flex flex-col overflow-y-auto overflow-x-hidden">
+      <main className="flex-1 flex flex-col overflow-y-auto overflow-x-hidden relative">
+        {/* Decorative background for the dashboard */}
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-100 via-indigo-100 to-purple-200 dark:from-slate-900 dark:via-slate-800 dark:to-blue-900 opacity-60 dark:opacity-100 -z-10"></div>
+        
         <Header onLogout={onLogout} onMenuClick={toggleSidebar} username={user.username} />
         <div className="p-4 sm:p-6 flex-1">
             <ActivePage />
         </div>
-        <footer className="text-center py-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">
-            <p className="text-sm text-slate-500 dark:text-slate-400">طراح و کدنویسی جواد آبادیان</p>
+        <footer className="text-center py-4 bg-transparent border-t border-slate-200/50 dark:border-slate-800/50">
+            <p className="text-sm text-slate-600 dark:text-slate-400">طراح و کدنویسی جواد آبادیان</p>
         </footer>
       </main>
     </div>
