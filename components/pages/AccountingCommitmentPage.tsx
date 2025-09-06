@@ -298,10 +298,10 @@ const AccountingCommitmentPage: React.FC = () => {
                             <p className="text-sm"><strong>کد پرسنلی:</strong> {toPersianDigits(selectedGuarantor.personnel_code)}</p>
                             <p className="text-sm"><strong>کد ملی:</strong> {toPersianDigits(selectedGuarantor.national_id)}</p>
                             <div className="pt-2 mt-2 border-t space-y-1">
-                                <p className="text-sm"><strong>سقف تعهد (۳۰ برابر حکم):</strong> <span className="font-mono">{toPersianDigits(formatCurrency(creditLimit))} ریال</span></p>
-                                <p className="text-sm"><strong>تعهدات قبلی:</strong> <span className="font-mono">{loadingCommitment ? '...' : `${toPersianDigits(formatCurrency(totalCommitted))} ریال`}</span></p>
+                                <p className="text-sm"><strong>سقف تعهد (۳۰ برابر حکم):</strong> <span className="font-sans">{toPersianDigits(formatCurrency(creditLimit))} ریال</span></p>
+                                <p className="text-sm"><strong>تعهدات قبلی:</strong> <span className="font-sans">{loadingCommitment ? '...' : `${toPersianDigits(formatCurrency(totalCommitted))} ریال`}</span></p>
                                 <p className={`text-sm font-bold ${remainingCredit < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                                    <strong>اعتبار باقیمانده:</strong> <span className="font-mono">{toPersianDigits(formatCurrency(remainingCredit))} ریال</span>
+                                    <strong>اعتبار باقیمانده:</strong> <span className="font-sans">{toPersianDigits(formatCurrency(remainingCredit))} ریال</span>
                                 </p>
                             </div>
                         </div>
@@ -356,8 +356,8 @@ const AccountingCommitmentPage: React.FC = () => {
                 <div ref={printRef} className="p-8 border rounded-lg bg-gray-50 text-gray-800 print-container" style={{ direction: 'rtl', lineHeight: '2.5' }}>
                     <div className="flex justify-between items-start mb-8">
                         <div>
-                            <p>تاریخ: <span className="font-mono">{toPersianDigits(new Date().toLocaleDateString('fa-IR'))}</span></p>
-                            <p>شماره: <span className="font-mono">{toPersianDigits(referenceNumber) || '....................'}</span></p>
+                            <p>تاریخ: <span className="font-sans">{toPersianDigits(new Date().toLocaleDateString('fa-IR'))}</span></p>
+                            <p>شماره: <span className="font-sans">{toPersianDigits(referenceNumber) || '....................'}</span></p>
                             <p>پیوست: ندارد</p>
                         </div>
                         <p className="text-center font-bold text-lg">بسمه تعالی</p>
@@ -421,7 +421,7 @@ const AccountingCommitmentPage: React.FC = () => {
                                <tr key={letter.id}>
                                    <td className="px-4 py-3 whitespace-nowrap text-sm"><p className="font-semibold">{letter.recipient_name}</p><p className="text-xs text-gray-500">کد ملی: {toPersianDigits(letter.recipient_national_id)}</p></td>
                                    <td className="px-4 py-3 whitespace-nowrap text-sm"><p className="font-semibold">{letter.guarantor_name}</p><p className="text-xs text-gray-500">کد پرسنلی: {toPersianDigits(letter.guarantor_personnel_code)}</p></td>
-                                   <td className="px-4 py-3 whitespace-nowrap text-sm font-mono">{toPersianDigits(formatCurrency(letter.loan_amount))}</td>
+                                   <td className="px-4 py-3 whitespace-nowrap text-sm font-sans">{toPersianDigits(formatCurrency(letter.loan_amount))}</td>
                                    <td className="px-4 py-3 whitespace-nowrap text-sm">{letter.bank_name} - {letter.branch_name}</td>
                                    <td className="px-4 py-3 whitespace-nowrap text-sm">{toPersianDigits(new Date(letter.issue_date).toLocaleDateString('fa-IR'))}</td>
                                    <td className="px-4 py-3 whitespace-nowrap text-sm text-center">

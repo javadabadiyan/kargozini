@@ -102,7 +102,7 @@ const CommitmentLetterArchivePage: React.FC = () => {
                 </div>
                 <div className="bg-green-50 p-4 rounded-lg border border-green-200">
                     <h4 className="font-bold text-green-800">جمع مبالغ تعهد شده (ریال)</h4>
-                    <p className="text-2xl font-bold text-green-900 font-mono">{toPersianDigits(formatCurrency(summary.totalAmount))}</p>
+                    <p className="text-2xl font-bold text-green-900 font-sans">{toPersianDigits(formatCurrency(summary.totalAmount))}</p>
                 </div>
             </div>
 
@@ -153,7 +153,7 @@ const CommitmentLetterArchivePage: React.FC = () => {
                                <tr key={letter.id}>
                                    <td className="px-4 py-3 whitespace-nowrap text-sm"><p className="font-semibold">{letter.recipient_name}</p><p className="text-xs text-gray-500">کد ملی: {toPersianDigits(letter.recipient_national_id)}</p></td>
                                    <td className="px-4 py-3 whitespace-nowrap text-sm"><p className="font-semibold">{letter.guarantor_name}</p><p className="text-xs text-gray-500">کد پرسنلی: {toPersianDigits(letter.guarantor_personnel_code)}</p></td>
-                                   <td className="px-4 py-3 whitespace-nowrap text-sm font-mono">{toPersianDigits(formatCurrency(letter.loan_amount))}</td>
+                                   <td className="px-4 py-3 whitespace-nowrap text-sm font-sans">{toPersianDigits(formatCurrency(letter.loan_amount))}</td>
                                    <td className="px-4 py-3 whitespace-nowrap text-sm">{letter.bank_name} - {letter.branch_name}</td>
                                    <td className="px-4 py-3 whitespace-nowrap text-sm">{toPersianDigits(new Date(letter.issue_date).toLocaleDateString('fa-IR'))}</td>
                                    <td className="px-4 py-3 whitespace-nowrap text-sm text-center">
