@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import type { Personnel } from '../../types';
-import { SearchIcon, UserIcon, PrinterIcon, RefreshIcon } from '../icons/Icons';
+import { SearchIcon, PrinterIcon, RefreshIcon, DocumentReportIcon, TrashIcon } from '../icons/Icons';
 
 const toPersianDigits = (s: string | number | null | undefined): string => {
     if (s === null || s === undefined) return '';
@@ -13,6 +13,18 @@ const formatCurrency = (value: string | number): string => {
     if (isNaN(Number(num))) return String(value);
     return num.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 };
+
+interface CommitmentLetter {
+    id: number;
+    recipient_name: string;
+    recipient_national_id: string;
+    guarantor_name: string;
+    guarantor_personnel_code: string;
+    loan_amount: string;
+    bank_name: string;
+    branch_name: string;
+    issue_date: string;
+}
 
 const AccountingCommitmentPage: React.FC = () => {
     const [personnelList, setPersonnelList] = useState<Personnel[]>([]);
@@ -30,10 +42,32 @@ const AccountingCommitmentPage: React.FC = () => {
     
     const [totalCommitted, setTotalCommitted] = useState(0);
     const [loadingCommitment, setLoadingCommitment] = useState(false);
-
     const [status, setStatus] = useState<{ type: 'info' | 'success' | 'error'; message: string } | null>(null);
 
+    const [archivedLetters, setArchivedLetters] = useState<CommitmentLetter[]>([]);
+    const [archiveLoading, setArchiveLoading] = useState(true);
+    const [archiveError, setArchiveError] = useState<string | null>(null);
+    const [archiveSearchTerm, setArchiveSearchTerm] = useState('');
+
     const printRef = useRef<HTMLDivElement>(null);
+
+    const fetchArchivedLetters = useCallback(async (searchQuery = '') => {
+        setArchiveLoading(true);
+        setArchiveError(null);
+        try {
+            const response = await fetch(`/api/personnel?type=commitment_letters&searchTerm=${encodeURIComponent(searchQuery)}`);
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'خطا در دریافت بایگانی نامه‌ها');
+            }
+            const data = await response.json();
+            setArchivedLetters(data.letters || []);
+        } catch (err) {
+            setArchiveError(err instanceof Error ? err.message : 'یک خطای ناشناخته رخ داد');
+        } finally {
+            setArchiveLoading(false);
+        }
+    }, []);
 
     useEffect(() => {
         const fetchPersonnel = async () => {
@@ -50,7 +84,8 @@ const AccountingCommitmentPage: React.FC = () => {
             }
         };
         fetchPersonnel();
-    }, []);
+        fetchArchivedLetters();
+    }, [fetchArchivedLetters]);
 
     useEffect(() => {
         if (!selectedGuarantor) {
@@ -110,6 +145,24 @@ const AccountingCommitmentPage: React.FC = () => {
         resetForm();
     };
 
+    const handlePrint = () => {
+        const printContent = printRef.current?.innerHTML;
+        if (printContent) {
+            const printWindow = window.open('', '', 'height=600,width=800');
+            printWindow?.document.write('<html><head><title>چاپ نامه تعهد</title>');
+            printWindow?.document.write('<link rel="preconnect" href="https://fonts.googleapis.com">');
+            printWindow?.document.write('<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>');
+            printWindow?.document.write('<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700&display=swap" rel="stylesheet">');
+            printWindow?.document.write('<style> body { font-family: "Vazirmatn", sans-serif; direction: rtl; line-height: 2.5; padding: 20px; } .signature { margin-top: 100px; text-align: center; } .underline { border-bottom: 1px dotted black; padding: 0 5px; font-weight: bold; } </style>');
+            printWindow?.document.write('</head><body>');
+            printWindow?.document.write(printContent);
+            printWindow?.document.write('</body></html>');
+            printWindow?.document.close();
+            printWindow?.focus();
+            printWindow?.print();
+        }
+    };
+    
     const handleSaveAndPrint = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedGuarantor) {
@@ -144,6 +197,7 @@ const AccountingCommitmentPage: React.FC = () => {
              const newCommitmentResponse = await fetch(`/api/personnel?type=commitment_letters&guarantorCode=${selectedGuarantor.personnel_code}`);
              const newCommitmentData = await newCommitmentResponse.json();
              setTotalCommitted(newCommitmentData.totalCommitted || 0);
+             fetchArchivedLetters(archiveSearchTerm);
 
         } catch(err) {
              setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در ذخیره نامه' });
@@ -151,19 +205,31 @@ const AccountingCommitmentPage: React.FC = () => {
             setTimeout(() => setStatus(null), 5000);
         }
     };
+
+    const handleArchiveSearchSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        fetchArchivedLetters(archiveSearchTerm);
+    };
     
-    const handlePrint = () => {
-        const printContent = printRef.current?.innerHTML;
-        if (printContent) {
-            const printWindow = window.open('', '', 'height=600,width=800');
-            printWindow?.document.write('<html><head><title>چاپ نامه تعهد</title>');
-            printWindow?.document.write('<style> body { font-family: "Vazirmatn", sans-serif; direction: rtl; line-height: 2.5; padding: 20px; } .signature { margin-top: 100px; text-align: center; } .underline { border-bottom: 1px dotted black; padding: 0 5px; font-weight: bold; } </style>');
-            printWindow?.document.write('</head><body>');
-            printWindow?.document.write(printContent);
-            printWindow?.document.write('</body></html>');
-            printWindow?.document.close();
-            printWindow?.focus();
-            printWindow?.print();
+    const handleDeleteLetter = async (id: number) => {
+        if (window.confirm('آیا از حذف این نامه از بایگانی اطمینان دارید؟ این عمل قابل بازگشت نیست.')) {
+            setStatus({ type: 'info', message: 'در حال حذف نامه...'});
+            try {
+                const response = await fetch(`/api/personnel?type=commitment_letters&id=${id}`, { method: 'DELETE' });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.error);
+                setStatus({ type: 'success', message: 'نامه با موفقیت حذف شد.' });
+                fetchArchivedLetters(archiveSearchTerm);
+                if (selectedGuarantor) {
+                    const commitmentResponse = await fetch(`/api/personnel?type=commitment_letters&guarantorCode=${selectedGuarantor.personnel_code}`);
+                    const commitmentData = await commitmentResponse.json();
+                    setTotalCommitted(commitmentData.totalCommitted || 0);
+                }
+            } catch (err) {
+                 setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در حذف نامه' });
+            } finally {
+                setTimeout(() => setStatus(null), 4000);
+            }
         }
     };
 
@@ -290,6 +356,65 @@ const AccountingCommitmentPage: React.FC = () => {
                         <p className="font-bold">مدیریت سرمایه انسانی</p>
                     </div>
                 </div>
+            </div>
+
+            <div className="mt-8 border-t pt-6">
+                <h3 className="text-xl font-bold text-gray-800 mb-4">۴. بایگانی نامه‌های صادر شده</h3>
+                 <form onSubmit={handleArchiveSearchSubmit} className="mb-6">
+                    <div className="flex">
+                        <div className="relative flex-grow">
+                            <input
+                                type="text"
+                                className="w-full pr-10 pl-4 py-2 border border-gray-300 rounded-r-md focus:ring-blue-500 focus:border-blue-500"
+                                placeholder="جستجو در بایگانی..."
+                                value={archiveSearchTerm}
+                                onChange={e => setArchiveSearchTerm(e.target.value)}
+                            />
+                            <SearchIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                        </div>
+                        <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-l-md hover:bg-blue-700">جستجو</button>
+                    </div>
+                </form>
+
+                <div className="overflow-x-auto bg-slate-50 p-4 rounded-lg border border-slate-200">
+                {archiveLoading && <p className="text-center py-4">در حال بارگذاری بایگانی...</p>}
+                {archiveError && <p className="text-center py-4 text-red-500">{archiveError}</p>}
+                {!archiveLoading && !archiveError && archivedLetters.length === 0 && (
+                    <div className="text-center py-10 text-gray-400">
+                        <DocumentReportIcon className="w-16 h-16 mx-auto mb-4" />
+                        <h3 className="text-lg font-semibold">
+                            {archiveSearchTerm ? 'هیچ نامه‌ای مطابق با جستجوی شما یافت نشد.' : 'هیچ نامه‌ای در بایگانی ثبت نشده است.'}
+                        </h3>
+                    </div>
+                )}
+                {!archiveLoading && !archiveError && archivedLetters.length > 0 && (
+                    <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-100">
+                            <tr>
+                                {['وام گیرنده', 'ضامن', 'مبلغ وام (ریال)', 'بانک', 'تاریخ صدور', 'عملیات'].map(h => (
+                                    <th key={h} scope="col" className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">{h}</th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                           {archivedLetters.map(letter => (
+                               <tr key={letter.id}>
+                                   <td className="px-4 py-3 whitespace-nowrap text-sm"><p className="font-semibold">{letter.recipient_name}</p><p className="text-xs text-gray-500">کد ملی: {toPersianDigits(letter.recipient_national_id)}</p></td>
+                                   <td className="px-4 py-3 whitespace-nowrap text-sm"><p className="font-semibold">{letter.guarantor_name}</p><p className="text-xs text-gray-500">کد پرسنلی: {toPersianDigits(letter.guarantor_personnel_code)}</p></td>
+                                   <td className="px-4 py-3 whitespace-nowrap text-sm font-mono">{toPersianDigits(formatCurrency(letter.loan_amount))}</td>
+                                   <td className="px-4 py-3 whitespace-nowrap text-sm">{letter.bank_name} - {letter.branch_name}</td>
+                                   <td className="px-4 py-3 whitespace-nowrap text-sm">{toPersianDigits(new Date(letter.issue_date).toLocaleDateString('fa-IR'))}</td>
+                                   <td className="px-4 py-3 whitespace-nowrap text-sm text-center">
+                                       <button onClick={() => handleDeleteLetter(letter.id)} className="text-red-600 hover:text-red-800 p-1 rounded-full hover:bg-red-100 transition-colors" aria-label={`حذف نامه ${letter.id}`}>
+                                           <TrashIcon className="w-5 h-5" />
+                                       </button>
+                                   </td>
+                               </tr>
+                           ))}
+                        </tbody>
+                    </table>
+                )}
+            </div>
             </div>
         </div>
     );
