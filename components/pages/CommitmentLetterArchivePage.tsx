@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { SearchIcon, TrashIcon, DocumentReportIcon } from '../icons/Icons';
+import { SearchIcon, TrashIcon, DocumentReportIcon, ChevronDownIcon, ChevronUpIcon } from '../icons/Icons';
 
 interface CommitmentLetter {
     id: number;
@@ -32,6 +32,7 @@ const CommitmentLetterArchivePage: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [status, setStatus] = useState<{ type: 'info' | 'success' | 'error'; message: string } | null>(null);
+    const [expandedGuarantors, setExpandedGuarantors] = useState<Set<string>>(new Set());
 
     const fetchLetters = useCallback(async (searchQuery = '') => {
         setLoading(true);
@@ -77,7 +78,7 @@ const CommitmentLetterArchivePage: React.FC = () => {
         }
     };
 
-    const summary = useMemo(() => {
+    const overallSummary = useMemo(() => {
         if (!letters || letters.length === 0) {
             return { count: 0, totalAmount: 0 };
         }
@@ -87,22 +88,57 @@ const CommitmentLetterArchivePage: React.FC = () => {
             totalAmount: totalAmount
         };
     }, [letters]);
+
+    const guarantorSummary = useMemo(() => {
+        if (!letters || letters.length === 0) return [];
+        
+        const summary = letters.reduce((acc, letter) => {
+            const code = letter.guarantor_personnel_code;
+            if (!acc[code]) {
+                acc[code] = {
+                    guarantor_personnel_code: code,
+                    guarantor_name: letter.guarantor_name,
+                    letterCount: 0,
+                    totalAmount: 0,
+                    letters: [],
+                };
+            }
+            acc[code].letterCount += 1;
+            acc[code].totalAmount += Number(letter.loan_amount);
+            acc[code].letters.push(letter);
+            return acc;
+        }, {} as Record<string, { guarantor_personnel_code: string; guarantor_name: string; letterCount: number; totalAmount: number; letters: CommitmentLetter[] }>);
+
+        return Object.values(summary).sort((a, b) => b.totalAmount - a.totalAmount);
+    }, [letters]);
+    
+    const toggleGuarantorExpansion = (code: string) => {
+        setExpandedGuarantors(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(code)) {
+                newSet.delete(code);
+            } else {
+                newSet.add(code);
+            }
+            return newSet;
+        });
+    };
     
     const statusColor = { info: 'bg-blue-100 text-blue-800', success: 'bg-green-100 text-green-800', error: 'bg-red-100 text-red-800' };
 
     return (
         <div className="bg-white p-6 rounded-lg shadow-lg">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b-2 border-gray-100 pb-4">بایگانی نامه‌های تعهد</h2>
+            <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b-2 border-gray-100 pb-4">بایگانی و خلاصه تعهدات</h2>
             {status && <div className={`p-4 mb-4 text-sm rounded-lg ${statusColor[status.type]}`}>{status.message}</div>}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                 <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
                     <h4 className="font-bold text-blue-800">تعداد کل نامه‌ها</h4>
-                    <p className="text-2xl font-bold text-blue-900">{toPersianDigits(summary.count)}</p>
+                    <p className="text-2xl font-bold text-blue-900">{toPersianDigits(overallSummary.count)}</p>
                 </div>
                 <div className="bg-green-50 p-4 rounded-lg border border-green-200">
                     <h4 className="font-bold text-green-800">جمع مبالغ تعهد شده (ریال)</h4>
-                    <p className="text-2xl font-bold text-green-900 font-sans">{toPersianDigits(formatCurrency(summary.totalAmount))}</p>
+                    <p className="text-2xl font-bold text-green-900 font-sans">{toPersianDigits(formatCurrency(overallSummary.totalAmount))}</p>
                 </div>
             </div>
 
@@ -139,29 +175,61 @@ const CommitmentLetterArchivePage: React.FC = () => {
                         </h3>
                     </div>
                 )}
-                {!loading && !error && letters.length > 0 && (
+                {!loading && !error && guarantorSummary.length > 0 && (
                     <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-100">
                             <tr>
-                                {['وام گیرنده', 'ضامن', 'مبلغ وام (ریال)', 'بانک', 'تاریخ صدور', 'عملیات'].map(h => (
+                                {['ضامن', 'کد پرسنلی', 'تعداد تعهدات', 'جمع مبالغ (ریال)', 'جزئیات'].map(h => (
                                     <th key={h} scope="col" className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">{h}</th>
                                 ))}
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                           {letters.map(letter => (
-                               <tr key={letter.id}>
-                                   <td className="px-4 py-3 whitespace-nowrap text-sm"><p className="font-semibold">{letter.recipient_name}</p><p className="text-xs text-gray-500">کد ملی: {toPersianDigits(letter.recipient_national_id)}</p></td>
-                                   <td className="px-4 py-3 whitespace-nowrap text-sm"><p className="font-semibold">{letter.guarantor_name}</p><p className="text-xs text-gray-500">کد پرسنلی: {toPersianDigits(letter.guarantor_personnel_code)}</p></td>
-                                   <td className="px-4 py-3 whitespace-nowrap text-sm font-sans">{toPersianDigits(formatCurrency(letter.loan_amount))}</td>
-                                   <td className="px-4 py-3 whitespace-nowrap text-sm">{letter.bank_name} - {letter.branch_name}</td>
-                                   <td className="px-4 py-3 whitespace-nowrap text-sm">{toPersianDigits(new Date(letter.issue_date).toLocaleDateString('fa-IR'))}</td>
-                                   <td className="px-4 py-3 whitespace-nowrap text-sm text-center">
-                                       <button onClick={() => handleDeleteLetter(letter.id)} className="text-red-600 hover:text-red-800 p-1 rounded-full hover:bg-red-100 transition-colors" aria-label={`حذف نامه ${letter.id}`}>
-                                           <TrashIcon className="w-5 h-5" />
-                                       </button>
-                                   </td>
-                               </tr>
+                           {guarantorSummary.map(summaryItem => (
+                               <React.Fragment key={summaryItem.guarantor_personnel_code}>
+                                   <tr className="cursor-pointer hover:bg-slate-100" onClick={() => toggleGuarantorExpansion(summaryItem.guarantor_personnel_code)}>
+                                        <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold">{summaryItem.guarantor_name}</td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-sm">{toPersianDigits(summaryItem.guarantor_personnel_code)}</td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-sm">{toPersianDigits(summaryItem.letterCount)}</td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-sm font-sans font-bold">{toPersianDigits(formatCurrency(summaryItem.totalAmount))}</td>
+                                        <td className="px-4 py-3 whitespace-nowrap text-sm text-center">
+                                            {expandedGuarantors.has(summaryItem.guarantor_personnel_code) ? <ChevronUpIcon className="w-5 h-5 mx-auto" /> : <ChevronDownIcon className="w-5 h-5 mx-auto" />}
+                                        </td>
+                                   </tr>
+                                   {expandedGuarantors.has(summaryItem.guarantor_personnel_code) && (
+                                       <tr>
+                                           <td colSpan={5} className="p-4 bg-gray-50 border-b-2 border-blue-200">
+                                               <h4 className="font-bold mb-2">جزئیات تعهدات {summaryItem.guarantor_name}:</h4>
+                                               <div className="overflow-x-auto border rounded-lg">
+                                                   <table className="min-w-full divide-y divide-gray-200">
+                                                        <thead className="bg-gray-200">
+                                                            <tr>
+                                                                {['وام گیرنده', 'مبلغ وام (ریال)', 'بانک', 'تاریخ صدور', 'عملیات'].map(h => (
+                                                                    <th key={h} scope="col" className="px-3 py-2 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">{h}</th>
+                                                                ))}
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="bg-white divide-y divide-gray-200">
+                                                            {summaryItem.letters.map(letter => (
+                                                                <tr key={letter.id}>
+                                                                    <td className="px-3 py-2 whitespace-nowrap text-sm"><p className="font-semibold">{letter.recipient_name}</p><p className="text-xs text-gray-500">کد ملی: {toPersianDigits(letter.recipient_national_id)}</p></td>
+                                                                    <td className="px-3 py-2 whitespace-nowrap text-sm font-sans">{toPersianDigits(formatCurrency(letter.loan_amount))}</td>
+                                                                    <td className="px-3 py-2 whitespace-nowrap text-sm">{letter.bank_name} - {letter.branch_name}</td>
+                                                                    <td className="px-3 py-2 whitespace-nowrap text-sm">{toPersianDigits(new Date(letter.issue_date).toLocaleDateString('fa-IR'))}</td>
+                                                                    <td className="px-3 py-2 whitespace-nowrap text-sm text-center">
+                                                                        <button onClick={() => handleDeleteLetter(letter.id)} className="text-red-600 hover:text-red-800 p-1 rounded-full hover:bg-red-100 transition-colors" aria-label={`حذف نامه ${letter.id}`}>
+                                                                            <TrashIcon className="w-5 h-5" />
+                                                                        </button>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                   </table>
+                                               </div>
+                                           </td>
+                                       </tr>
+                                   )}
+                               </React.Fragment>
                            ))}
                         </tbody>
                     </table>
