@@ -1,5 +1,3 @@
-
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import type { Personnel } from '../../types';
 import EditPersonnelModal from '../EditPersonnelModal';
@@ -285,9 +283,19 @@ const PersonnelListPage: React.FC = () => {
               const worksheet = workbook.Sheets[sheetName];
               const json: any[] = XLSX.utils.sheet_to_json(worksheet, { raw: false, dateNF: 'yyyy/mm/dd' });
 
-              const mappedData: Omit<Personnel, 'id'>[] = json.map(row => {
+              const mappedData: Omit<Personnel, 'id'>[] = json.map(originalRow => {
+                  // Create a new row object with normalized keys to handle character variations (e.g., Arabic vs. Persian 'ی') and extra spaces.
+                  const row: {[key: string]: any} = {};
+                  for (const key in originalRow) {
+                      if (Object.prototype.hasOwnProperty.call(originalRow, key)) {
+                          const normalizedKey = key.trim().replace(/ي/g, 'ی').replace(/ك/g, 'ک');
+                          row[normalizedKey] = originalRow[key];
+                      }
+                  }
+                  
                   const newRow: Partial<Omit<Personnel, 'id'>> = {};
                   for (const header in HEADER_MAP) {
+                      // We check our normalized row for the standard header from HEADER_MAP
                       if (row.hasOwnProperty(header)) {
                           const dbKey = HEADER_MAP[header as keyof typeof HEADER_MAP];
                           let value = row[header];

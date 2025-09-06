@@ -158,6 +158,25 @@ export default async function handler(
     messages.push('تراکنش اصلی ایجاد جداول با موفقیت انجام شد.');
 
     // --- Phase 2: Add optional/backward-compatibility columns individually ---
+    // This makes the setup process more resilient to pre-existing conditions.
+    try {
+        await client.sql`ALTER TABLE personnel ADD COLUMN IF NOT EXISTS birth_year VARCHAR(10);`;
+        messages.push('ستون "birth_year" در جدول "personnel" تایید یا اضافه شد.');
+    } catch (e: any) {
+        messages.push(`هشدار هنگام افزودن ستون birth_year: ${e.message}`);
+    }
+    try {
+        await client.sql`ALTER TABLE personnel ADD COLUMN IF NOT EXISTS job_group VARCHAR(100);`;
+        messages.push('ستون "job_group" در جدول "personnel" تایید یا اضافه شد.');
+    } catch (e: any) {
+        messages.push(`هشدار هنگام افزودن ستون job_group: ${e.message}`);
+    }
+    try {
+        await client.sql`ALTER TABLE personnel ADD COLUMN IF NOT EXISTS sum_of_decree_factors VARCHAR(100);`;
+        messages.push('ستون "sum_of_decree_factors" در جدول "personnel" تایید یا اضافه شد.');
+    } catch (e: any) {
+        messages.push(`هشدار هنگام افزودن ستون sum_of_decree_factors: ${e.message}`);
+    }
      try {
         await client.sql`ALTER TABLE dependents DROP CONSTRAINT IF EXISTS dependents_personnel_code_fkey;`;
         messages.push(`محدودیت کلید خارجی برای "dependents" (در صورت وجود) حذف شد.`);
