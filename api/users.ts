@@ -22,27 +22,25 @@ async function handlePost(request: VercelRequest, response: VercelResponse, pool
 
   const client = await pool.connect();
   try {
-    // FIX: Use client.sql for transaction control
-    await client.sql`BEGIN`;
+    await client.query('BEGIN');
     let processedCount = 0;
     for (const user of usersData) {
         if (!user.username || !user.password) continue;
         const permissions = JSON.stringify(user.permissions || {});
-        await client.sql`
-            INSERT INTO app_users (username, password, permissions)
-            VALUES (${user.username}, ${user.password}, ${permissions})
-            ON CONFLICT (username) DO UPDATE SET
-                password = EXCLUDED.password,
-                permissions = EXCLUDED.permissions;
-        `;
+        await client.query(
+            `INSERT INTO app_users (username, password, permissions)
+             VALUES ($1, $2, $3)
+             ON CONFLICT (username) DO UPDATE SET
+                 password = EXCLUDED.password,
+                 permissions = EXCLUDED.permissions;`,
+            [user.username, user.password, permissions]
+        );
         processedCount++;
     }
-    // FIX: Use client.sql for transaction control
-    await client.sql`COMMIT`;
+    await client.query('COMMIT');
     return response.status(201).json({ message: `${processedCount} کاربر با موفقیت افزوده/به‌روزرسانی شد.` });
   } catch (error) {
-    // FIX: Use client.sql for transaction control
-    await client.sql`ROLLBACK`;
+    await client.query('ROLLBACK');
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return response.status(500).json({ error: 'Failed to create/update user.', details: errorMessage });
   } finally {

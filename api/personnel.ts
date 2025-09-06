@@ -52,8 +52,7 @@ async function handleGetPersonnel(request: VercelRequest, response: VercelRespon
   }
 }
 
-async function handlePostPersonnel(body: any, response: VercelResponse, pool: VercelPool) {
-    const client = await pool.connect();
+async function handlePostPersonnel(body: any, response: VercelResponse, client: VercelPoolClient) {
     try {
         if (Array.isArray(body)) { // Bulk insert
             const allPersonnel: NewPersonnel[] = body;
@@ -82,7 +81,7 @@ async function handlePostPersonnel(body: any, response: VercelResponse, pool: Ve
             for (let i = 0; i < validPersonnelList.length; i += BATCH_SIZE) {
                 const batch = validPersonnelList.slice(i, i + BATCH_SIZE);
                 if (batch.length === 0) continue;
-                await client.sql`BEGIN`;
+                await client.query('BEGIN');
                 const values: (string | null)[] = [];
                 const valuePlaceholders: string[] = [];
                 let paramIndex = 1;
@@ -92,22 +91,24 @@ async function handlePostPersonnel(body: any, response: VercelResponse, pool: Ve
                     valuePlaceholders.push(`(${recordPlaceholders.join(', ')})`);
                 }
                 const query = `INSERT INTO personnel (${columnNames}) VALUES ${valuePlaceholders.join(', ')} ON CONFLICT (personnel_code) DO UPDATE SET ${updateSet};`;
-                await (client as any).query(query, values);
-                await client.sql`COMMIT`;
+                await client.query(query, values);
+                await client.query('COMMIT');
                 totalProcessed += batch.length;
             }
             return response.status(200).json({ message: `عملیات موفق. ${totalProcessed} رکورد پردازش شد.` });
         } else { // Single insert
             const p: NewPersonnel = body;
             if (!p || !p.personnel_code || !p.first_name || !p.last_name) return response.status(400).json({ error: 'کد پرسنلی، نام و نام خانوادگی الزامی هستند.' });
-            const { rows } = await pool.sql`
-              INSERT INTO personnel (personnel_code, first_name, last_name, father_name, national_id, id_number, birth_year, birth_date, birth_place, issue_date, issue_place, marital_status, military_status, job_title, "position", employment_type, department, service_location, hire_date, education_level, field_of_study, job_group, sum_of_decree_factors, status)
-              VALUES (${p.personnel_code}, ${p.first_name}, ${p.last_name}, ${p.father_name}, ${p.national_id}, ${p.id_number}, ${p.birth_year}, ${p.birth_date}, ${p.birth_place}, ${p.issue_date}, ${p.issue_place}, ${p.marital_status}, ${p.military_status}, ${p.job_title}, ${p.position}, ${p.employment_type}, ${p.department}, ${p.service_location}, ${p.hire_date}, ${p.education_level}, ${p.field_of_study}, ${p.job_group}, ${p.sum_of_decree_factors}, ${p.status})
-              RETURNING *;`;
+            const { rows } = await client.query(
+              `INSERT INTO personnel (personnel_code, first_name, last_name, father_name, national_id, id_number, birth_year, birth_date, birth_place, issue_date, issue_place, marital_status, military_status, job_title, "position", employment_type, department, service_location, hire_date, education_level, field_of_study, job_group, sum_of_decree_factors, status)
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
+              RETURNING *;`,
+              [p.personnel_code, p.first_name, p.last_name, p.father_name, p.national_id, p.id_number, p.birth_year, p.birth_date, p.birth_place, p.issue_date, p.issue_place, p.marital_status, p.military_status, p.job_title, p.position, p.employment_type, p.department, p.service_location, p.hire_date, p.education_level, p.field_of_study, p.job_group, p.sum_of_decree_factors, p.status]
+            );
             return response.status(201).json({ message: 'پرسنل جدید با موفقیت اضافه شد.', personnel: rows[0] });
         }
     } catch (error) {
-        await client.sql`ROLLBACK`.catch(() => {});
+        await client.query('ROLLBACK').catch(() => {});
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
         console.error("Error in handlePostPersonnel:", error);
 
@@ -129,8 +130,6 @@ async function handlePostPersonnel(body: any, response: VercelResponse, pool: Ve
             error: 'خطا در عملیات پایگاه داده. لطفاً فرمت فایل اکسل و مقادیر داخل آن را بررسی کنید.',
             details: `جزئیات فنی: ${errorMessage}` 
         });
-    } finally {
-        client.release();
     }
 }
 
@@ -240,7 +239,7 @@ async function handlePostDependents(request: VercelRequest, response: VercelResp
   }
   
   try {
-    await client.sql`BEGIN`;
+    await client.query('BEGIN');
     const BATCH_SIZE = 250;
     let totalProcessed = 0;
 
@@ -268,16 +267,16 @@ async function handlePostDependents(request: VercelRequest, response: VercelResp
 
         if (values.length > 0) {
             const query = `INSERT INTO dependents (${quotedColumns.join(', ')}) VALUES ${valuePlaceholders.join(', ')} ON CONFLICT ("personnel_code", "national_id") DO UPDATE SET ${updateSet};`;
-            await (client as any).query(query, values);
+            await client.query(query, values);
         }
         
         totalProcessed += batch.length;
     }
 
-    await client.sql`COMMIT`;
+    await client.query('COMMIT');
     return response.status(200).json({ message: `عملیات موفق. ${totalProcessed} رکورد پردازش شد.` });
   } catch (error) {
-    await client.sql`ROLLBACK`.catch(() => {});
+    await client.query('ROLLBACK').catch(() => {});
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     console.error("Error in handlePostDependents:", error);
     return response.status(500).json({ 
@@ -357,7 +356,7 @@ async function handlePostCommutingMembers(body: any, response: VercelResponse, c
         if (validList.length === 0) return response.status(400).json({ error: 'هیچ رکورد معتبری یافت نشد.' });
         
         try {
-            await client.sql`BEGIN`;
+            await client.query('BEGIN');
             const columns = ['personnel_code', 'full_name', 'department', 'position'];
             const columnNames = columns.map(c => c === 'position' ? `"${c}"` : c).join(', ');
             const updateSet = columns.filter(c => c !== 'personnel_code').map(c => `${c === 'position' ? `"${c}"` : c} = EXCLUDED.${c === 'position' ? `"${c}"` : c}`).join(', ');
@@ -370,11 +369,11 @@ async function handlePostCommutingMembers(body: any, response: VercelResponse, c
                 valuePlaceholders.push(`(${recordPlaceholders.join(', ')})`);
             }
             const query = `INSERT INTO commuting_members (${columnNames}) VALUES ${valuePlaceholders.join(', ')} ON CONFLICT (personnel_code) DO UPDATE SET ${updateSet};`;
-            await (client as any).query(query, values);
-            await client.sql`COMMIT`;
+            await client.query(query, values);
+            await client.query('COMMIT');
             return response.status(200).json({ message: `عملیات موفق. ${validList.length} رکورد پردازش شد.` });
         } catch (error) {
-            await client.sql`ROLLBACK`.catch(() => {});
+            await client.query('ROLLBACK').catch(() => {});
             const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
             if (errorMessage.includes('duplicate key')) return response.status(409).json({ error: 'کد پرسنلی تکراری است.' });
             return response.status(500).json({ error: 'خطا در عملیات پایگاه داده.', details: errorMessage });
@@ -382,14 +381,16 @@ async function handlePostCommutingMembers(body: any, response: VercelResponse, c
     } else { // Single
         const m: NewCommutingMember = body;
         if (!m || !m.personnel_code || !m.full_name) return response.status(400).json({ error: 'کد پرسنلی و نام کامل الزامی است.' });
-        const { rows } = await client.sql`
-            INSERT INTO commuting_members (personnel_code, full_name, department, "position") 
-            VALUES (${m.personnel_code}, ${m.full_name}, ${m.department}, ${m.position})
-            ON CONFLICT (personnel_code) DO UPDATE SET
-                full_name = EXCLUDED.full_name,
-                department = EXCLUDED.department,
-                "position" = EXCLUDED."position"
-            RETURNING *;`;
+        const { rows } = await client.query(
+          `INSERT INTO commuting_members (personnel_code, full_name, department, "position") 
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (personnel_code) DO UPDATE SET
+               full_name = EXCLUDED.full_name,
+               department = EXCLUDED.department,
+               "position" = EXCLUDED."position"
+           RETURNING *;`,
+          [m.personnel_code, m.full_name, m.department, m.position]
+        );
         return response.status(201).json({ message: 'عضو جدید اضافه یا به‌روزرسانی شد.', member: rows[0] });
     }
 }
@@ -605,7 +606,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
       case 'POST': {
         const client = await pool.connect();
         try {
-          if (type === 'personnel') return await handlePostPersonnel(request.body, response, pool); // Uses its own client logic
+          if (type === 'personnel') return await handlePostPersonnel(request.body, response, client);
           if (type === 'dependents') return await handlePostDependents(request, response, client);
           if (type === 'commuting_members') return await handlePostCommutingMembers(request.body, response, client);
           if (type === 'documents') return await handlePostDocument(request, response, pool);

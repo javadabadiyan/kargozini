@@ -100,18 +100,18 @@ async function handlePostHourly(request: VercelRequest, response: VercelResponse
       if (Array.isArray(body)) {
         const validLogs = body.filter(l => l.personnel_code && l.guard_name && (l.exit_time || l.entry_time));
         if (validLogs.length === 0) return response.status(400).json({ error: 'هیچ رکورد معتبری برای ورود یافت نشد.' });
-        await client.sql`BEGIN`;
+        await client.query('BEGIN');
         const columns = ['personnel_code', 'full_name', 'guard_name', 'exit_time', 'entry_time', 'reason'];
         const values: (string | null)[] = [];
-        const valuePlaceholders: string[] = [];
+        let valuePlaceholders = [];
         let paramIndex = 1;
         for (const log of validLogs) {
             values.push(log.personnel_code, log.full_name || log.personnel_code, log.guard_name, log.exit_time || null, log.entry_time || null, log.reason || null);
             valuePlaceholders.push(`($${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++})`);
         }
         const query = `INSERT INTO hourly_commute_logs (${columns.join(', ')}) VALUES ${valuePlaceholders.join(', ')}`;
-        await (client as any).query(query, values);
-        await client.sql`COMMIT`;
+        await client.query(query, values);
+        await client.query('COMMIT');
         return response.status(201).json({ message: `عملیات موفق. ${validLogs.length} رکورد تردد ساعتی وارد شد.` });
       } else {
         const { personnel_code, full_name, guard_name, exit_time, entry_time, reason } = body;
@@ -124,7 +124,7 @@ async function handlePostHourly(request: VercelRequest, response: VercelResponse
         return response.status(201).json({ message: exit_time ? 'خروج ساعتی ثبت شد.' : 'ورود ساعتی ثبت شد.', log: rows[0] });
       }
     } catch (error) {
-      await client.sql`ROLLBACK`.catch(()=>{});
+      await client.query('ROLLBACK').catch(()=>{});
       const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
       return response.status(500).json({ error: 'خطا در عملیات پایگاه داده.', details: errorMessage });
     } finally {
@@ -175,7 +175,7 @@ async function handlePostDaily(request: VercelRequest, response: VercelResponse,
         if (Array.isArray(body)) { // Bulk Import
             const validLogs = body.filter(log => log.personnel_code && log.guard_name && log.entry_time);
             if (validLogs.length === 0) return response.status(400).json({ error: 'هیچ رکورد معتبری برای ورود یافت نشد.' });
-            await client.sql`BEGIN`;
+            await client.query('BEGIN');
             const columns = ['personnel_code', 'guard_name', 'entry_time', 'exit_time'];
             const values: (string | null)[] = [];
             let valuePlaceholders = [];
@@ -185,45 +185,45 @@ async function handlePostDaily(request: VercelRequest, response: VercelResponse,
                 valuePlaceholders.push(`($${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++})`);
             }
             const query = `INSERT INTO commute_logs (${columns.join(', ')}) VALUES ${valuePlaceholders.join(', ')}`;
-            await (client as any).query(query, values);
-            await client.sql`COMMIT`;
+            await client.query(query, values);
+            await client.query('COMMIT');
             return response.status(200).json({ message: `عملیات موفق. ${validLogs.length} رکورد تردد وارد شد.` });
         } else { // Single/Multi-person log
             const { personnelCode, guardName, action, timestampOverride } = body;
             if (!personnelCode || !guardName || !action || !['entry', 'exit'].includes(action)) return response.status(400).json({ error: 'اطلاعات ارسالی ناقص یا نامعتبر است.' });
-
-            // FIX: Always use an ISO string, never the 'NOW()' string literal which fails with parameterization.
+            
             const effectiveTime = timestampOverride ? new Date(timestampOverride).toISOString() : new Date().toISOString();
 
-            // FIX: Use DATE() with timezone conversion for correct day boundary checks.
-            const { rows: openLogs } = await pool.sql`
-                SELECT id 
-                FROM commute_logs 
-                WHERE personnel_code = ${personnelCode} 
-                  AND exit_time IS NULL 
-                  AND DATE(entry_time AT TIME ZONE 'Asia/Tehran') = DATE(${effectiveTime}::timestamptz AT TIME ZONE 'Asia/Tehran');
-            `;
+            const { rows: openLogs } = await pool.query(
+                `SELECT id 
+                 FROM commute_logs 
+                 WHERE personnel_code = $1
+                   AND exit_time IS NULL 
+                   AND DATE(entry_time AT TIME ZONE 'Asia/Tehran') = DATE($2::timestamptz AT TIME ZONE 'Asia/Tehran');`,
+                [personnelCode, effectiveTime]
+            );
             const openLog = openLogs[0];
 
             if (action === 'entry') {
                 if (openLog) return response.status(409).json({ error: 'برای این پرسنل یک ورود باز در این روز ثبت شده است.' });
-                const { rows: newLog } = await pool.sql`
-                    INSERT INTO commute_logs (personnel_code, guard_name, entry_time) 
-                    VALUES (${personnelCode}, ${guardName}, ${effectiveTime}) RETURNING *;
-                `;
+                const { rows: newLog } = await pool.query(
+                    'INSERT INTO commute_logs (personnel_code, guard_name, entry_time) VALUES ($1, $2, $3) RETURNING *;',
+                    [personnelCode, guardName, effectiveTime]
+                );
                 return response.status(201).json({ message: 'ورود با موفقیت ثبت شد.', log: newLog[0] });
             }
             if (action === 'exit') {
                 if (!openLog) return response.status(404).json({ error: 'هیچ ورود بازی برای این پرسنل در این روز یافت نشد.' });
-                const { rows: updatedLog } = await pool.sql`
-                    UPDATE commute_logs SET exit_time = ${effectiveTime} WHERE id = ${openLog.id} RETURNING *;
-                `;
+                const { rows: updatedLog } = await pool.query(
+                    'UPDATE commute_logs SET exit_time = $1 WHERE id = $2 RETURNING *;',
+                    [effectiveTime, openLog.id]
+                );
                 return response.status(200).json({ message: 'خروج با موفقیت ثبت شد.', log: updatedLog[0] });
             }
             return response.status(400).json({ error: 'عملیات نامعتبر است.' });
         }
     } catch(error) {
-         await client.sql`ROLLBACK`.catch(() => {});
+         await client.query('ROLLBACK').catch(() => {});
          const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
          return response.status(500).json({ error: 'عملیات پایگاه داده با شکست مواجه شد.', details: errorMessage });
     } finally {
@@ -236,19 +236,26 @@ async function handlePutDaily(request: VercelRequest, response: VercelResponse, 
     if (!id || !entry_time) return response.status(400).json({ error: 'شناسه و زمان ورود برای ویرایش الزامی است.' });
     const client = await pool.connect();
     try {
-        await client.sql`BEGIN`;
-        const { rows: oldLogs } = await (client as VercelPoolClient).sql`SELECT personnel_code, entry_time, exit_time FROM commute_logs WHERE id = ${id} FOR UPDATE;`;
-        if (oldLogs.length === 0) { await client.sql`ROLLBACK`; return response.status(404).json({ error: 'رکوردی یافت نشد.' }); }
+        await client.query('BEGIN');
+        const { rows: oldLogs } = await client.query('SELECT personnel_code, entry_time, exit_time FROM commute_logs WHERE id = $1 FOR UPDATE;', [id]);
+        if (oldLogs.length === 0) { await client.query('ROLLBACK'); return response.status(404).json({ error: 'رکوردی یافت نشد.' }); }
         const oldLog = oldLogs[0];
         const formatTime = (iso: string | null) => iso ? new Date(iso).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tehran' }) : null;
-        if (formatTime(oldLog.entry_time) !== formatTime(entry_time)) await (client as VercelPoolClient).sql`INSERT INTO commute_edit_logs (commute_log_id, personnel_code, editor_name, field_name, old_value, new_value) VALUES (${id}, ${oldLog.personnel_code}, 'نگهبانی', 'ساعت ورود', ${formatTime(oldLog.entry_time)}, ${formatTime(entry_time)});`;
-        if (formatTime(oldLog.exit_time) !== formatTime(exit_time)) await (client as VercelPoolClient).sql`INSERT INTO commute_edit_logs (commute_log_id, personnel_code, editor_name, field_name, old_value, new_value) VALUES (${id}, ${oldLog.personnel_code}, 'نگهبانی', 'ساعت خروج', ${formatTime(oldLog.exit_time)}, ${formatTime(exit_time)});`;
-        await (client as VercelPoolClient).sql`UPDATE commute_logs SET entry_time = ${entry_time}, exit_time = ${exit_time} WHERE id = ${id};`;
-        await client.sql`COMMIT`;
-        const { rows: updatedLog } = await (client as VercelPoolClient).sql`SELECT cl.id, cl.personnel_code, cm.full_name, cl.guard_name, cl.entry_time, cl.exit_time FROM commute_logs cl LEFT JOIN commuting_members cm ON cl.personnel_code = cm.personnel_code WHERE cl.id = ${id};`;
+        
+        if (formatTime(oldLog.entry_time) !== formatTime(entry_time)) {
+             await client.query('INSERT INTO commute_edit_logs (commute_log_id, personnel_code, editor_name, field_name, old_value, new_value) VALUES ($1, $2, $3, $4, $5, $6);', [id, oldLog.personnel_code, 'نگهبانی', 'ساعت ورود', formatTime(oldLog.entry_time), formatTime(entry_time)]);
+        }
+        if (formatTime(oldLog.exit_time) !== formatTime(exit_time)) {
+            await client.query('INSERT INTO commute_edit_logs (commute_log_id, personnel_code, editor_name, field_name, old_value, new_value) VALUES ($1, $2, $3, $4, $5, $6);', [id, oldLog.personnel_code, 'نگهبانی', 'ساعت خروج', formatTime(oldLog.exit_time), formatTime(exit_time)]);
+        }
+        
+        await client.query('UPDATE commute_logs SET entry_time = $1, exit_time = $2 WHERE id = $3;', [entry_time, exit_time, id]);
+        await client.query('COMMIT');
+        
+        const { rows: updatedLog } = await client.query('SELECT cl.id, cl.personnel_code, cm.full_name, cl.guard_name, cl.entry_time, cl.exit_time FROM commute_logs cl LEFT JOIN commuting_members cm ON cl.personnel_code = cm.personnel_code WHERE cl.id = $1;', [id]);
         return response.status(200).json({ message: 'رکورد ویرایش شد.', log: updatedLog[0] });
     } catch (error) {
-        await client.sql`ROLLBACK`;
+        await client.query('ROLLBACK').catch(()=>{});
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
         return response.status(500).json({ error: 'خطا در به‌روزرسانی.', details: errorMessage });
     } finally {
