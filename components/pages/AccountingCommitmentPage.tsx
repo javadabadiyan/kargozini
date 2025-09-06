@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import type { Personnel, CommitmentLetter } from '../../types';
-import { SearchIcon, PrinterIcon, RefreshIcon, DocumentReportIcon, TrashIcon, PencilIcon } from '../icons/Icons';
-import EditCommitmentLetterModal from '../EditCommitmentLetterModal';
+import { SearchIcon, PrinterIcon, RefreshIcon } from '../icons/Icons';
 
 const toPersianDigits = (s: string | number | null | undefined): string => {
     if (s === null || s === undefined) return '';
@@ -39,33 +38,7 @@ const AccountingCommitmentPage: React.FC = () => {
     const [loadingCommitment, setLoadingCommitment] = useState(false);
     const [status, setStatus] = useState<{ type: 'info' | 'success' | 'error'; message: string } | null>(null);
 
-    const [archivedLetters, setArchivedLetters] = useState<CommitmentLetter[]>([]);
-    const [archiveLoading, setArchiveLoading] = useState(true);
-    const [archiveError, setArchiveError] = useState<string | null>(null);
-    const [archiveSearchTerm, setArchiveSearchTerm] = useState('');
-
-    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-    const [editingLetter, setEditingLetter] = useState<CommitmentLetter | null>(null);
-
     const printRef = useRef<HTMLDivElement>(null);
-
-    const fetchArchivedLetters = useCallback(async (searchQuery = '') => {
-        setArchiveLoading(true);
-        setArchiveError(null);
-        try {
-            const response = await fetch(`/api/personnel?type=commitment_letters&searchTerm=${encodeURIComponent(searchQuery)}`);
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'خطا در دریافت بایگانی نامه‌ها');
-            }
-            const data = await response.json();
-            setArchivedLetters(data.letters || []);
-        } catch (err) {
-            setArchiveError(err instanceof Error ? err.message : 'یک خطای ناشناخته رخ داد');
-        } finally {
-            setArchiveLoading(false);
-        }
-    }, []);
 
     useEffect(() => {
         const fetchPersonnel = async () => {
@@ -82,8 +55,7 @@ const AccountingCommitmentPage: React.FC = () => {
             }
         };
         fetchPersonnel();
-        fetchArchivedLetters();
-    }, [fetchArchivedLetters]);
+    }, []);
 
     useEffect(() => {
         if (!selectedGuarantor) {
@@ -195,63 +167,10 @@ const AccountingCommitmentPage: React.FC = () => {
              const newCommitmentResponse = await fetch(`/api/personnel?type=commitment_letters&guarantorCode=${selectedGuarantor.personnel_code}`);
              const newCommitmentData = await newCommitmentResponse.json();
              setTotalCommitted(newCommitmentData.totalCommitted || 0);
-             fetchArchivedLetters(archiveSearchTerm);
+             resetForm();
 
         } catch(err) {
              setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در ذخیره نامه' });
-        } finally {
-            setTimeout(() => setStatus(null), 5000);
-        }
-    };
-
-    const handleArchiveSearchSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        fetchArchivedLetters(archiveSearchTerm);
-    };
-    
-    const handleDeleteLetter = async (id: number) => {
-        if (window.confirm('آیا از حذف این نامه از بایگانی اطمینان دارید؟ این عمل قابل بازگشت نیست.')) {
-            setStatus({ type: 'info', message: 'در حال حذف نامه...'});
-            try {
-                const response = await fetch(`/api/personnel?type=commitment_letters&id=${id}`, { method: 'DELETE' });
-                const data = await response.json();
-                if (!response.ok) throw new Error(data.error);
-                setStatus({ type: 'success', message: 'نامه با موفقیت حذف شد.' });
-                fetchArchivedLetters(archiveSearchTerm);
-                if (selectedGuarantor) {
-                    const commitmentResponse = await fetch(`/api/personnel?type=commitment_letters&guarantorCode=${selectedGuarantor.personnel_code}`);
-                    const commitmentData = await commitmentResponse.json();
-                    setTotalCommitted(commitmentData.totalCommitted || 0);
-                }
-            } catch (err) {
-                 setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در حذف نامه' });
-            } finally {
-                setTimeout(() => setStatus(null), 4000);
-            }
-        }
-    };
-
-    const handleEditClick = (letter: CommitmentLetter) => {
-        setEditingLetter(letter);
-        setIsEditModalOpen(true);
-    };
-
-    const handleSaveLetter = async (letter: CommitmentLetter) => {
-        setStatus({ type: 'info', message: 'در حال ویرایش نامه...' });
-        try {
-            const response = await fetch('/api/personnel?type=commitment_letters', {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(letter)
-            });
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.error);
-            setStatus({ type: 'success', message: 'نامه با موفقیت ویرایش شد.' });
-            setIsEditModalOpen(false);
-            setEditingLetter(null);
-            fetchArchivedLetters(archiveSearchTerm); // Refresh data
-        } catch (err) {
-            setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در ویرایش نامه' });
         } finally {
             setTimeout(() => setStatus(null), 5000);
         }
@@ -395,76 +314,6 @@ const AccountingCommitmentPage: React.FC = () => {
                     </div>
                 </div>
             </div>
-
-            <div className="mt-8 border-t pt-6">
-                <h3 className="text-xl font-bold text-gray-800 mb-4">۴. بایگانی نامه‌های صادر شده</h3>
-                 <form onSubmit={handleArchiveSearchSubmit} className="mb-6">
-                    <div className="flex">
-                        <div className="relative flex-grow">
-                            <input
-                                type="text"
-                                className="w-full pr-10 pl-4 py-2 border border-gray-300 rounded-r-md focus:ring-blue-500 focus:border-blue-500"
-                                placeholder="جستجو در بایگانی..."
-                                value={archiveSearchTerm}
-                                onChange={e => setArchiveSearchTerm(e.target.value)}
-                            />
-                            <SearchIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                        </div>
-                        <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-l-md hover:bg-blue-700">جستجو</button>
-                    </div>
-                </form>
-
-                <div className="overflow-x-auto bg-slate-50 p-4 rounded-lg border border-slate-200">
-                {archiveLoading && <p className="text-center py-4">در حال بارگذاری بایگانی...</p>}
-                {archiveError && <p className="text-center py-4 text-red-500">{archiveError}</p>}
-                {!archiveLoading && !archiveError && archivedLetters.length === 0 && (
-                    <div className="text-center py-10 text-gray-400">
-                        <DocumentReportIcon className="w-16 h-16 mx-auto mb-4" />
-                        <h3 className="text-lg font-semibold">
-                            {archiveSearchTerm ? 'هیچ نامه‌ای مطابق با جستجوی شما یافت نشد.' : 'هیچ نامه‌ای در بایگانی ثبت نشده است.'}
-                        </h3>
-                    </div>
-                )}
-                {!archiveLoading && !archiveError && archivedLetters.length > 0 && (
-                    <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-100">
-                            <tr>
-                                {['وام گیرنده', 'ضامن', 'مبلغ وام (ریال)', 'بانک', 'تاریخ صدور', 'عملیات'].map(h => (
-                                    <th key={h} scope="col" className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">{h}</th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                           {archivedLetters.map(letter => (
-                               <tr key={letter.id}>
-                                   <td className="px-4 py-3 whitespace-nowrap text-sm"><p className="font-semibold">{letter.recipient_name}</p><p className="text-xs text-gray-500">کد ملی: {toPersianDigits(letter.recipient_national_id)}</p></td>
-                                   <td className="px-4 py-3 whitespace-nowrap text-sm"><p className="font-semibold">{letter.guarantor_name}</p><p className="text-xs text-gray-500">کد پرسنلی: {toPersianDigits(letter.guarantor_personnel_code)}</p></td>
-                                   <td className="px-4 py-3 whitespace-nowrap text-sm font-sans">{toPersianDigits(formatCurrency(letter.loan_amount))}</td>
-                                   <td className="px-4 py-3 whitespace-nowrap text-sm">{letter.bank_name} - {letter.branch_name}</td>
-                                   <td className="px-4 py-3 whitespace-nowrap text-sm">{toPersianDigits(new Date(letter.issue_date).toLocaleDateString('fa-IR'))}</td>
-                                   <td className="px-4 py-3 whitespace-nowrap text-sm text-center">
-                                       <button onClick={() => handleEditClick(letter)} className="text-blue-600 hover:text-blue-800 p-1 rounded-full hover:bg-blue-100 transition-colors" aria-label={`ویرایش نامه ${letter.id}`}>
-                                            <PencilIcon className="w-5 h-5" />
-                                       </button>
-                                       <button onClick={() => handleDeleteLetter(letter.id)} className="text-red-600 hover:text-red-800 p-1 rounded-full hover:bg-red-100 transition-colors ml-2" aria-label={`حذف نامه ${letter.id}`}>
-                                           <TrashIcon className="w-5 h-5" />
-                                       </button>
-                                   </td>
-                               </tr>
-                           ))}
-                        </tbody>
-                    </table>
-                )}
-            </div>
-            </div>
-
-            {isEditModalOpen && editingLetter && (
-                <EditCommitmentLetterModal
-                    letter={editingLetter}
-                    onClose={() => setIsEditModalOpen(false)}
-                    onSave={handleSaveLetter}
-                />
-            )}
         </div>
     );
 };

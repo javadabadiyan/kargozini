@@ -1,6 +1,3 @@
-
-
-
 import React, { useState, useEffect, useRef } from 'react';
 import type { CommutingMember } from '../../types';
 import AddCommutingMemberModal from '../AddCommutingMemberModal';
@@ -67,20 +64,40 @@ const CommutingMembersPage: React.FC = () => {
     reader.onload = async (e) => {
       try {
         const workbook = XLSX.read(new Uint8Array(e.target?.result as ArrayBuffer), { type: 'array' });
-        const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+        const json: any[] = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
 
-        const mappedData = json.map((row: any) => {
-          const newRow: { [key: string]: any } = {};
-          for (const header in HEADER_MAP) {
-            newRow[HEADER_MAP[header]] = row[header] ? String(row[header]) : null;
-          }
-          return newRow;
+        const mappedData = json.map((originalRow: any) => {
+            const row: { [key: string]: any } = {};
+            for (const key in originalRow) {
+                if (Object.prototype.hasOwnProperty.call(originalRow, key)) {
+                    const normalizedKey = key.trim().replace(/ي/g, 'ی').replace(/ك/g, 'ک');
+                    row[normalizedKey] = originalRow[key];
+                }
+            }
+
+            const newRow: Partial<Omit<CommutingMember, 'id'>> = {};
+            for (const header in HEADER_MAP) {
+                if (row.hasOwnProperty(header)) {
+                    const dbKey = HEADER_MAP[header as keyof typeof HEADER_MAP];
+                    let value = row[header];
+                    if (typeof value === 'string') {
+                        value = value.replace(/[\u0000-\u001F\u200B-\u200D\u200E\u200F\uFEFF]/g, '').trim();
+                    }
+                    (newRow as any)[dbKey] = (value === null || value === undefined) ? null : String(value);
+                }
+            }
+            return newRow as Omit<CommutingMember, 'id'>;
         });
+
+        const validData = mappedData.filter(m => m.personnel_code && m.full_name);
+        if (validData.length === 0) {
+            throw new Error("هیچ رکورد معتبری یافت نشد. از وجود ستون‌های 'نام و نام خانوادگی' و 'کد پرسنلی' اطمینان حاصل کنید.");
+        }
 
         const response = await fetch('/api/personnel?type=commuting_members', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(mappedData),
+          body: JSON.stringify(validData),
         });
 
         if (!response.ok) {
@@ -104,7 +121,7 @@ const CommutingMembersPage: React.FC = () => {
     const dataToExport = members.map(m => {
         const row: { [key: string]: any } = {};
         for(const header of TABLE_HEADERS){
-            const key = HEADER_MAP[header];
+            const key = HEADER_MAP[header as keyof typeof HEADER_MAP];
             row[header] = toPersianDigits(m[key]);
         }
         return row;
@@ -172,7 +189,7 @@ const CommutingMembersPage: React.FC = () => {
               <tr key={m.id} className="hover:bg-slate-50">
                 {TABLE_HEADERS.map(header => (
                   <td key={header} className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
-                    {toPersianDigits(m[HEADER_MAP[header]])}
+                    {toPersianDigits(m[HEADER_MAP[header as keyof typeof HEADER_MAP]])}
                   </td>
                 ))}
               </tr>

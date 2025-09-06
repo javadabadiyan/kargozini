@@ -72,7 +72,8 @@ export default async function handler(
         guardian_national_id VARCHAR(20),
         issue_place VARCHAR(100),
         insurance_type VARCHAR(100),
-        CONSTRAINT unique_dependent UNIQUE (personnel_code, national_id)
+        CONSTRAINT unique_dependent UNIQUE (personnel_code, national_id),
+        CONSTRAINT fk_personnel FOREIGN KEY(personnel_code) REFERENCES personnel(personnel_code) ON DELETE CASCADE
       );
     `;
     messages.push('جدول "dependents" با موفقیت ایجاد یا تایید شد.');
@@ -196,12 +197,6 @@ export default async function handler(
     } catch (e: any) {
         messages.push(`هشدار هنگام افزودن ستون sum_of_decree_factors: ${e.message}`);
     }
-     try {
-        await client.sql`ALTER TABLE dependents DROP CONSTRAINT IF EXISTS dependents_personnel_code_fkey;`;
-        messages.push(`محدودیت کلید خارجی برای "dependents" (در صورت وجود) حذف شد.`);
-     } catch (e: any) {
-        messages.push(`هشدار: حذف کلید خارجی "dependents" با خطا مواجه شد: ${e.message}`);
-     }
 
     // --- Phase 3: Create triggers, indexes, and default data ---
     // This is also in a transaction for atomicity.
