@@ -1,291 +1,243 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import type { Personnel } from '../../types';
-import { SearchIcon, PrinterIcon, RefreshIcon, UserIcon } from '../icons/Icons';
+import { SearchIcon, UserIcon, PrinterIcon } from '../icons/Icons';
 
 const toPersianDigits = (s: string | number | null | undefined): string => {
     if (s === null || s === undefined) return '';
     return String(s).replace(/[0-9]/g, (w) => '۰۱۲۳۴۵۶۷۸۹'[parseInt(w, 10)]);
 };
 
-const toEnglishDigits = (str: string | null | undefined): string => {
-    if (!str) return '';
-    return str.replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString());
-};
-
 const formatCurrency = (value: string | number): string => {
-    if (value === null || value === undefined) return '';
+    if (!value) return '۰';
     const num = String(value).replace(/,/g, '');
     if (isNaN(Number(num))) return String(value);
     return num.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 };
 
-const numberToPersianWords = (numStr: string): string => {
-    if (!numStr || numStr === "0") return "صفر";
-    const num = BigInt(numStr.replace(/,/g, ''));
-    if (num === 0n) return "صفر";
-
-    const units = ["", "یک", "دو", "سه", "چهار", "پنج", "شش", "هفت", "هشت", "نه"];
-    const teens = ["ده", "یازده", "دوازده", "سیزده", "چهارده", "پانزده", "شانزده", "هفده", "هجده", "نوزده"];
-    const tens = ["", "", "بیست", "سی", "چهل", "پنجاه", "شصت", "هفتاد", "هشتاد", "نود"];
-    const hundreds = ["", "یکصد", "دویست", "سیصد", "چهارصد", "پانصد", "ششصد", "هفتصد", "هشتصد", "نهصد"];
-    const thousands = ["", " هزار", " میلیون", " میلیارد", " تریلیون"];
-
-    const threeDigitToWords = (n: number): string => {
-        let output = [];
-        if (n >= 100) {
-            output.push(hundreds[Math.floor(n / 100)]);
-            n %= 100;
-        }
-        if (n >= 20) {
-            output.push(tens[Math.floor(n / 10)]);
-            n %= 10;
-        } else if (n >= 10) {
-            output.push(teens[n - 10]);
-            n = 0;
-        }
-        if (n > 0) {
-            output.push(units[n]);
-        }
-        return output.filter(Boolean).join(" و ");
-    };
-    
-    let parts = [];
-    let i = 0;
-    let tempNum = num;
-
-    while (tempNum > 0n) {
-        const threeDigits = Number(tempNum % 1000n);
-        if (threeDigits > 0) {
-            parts.push(threeDigitToWords(threeDigits) + thousands[i]);
-        }
-        tempNum /= 1000n;
-        i++;
-    }
-    return parts.reverse().join(" و ");
-};
-
-
-const SearchablePersonnelInput: React.FC<{
-    label: string;
-    searchTerm: string;
-    setSearchTerm: (term: string) => void;
-    results: Personnel[];
-    onSelect: (person: Personnel) => void;
-    selectedPerson: Personnel | null;
-}> = ({ label, searchTerm, setSearchTerm, results, onSelect, selectedPerson }) => {
-    const [isFocused, setIsFocused] = useState(false);
-
-    return (
-        <div className="relative">
-            <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
-            <div className="relative">
-                <UserIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    onFocus={() => setIsFocused(true)}
-                    onBlur={() => setTimeout(() => setIsFocused(false), 200)}
-                    placeholder="جستجو با نام، کد پرسنلی یا کد ملی..."
-                    className="w-full pr-10 pl-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"
-                />
-            </div>
-            {isFocused && searchTerm && results.length > 0 && (
-                <ul className="absolute z-10 w-full bg-white border border-gray-300 rounded-md mt-1 max-h-60 overflow-y-auto shadow-lg">
-                    {results.map(p => (
-                        <li
-                            key={p.id}
-                            onMouseDown={() => onSelect(p)}
-                            className="px-4 py-2 hover:bg-gray-100 cursor-pointer"
-                        >
-                           {p.first_name} {p.last_name} ({toPersianDigits(p.personnel_code)})
-                        </li>
-                    ))}
-                </ul>
-            )}
-             {selectedPerson && (
-                <div className="mt-2 p-2 bg-green-50 text-green-800 border border-green-200 rounded-md text-sm">
-                    انتخاب شد: {selectedPerson.first_name} {selectedPerson.last_name}
-                </div>
-            )}
-        </div>
-    );
-};
-
 const AccountingCommitmentPage: React.FC = () => {
-    const [allPersonnel, setAllPersonnel] = useState<Personnel[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [personnelList, setPersonnelList] = useState<Personnel[]>([]);
+    const [personnelLoading, setPersonnelLoading] = useState(true);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [selectedGuarantor, setSelectedGuarantor] = useState<Personnel | null>(null);
+
+    const [recipientName, setRecipientName] = useState('');
+    const [recipientNationalId, setRecipientNationalId] = useState('');
+    const [loanAmount, setLoanAmount] = useState('');
+    const [bankName, setBankName] = useState('');
+    const [branchName, setBranchName] = useState('');
+    const [referenceNumber, setReferenceNumber] = useState('');
+    
+    const [totalCommitted, setTotalCommitted] = useState(0);
+    const [loadingCommitment, setLoadingCommitment] = useState(false);
+
     const [status, setStatus] = useState<{ type: 'info' | 'success' | 'error'; message: string } | null>(null);
 
-    const [bankName, setBankName] = useState('بانک رفاه');
-    const [branchName, setBranchName] = useState('شعبه مرکزی سیرجان');
-    const [loanAmount, setLoanAmount] = useState('3000000000');
-    
-    const [recipientInfo, setRecipientInfo] = useState({ firstName: '', lastName: '', fatherName: '', nationalId: '' });
-
-    const [guarantorSearch, setGuarantorSearch] = useState('');
-    const [selectedGuarantor, setSelectedGuarantor] = useState<Personnel | null>(null);
-    const [sumOfDecreeFactors, setSumOfDecreeFactors] = useState('');
-
-    const [creditInfo, setCreditInfo] = useState({ limit: 0, committed: 0, remaining: 0 });
-    const [creditLoading, setCreditLoading] = useState(false);
-
-    const letterRef = useRef<HTMLDivElement>(null);
-    const todayPersian = useMemo(() => new Intl.DateTimeFormat('fa-IR', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()), []);
-    const referenceNumber = useMemo(() => `د/${Math.floor(100000 + Math.random() * 900000)}/${todayPersian.split('/')[0]}`, [todayPersian]);
+    const printRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        const fetchAllPersonnel = async () => {
+        const fetchPersonnel = async () => {
             try {
+                setPersonnelLoading(true);
                 const response = await fetch('/api/personnel?type=personnel&pageSize=100000');
                 if (!response.ok) throw new Error('خطا در دریافت لیست پرسنل');
                 const data = await response.json();
-                setAllPersonnel(data.personnel || []);
-            } catch (error) { console.error(error); } finally { setLoading(false); }
-        };
-        fetchAllPersonnel();
-    }, []);
-    
-    useEffect(() => {
-        if (!selectedGuarantor) {
-            setCreditInfo({ limit: 0, committed: 0, remaining: 0 });
-            return;
-        }
-        const fetchCreditInfo = async () => {
-            setCreditLoading(true);
-            try {
-                const response = await fetch(`/api/personnel?type=commitment_letters&guarantorCode=${selectedGuarantor.personnel_code}`);
-                if (!response.ok) throw new Error('Could not fetch credit info');
-                const data = await response.json();
-                
-                const committed = data.totalCommitted || 0;
-                const factors = parseFloat(toEnglishDigits(sumOfDecreeFactors).replace(/,/g, '')) || 0;
-                const limit = factors * 30;
-                const remaining = limit - committed;
-
-                setCreditInfo({ limit, committed, remaining });
-            } catch (error) {
-                console.error("Failed to fetch credit info:", error);
+                setPersonnelList(data.personnel || []);
+            } catch (err) {
+                setStatus({ type: 'error', message: err instanceof Error ? err.message : 'یک خطای ناشناخته رخ داد' });
             } finally {
-                setCreditLoading(false);
+                setPersonnelLoading(false);
             }
         };
-        fetchCreditInfo();
-    }, [selectedGuarantor, sumOfDecreeFactors]);
+        fetchPersonnel();
+    }, []);
 
-    const filterPersonnel = (term: string) => {
-        if (!term) return [];
-        const lowercasedTerm = term.toLowerCase();
-        return allPersonnel.filter(p =>
+    useEffect(() => {
+        if (!selectedGuarantor) {
+            setTotalCommitted(0);
+            return;
+        }
+        const fetchCommitment = async () => {
+            setLoadingCommitment(true);
+            try {
+                const response = await fetch(`/api/personnel?type=commitment_letters&guarantorCode=${selectedGuarantor.personnel_code}`);
+                if (!response.ok) throw new Error('خطا در دریافت تعهدات ضامن');
+                const data = await response.json();
+                setTotalCommitted(data.totalCommitted || 0);
+            } catch (err) {
+                 setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطای ناشناخته' });
+            } finally {
+                setLoadingCommitment(false);
+            }
+        };
+        fetchCommitment();
+    }, [selectedGuarantor]);
+
+    const filteredPersonnel = useMemo(() => {
+        const lowercasedTerm = searchTerm.toLowerCase().trim();
+        if (!lowercasedTerm) return [];
+        return personnelList.filter(p =>
             `${p.first_name} ${p.last_name}`.toLowerCase().includes(lowercasedTerm) ||
-            p.personnel_code.includes(lowercasedTerm) ||
-            (p.national_id && p.national_id.includes(lowercasedTerm))
+            p.personnel_code.toLowerCase().includes(lowercasedTerm)
         ).slice(0, 10);
-    };
-
-    const guarantorResults = useMemo(() => filterPersonnel(guarantorSearch), [guarantorSearch, allPersonnel]);
+    }, [personnelList, searchTerm]);
 
     const handleSelectGuarantor = (person: Personnel) => {
         setSelectedGuarantor(person);
-        setGuarantorSearch(`${person.first_name} ${person.last_name}`);
-        setSumOfDecreeFactors(person.sum_of_decree_factors || '');
-    };
-    
-    const handleFetchDecreeFactors = () => {
-        if (selectedGuarantor) {
-            setSumOfDecreeFactors(selectedGuarantor.sum_of_decree_factors || '');
-        }
-    };
-    
-    const handleRecipientChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const { name, value } = e.target;
-        setRecipientInfo(prev => ({ ...prev, [name]: value }));
+        setSearchTerm('');
     };
 
-    const handleSaveAndPrint = async () => {
-        setStatus({ type: 'info', message: 'در حال ذخیره نامه در بایگانی...' });
+    const handleClearGuarantor = () => {
+        setSelectedGuarantor(null);
+        setSearchTerm('');
+        resetForm();
+    };
+    
+    const resetForm = () => {
+        setRecipientName('');
+        setRecipientNationalId('');
+        setLoanAmount('');
+        setBankName('');
+        setBranchName('');
+        setReferenceNumber('');
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!selectedGuarantor) {
+            setStatus({ type: 'error', message: 'لطفا ابتدا یک ضامن را انتخاب کنید.' });
+            return;
+        }
+        setStatus({ type: 'info', message: 'در حال ذخیره نامه تعهد...'});
         try {
             const payload = {
-                recipient_name: `${recipientInfo.firstName} ${recipientInfo.lastName}`,
-                recipient_national_id: recipientInfo.nationalId,
-                guarantor_personnel_code: selectedGuarantor?.personnel_code,
-                guarantor_name: `${selectedGuarantor?.first_name} ${selectedGuarantor?.last_name}`,
-                guarantor_national_id: selectedGuarantor?.national_id,
-                loan_amount: parseFloat(loanAmount.replace(/,/g, '')) || 0,
-                sum_of_decree_factors: parseFloat(sumOfDecreeFactors.replace(/,/g, '')) || 0,
+                recipient_name: recipientName,
+                recipient_national_id: recipientNationalId,
+                guarantor_personnel_code: selectedGuarantor.personnel_code,
+                guarantor_name: `${selectedGuarantor.first_name} ${selectedGuarantor.last_name}`,
+                guarantor_national_id: selectedGuarantor.national_id,
+                loan_amount: Number(loanAmount.replace(/,/g, '')),
+                sum_of_decree_factors: Number((selectedGuarantor.sum_of_decree_factors || '0').replace(/,/g, '')),
                 bank_name: bankName,
                 branch_name: branchName,
-                reference_number: referenceNumber
+                reference_number: referenceNumber,
             };
-
             const response = await fetch('/api/personnel?type=commitment_letters', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
+                body: JSON.stringify(payload)
             });
             const data = await response.json();
             if (!response.ok) throw new Error(data.error);
-            
-            setStatus({ type: 'success', message: 'نامه با موفقیت بایگانی شد. در حال آماده‌سازی برای چاپ...'});
-            setTimeout(() => {
-                window.print();
-                setStatus(null);
-            }, 1000);
-        } catch (err) {
-            setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در ذخیره نامه' });
+
+            setStatus({ type: 'success', message: 'نامه تعهد با موفقیت ذخیره شد.'});
+            resetForm();
+             const newCommitmentResponse = await fetch(`/api/personnel?type=commitment_letters&guarantorCode=${selectedGuarantor.personnel_code}`);
+             const newCommitmentData = await newCommitmentResponse.json();
+             setTotalCommitted(newCommitmentData.totalCommitted || 0);
+
+        } catch(err) {
+             setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در ذخیره نامه' });
+        } finally {
+            setTimeout(() => setStatus(null), 5000);
+        }
+    };
+    
+    const handlePrint = () => {
+        const printContent = printRef.current?.innerHTML;
+        if (printContent) {
+            const printWindow = window.open('', '', 'height=600,width=800');
+            printWindow?.document.write('<html><head><title>چاپ نامه تعهد</title>');
+            printWindow?.document.write('<style> body { font-family: "IRANSans", sans-serif; direction: rtl; line-height: 2.5; padding: 20px; } .signature { margin-top: 100px; display: flex; justify-content: space-around; } .underline { border-bottom: 1px dotted black; padding: 0 5px; font-weight: bold; } </style>');
+            printWindow?.document.write('</head><body>');
+            printWindow?.document.write(printContent);
+            printWindow?.document.write('</body></html>');
+            printWindow?.document.close();
+            printWindow?.focus();
+            printWindow?.print();
         }
     };
 
-    const isReady = recipientInfo.firstName && recipientInfo.lastName && recipientInfo.nationalId && selectedGuarantor && loanAmount && bankName && branchName;
-    const loanAmountNumber = parseFloat(loanAmount.replace(/,/g, '')) || 0;
-    const isOverCredit = selectedGuarantor && loanAmountNumber > creditInfo.remaining;
-    
     const statusColor = { info: 'bg-blue-100 text-blue-800', success: 'bg-green-100 text-green-800', error: 'bg-red-100 text-red-800' };
+    const inputClass = "w-full px-3 py-2 text-gray-700 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent";
 
     return (
         <div className="bg-white p-6 rounded-lg shadow-lg">
-             <style>{`@import url('https://fonts.googleapis.com/css2?family=Lalezar&family=Vazirmatn:wght@400;700&display=swap'); .printable-letter { font-family: 'Vazirmatn', sans-serif; } .printable-letter h1 { font-family: 'Lalezar', cursive; } @media print { body * { visibility: hidden; } .print-area, .print-area * { visibility: visible; } .print-area { position: absolute; left: 0; top: 0; width: 100%; } @page { size: A4; margin: 2cm; } }`}</style>
-            <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b-2 border-gray-100 pb-4">صدور نامه تعهد حسابداری</h2>
+            <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b-2 border-gray-100 pb-4">صدور نامه تعهد کسر از حقوق</h2>
             {status && <div className={`p-4 mb-4 text-sm rounded-lg ${statusColor[status.type]}`}>{status.message}</div>}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <div className="lg:col-span-1 space-y-6">
-                    <h3 className="text-lg font-semibold text-gray-700">اطلاعات نامه</h3>
-                    <div className="space-y-4 p-4 border rounded-lg bg-slate-50">
-                        <div><label htmlFor="bankName" className="block text-sm font-medium text-gray-700 mb-1">نام بانک</label><input type="text" id="bankName" value={bankName} onChange={e => setBankName(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md" /></div>
-                        <div><label htmlFor="branchName" className="block text-sm font-medium text-gray-700 mb-1">نام شعبه</label><input type="text" id="branchName" value={branchName} onChange={e => setBranchName(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md" /></div>
-                        <div><label htmlFor="loanAmount" className="block text-sm font-medium text-gray-700 mb-1">مبلغ وام (ریال)</label><input type="text" id="loanAmount" value={formatCurrency(loanAmount)} onChange={e => setLoanAmount(e.target.value.replace(/,/g, ''))} className="w-full p-2 border border-gray-300 rounded-md" /></div>
-                        <SearchablePersonnelInput label="ضامن" searchTerm={guarantorSearch} setSearchTerm={setGuarantorSearch} results={guarantorResults} onSelect={handleSelectGuarantor} selectedPerson={selectedGuarantor} />
-                        <div><h4 className="block text-sm font-medium text-gray-700 mb-2">اطلاعات وام گیرنده (دستی)</h4><div className="space-y-2 p-3 border rounded-md bg-white"><input type="text" name="firstName" value={recipientInfo.firstName} onChange={handleRecipientChange} placeholder="نام" className="w-full p-2 border border-gray-300 rounded-md" /><input type="text" name="lastName" value={recipientInfo.lastName} onChange={handleRecipientChange} placeholder="نام خانوادگی" className="w-full p-2 border border-gray-300 rounded-md" /><input type="text" name="fatherName" value={recipientInfo.fatherName} onChange={handleRecipientChange} placeholder="نام پدر" className="w-full p-2 border border-gray-300 rounded-md" /><input type="text" name="nationalId" value={recipientInfo.nationalId} onChange={handleRecipientChange} placeholder="کد ملی" className="w-full p-2 border border-gray-300 rounded-md" /></div></div>
-                    </div>
 
-                    {selectedGuarantor && (
-                        <div className="space-y-3 p-4 border rounded-lg bg-slate-50">
-                             <h4 className="font-semibold text-gray-700">اعتبارسنجی ضامن</h4>
-                            {creditLoading ? <p>در حال بررسی...</p> : (
-                                <div className="space-y-2 text-sm">
-                                    <div className="flex justify-between"><span className="text-gray-600">جمع عوامل حکم:</span> <span className="font-bold">{toPersianDigits(formatCurrency(sumOfDecreeFactors))} ریال</span></div>
-                                    <div className="flex justify-between"><span className="text-gray-600">سقف تعهد (۳۰ برابر):</span> <span className="font-bold">{toPersianDigits(formatCurrency(creditInfo.limit))} ریال</span></div>
-                                    <div className="flex justify-between text-yellow-700"><span >تعهدات قبلی:</span> <span className="font-bold">{toPersianDigits(formatCurrency(creditInfo.committed))} ریال</span></div>
-                                    <div className="flex justify-between font-bold text-lg text-green-700 border-t pt-2 mt-2"><span >اعتبار باقیمانده:</span> <span>{toPersianDigits(formatCurrency(creditInfo.remaining))} ریال</span></div>
-                                </div>
-                            )}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-1 space-y-6">
+                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                        <h3 className="font-bold text-gray-700 mb-2">۱. انتخاب ضامن</h3>
+                        <div className="relative">
+                            <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className={inputClass} placeholder="جستجوی نام یا کد پرسنلی ضامن..." disabled={!!selectedGuarantor} />
+                            <SearchIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                        </div>
+                         {filteredPersonnel.length > 0 && (
+                            <ul className="mt-2 border rounded-md bg-white max-h-48 overflow-y-auto">
+                                {filteredPersonnel.map(p => (
+                                    <li key={p.id} onClick={() => handleSelectGuarantor(p)} className="p-2 hover:bg-gray-100 cursor-pointer text-sm">
+                                        {p.first_name} {p.last_name} ({toPersianDigits(p.personnel_code)})
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                     {selectedGuarantor && (
+                        <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 space-y-2">
+                             <div className="flex justify-between items-center">
+                                <h3 className="font-bold text-blue-800">مشخصات ضامن</h3>
+                                <button onClick={handleClearGuarantor} className="text-xs text-red-600 hover:underline">تغییر ضامن</button>
+                             </div>
+                            <p className="text-sm"><strong>نام:</strong> {selectedGuarantor.first_name} {selectedGuarantor.last_name}</p>
+                            <p className="text-sm"><strong>کد پرسنلی:</strong> {toPersianDigits(selectedGuarantor.personnel_code)}</p>
+                            <p className="text-sm"><strong>کد ملی:</strong> {toPersianDigits(selectedGuarantor.national_id)}</p>
+                            <p className="text-sm"><strong>جمع عوامل حکمی:</strong> {toPersianDigits(formatCurrency(selectedGuarantor.sum_of_decree_factors || 0))} ریال</p>
+                             <div className="pt-2 mt-2 border-t">
+                                <p className="text-sm"><strong>جمع تعهدات قبلی:</strong> <span className="font-mono">{loadingCommitment ? '...' : `${toPersianDigits(formatCurrency(totalCommitted))} ریال`}</span></p>
+                            </div>
                         </div>
                     )}
-                    {isOverCredit && <div className="p-3 text-sm font-semibold rounded-lg bg-red-100 text-red-800 text-center">هشدار: مبلغ وام درخواستی از اعتبار باقیمانده ضامن بیشتر است.</div>}
-
-                     <div className="flex items-center gap-2">
-                        <button onClick={handleSaveAndPrint} disabled={!isReady || isOverCredit} className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed">
-                            <PrinterIcon className="w-5 h-5" /> ذخیره و چاپ نامه
-                        </button>
-                    </div>
                 </div>
-                <div className="lg:col-span-2">
-                    <h3 className="text-lg font-semibold text-gray-700 mb-2">پیش نمایش نامه</h3>
-                    <div ref={letterRef} className="print-area printable-letter border rounded-lg p-8 min-h-[600px] bg-gray-50/50">
-                        <div className="flex justify-between items-start text-sm mb-12"><span>{toPersianDigits(todayPersian)}</span><span>{toPersianDigits(referenceNumber)}</span></div>
-                        <div className="text-center space-y-2 mb-10"><h1 className="text-2xl font-bold">ریاست محترم {bankName} {branchName}</h1><p className="text-lg">موضوع: تعهد حسابداری</p></div>
-                        <div className="text-justify leading-loose"><p>احتراماً حسابداری این شرکت تعهد می نماید در صورت عدم پرداخت اقساط وام به مبلغ{' '}<span className="font-bold px-1">{toPersianDigits(formatCurrency(loanAmount))}</span>{' '}({numberToPersianWords(loanAmount)}) ریال بنام آقای{' '}<span className="font-bold px-1">{recipientInfo.firstName ? `${recipientInfo.firstName} ${recipientInfo.lastName}` : '...'}</span>{' '}فرزند{' '}<span className="font-bold px-1">{recipientInfo.fatherName || '...'}</span>{' '}با کد ملی{' '}<span className="font-bold px-1">{recipientInfo.nationalId ? toPersianDigits(recipientInfo.nationalId) : '...'}</span>{' '}از حقوق ضامن نامبرده آقای{' '}<span className="font-bold px-1">{selectedGuarantor ? `${selectedGuarantor.first_name} ${selectedGuarantor.last_name}` : '...'}</span>{' '}فرزند{' '}<span className="font-bold px-1">{selectedGuarantor ? selectedGuarantor.father_name : '...'}</span>{' '}با کد پرسنلی{' '}<span className="font-bold px-1">{selectedGuarantor ? toPersianDigits(selectedGuarantor.personnel_code) : '...'}</span>{' '}در این شرکت شاغل باشد بعد از اعلام بانک و با رعایت سقف قانونی کسر و به حساب آن بانک واریز نماید.</p><p className="mt-8">این گواهی بنا به درخواست نامبرده جهت ارائه به بانک فوق صادر گردیده است و فاقد هرگونه ارزش دیگری می باشد.</p></div>
-                         <div className="mt-20 text-center"><p className="font-bold">با تشکر</p><p className="font-bold mt-2">مدیریت سرمایه انسانی</p><div className="mt-12 w-48 h-20 border-t mx-auto"></div></div>
+                <div className="lg:col-span-2 space-y-6">
+                     <form onSubmit={handleSubmit} className="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-4">
+                        <h3 className="font-bold text-gray-700 mb-2">۲. اطلاعات وام و وام گیرنده</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                             <div><label className="text-sm">نام وام گیرنده</label><input type="text" value={recipientName} onChange={e => setRecipientName(e.target.value)} className={inputClass} required/></div>
+                             <div><label className="text-sm">کد ملی وام گیرنده</label><input type="text" value={recipientNationalId} onChange={e => setRecipientNationalId(e.target.value)} className={inputClass} required/></div>
+                             <div><label className="text-sm">مبلغ وام (ریال)</label><input type="text" value={loanAmount} onChange={e => setLoanAmount(formatCurrency(e.target.value))} className={inputClass} required/></div>
+                             <div><label className="text-sm">نام بانک</label><input type="text" value={bankName} onChange={e => setBankName(e.target.value)} className={inputClass} required/></div>
+                             <div><label className="text-sm">نام شعبه</label><input type="text" value={branchName} onChange={e => setBranchName(e.target.value)} className={inputClass} required/></div>
+                             <div><label className="text-sm">شماره نامه ارجاع بانک</label><input type="text" value={referenceNumber} onChange={e => setReferenceNumber(e.target.value)} className={inputClass}/></div>
+                        </div>
+                        <div className="flex justify-end gap-2 pt-4">
+                            <button type="submit" className="px-6 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 disabled:bg-gray-400" disabled={!selectedGuarantor}>ذخیره در بایگانی</button>
+                            <button type="button" onClick={handlePrint} className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:bg-gray-400" disabled={!selectedGuarantor}><PrinterIcon className="w-5 h-5"/> چاپ</button>
+                        </div>
+                     </form>
+                </div>
+            </div>
+
+             <div className="mt-8 border-t pt-6">
+                <h3 className="text-xl font-bold text-gray-800 mb-4">۳. پیش نمایش نامه جهت چاپ</h3>
+                <div ref={printRef} className="p-8 border rounded-lg bg-gray-50 text-gray-800" style={{ fontFamily: 'IRANSans, Tahoma, sans-serif', direction: 'rtl', lineHeight: '2.5' }}>
+                    <p className="text-center font-bold text-lg">بسمه تعالی</p>
+                    <p className="text-left">تاریخ: {toPersianDigits(new Date().toLocaleDateString('fa-IR'))}</p>
+                    <p className="text-left">شماره: .......................</p>
+                    <br/>
+                    <p className="font-bold">ریاست محترم بانک <span className="underline">{bankName || '....................'}</span> شعبه <span className="underline">{branchName || '....................'}</span></p>
+                    <p>با سلام</p>
+                    <p>
+                        احتراماً، بدینوسیله گواهی می‌شود آقای/خانم <span className="underline">{selectedGuarantor ? `${selectedGuarantor.first_name} ${selectedGuarantor.last_name}` : '..............................'}</span> به شماره پرسنلی <span className="underline">{toPersianDigits(selectedGuarantor?.personnel_code)}</span> و کد ملی <span className="underline">{toPersianDigits(selectedGuarantor?.national_id)}</span> کارمند رسمی این شرکت بوده و جمع عوامل حکمی ایشان ماهیانه مبلغ <span className="underline">{toPersianDigits(formatCurrency(selectedGuarantor?.sum_of_decree_factors || 0))}</span> ریال می‌باشد.
+                    </p>
+                    <p>
+                        نامبرده ضمانت پرداخت تسهیلات آقای/خانم <span className="underline">{recipientName || '..............................'}</span> به کد ملی <span className="underline">{toPersianDigits(recipientNationalId)}</span> را به مبلغ <span className="underline">{toPersianDigits(formatCurrency(loanAmount))}</span> ریال از آن بانک محترم تقبل نموده است. این شرکت متعهد می‌گردد در صورت عدم پرداخت اقساط در سررسید مقرر توسط وام گیرنده، پس از اعلام کتبی بانک، نسبت به کسر از حقوق و مزایای ضامن و واریز به حساب آن بانک اقدام نماید.
+                    </p>
+                    <p>این گواهی صرفاً جهت اطلاع بانک صادر گردیده و فاقد هرگونه ارزش و اعتبار دیگری می‌باشد.</p>
+                    <br />
+                    <div className="signature">
+                        <span>امور مالی</span>
+                        <span>مدیریت عامل</span>
                     </div>
                 </div>
             </div>
