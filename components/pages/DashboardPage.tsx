@@ -207,7 +207,7 @@ const DashboardPage: React.FC = () => {
         
         const jobGroupCounts = groupAndCount('job_group');
         const sortedJobGroups = Object.entries(jobGroupCounts).sort(([keyA], [keyB]) => {
-            const extractNumber = (str: string) => {
+            const extractNumber = (str: string | null) => {
                 if (!str || str === 'نامشخص') return Infinity;
                 const match = toEnglishDigits(str).match(/\d+/);
                 return match ? parseInt(match[0], 10) : Infinity;
@@ -417,13 +417,12 @@ const DashboardPage: React.FC = () => {
         <div className="space-y-6">
             {stats && (
                 <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-md">
-                    <div className="flex flex-col gap-6">
-                        {/* Top stats part */}
+                    <div className="space-y-6">
+                        <label className="block text-lg font-bold text-gray-700 dark:text-gray-300">
+                            نمایش آمار بر اساس:
+                        </label>
                         <div className="flex items-center justify-between flex-wrap gap-4">
                             <div className="flex items-center gap-4">
-                                <label htmlFor="top-stat-selector" className="text-sm font-medium text-gray-700 dark:text-gray-300 flex-shrink-0">
-                                    نمایش آمار کلی:
-                                </label>
                                 <select 
                                     id="top-stat-selector"
                                     value={selectedTopStatKey}
@@ -458,22 +457,16 @@ const DashboardPage: React.FC = () => {
                             )}
                         </div>
         
-                        {/* Detailed stats part */}
-                        <div>
-                            <label htmlFor="stat-selector" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                                نمایش آمار تفصیلی بر اساس:
-                            </label>
-                            <select 
-                                id="stat-selector"
-                                value={selectedStat}
-                                onChange={(e) => setSelectedStat(e.target.value)}
-                                className="w-full md:w-1/3 p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:border-slate-600 dark:text-white"
-                            >
-                                {statOptions.map(opt => (
-                                    <option key={opt.key} value={opt.key}>{opt.label}</option>
-                                ))}
-                            </select>
-                        </div>
+                        <select 
+                            id="stat-selector"
+                            value={selectedStat}
+                            onChange={(e) => setSelectedStat(e.target.value)}
+                            className="w-full md:w-1/3 p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:border-slate-600 dark:text-white"
+                        >
+                            {statOptions.map(opt => (
+                                <option key={opt.key} value={opt.key}>{opt.label}</option>
+                            ))}
+                        </select>
                     </div>
                 </div>
             )}
