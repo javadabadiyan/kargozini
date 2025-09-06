@@ -7,12 +7,19 @@ const toPersianDigits = (s: string | number | null | undefined): string => {
     return String(s).replace(/[0-9]/g, (w) => '۰۱۲۳۴۵۶۷۸۹'[parseInt(w, 10)]);
 };
 
+const toEnglishDigits = (str: string): string => {
+    if (!str) return '';
+    return str.replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString())
+              .replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString());
+};
+
 const formatCurrency = (value: string | number): string => {
-    if (!value) return '۰';
+    if (!value) return '0';
     const num = String(value).replace(/,/g, '');
     if (isNaN(Number(num))) return String(value);
     return num.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 };
+
 
 interface CommitmentLetter {
     id: number;
@@ -44,30 +51,9 @@ const AccountingCommitmentPage: React.FC = () => {
     const [loadingCommitment, setLoadingCommitment] = useState(false);
     const [status, setStatus] = useState<{ type: 'info' | 'success' | 'error'; message: string } | null>(null);
 
-    const [archivedLetters, setArchivedLetters] = useState<CommitmentLetter[]>([]);
-    const [archiveLoading, setArchiveLoading] = useState(true);
-    const [archiveError, setArchiveError] = useState<string | null>(null);
-    const [archiveSearchTerm, setArchiveSearchTerm] = useState('');
+    const [printMargins, setPrintMargins] = useState({ top: 40, right: 40, bottom: 40, left: 40 });
 
     const printRef = useRef<HTMLDivElement>(null);
-
-    const fetchArchivedLetters = useCallback(async (searchQuery = '') => {
-        setArchiveLoading(true);
-        setArchiveError(null);
-        try {
-            const response = await fetch(`/api/personnel?type=commitment_letters&searchTerm=${encodeURIComponent(searchQuery)}`);
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'خطا در دریافت بایگانی نامه‌ها');
-            }
-            const data = await response.json();
-            setArchivedLetters(data.letters || []);
-        } catch (err) {
-            setArchiveError(err instanceof Error ? err.message : 'یک خطای ناشناخته رخ داد');
-        } finally {
-            setArchiveLoading(false);
-        }
-    }, []);
 
     useEffect(() => {
         const fetchPersonnel = async () => {
@@ -84,8 +70,7 @@ const AccountingCommitmentPage: React.FC = () => {
             }
         };
         fetchPersonnel();
-        fetchArchivedLetters();
-    }, [fetchArchivedLetters]);
+    }, []);
 
     useEffect(() => {
         if (!selectedGuarantor) {
@@ -120,12 +105,12 @@ const AccountingCommitmentPage: React.FC = () => {
     const handleSelectGuarantor = (person: Personnel) => {
         setSelectedGuarantor(person);
         setSearchTerm('');
-        setDecreeFactors(formatCurrency(person.sum_of_decree_factors || '0'));
+        setDecreeFactors(person.sum_of_decree_factors || '0');
     };
     
     const handleRefreshDecreeFactors = useCallback(() => {
         if (selectedGuarantor) {
-            setDecreeFactors(formatCurrency(selectedGuarantor.sum_of_decree_factors || '0'));
+            setDecreeFactors(selectedGuarantor.sum_of_decree_factors || '0');
         }
     }, [selectedGuarantor]);
 
@@ -146,6 +131,11 @@ const AccountingCommitmentPage: React.FC = () => {
     };
 
     const handlePrint = () => {
+        if (!selectedGuarantor || !recipientName || !loanAmount) {
+            setStatus({ type: 'error', message: 'برای چاپ، لطفا اطلاعات ضامن و وام‌گیرنده را کامل کنید.' });
+            setTimeout(() => setStatus(null), 4000);
+            return;
+        }
         const printContent = printRef.current?.innerHTML;
         if (printContent) {
             const printWindow = window.open('', '', 'height=600,width=800');
@@ -153,7 +143,7 @@ const AccountingCommitmentPage: React.FC = () => {
             printWindow?.document.write('<link rel="preconnect" href="https://fonts.googleapis.com">');
             printWindow?.document.write('<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>');
             printWindow?.document.write('<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700&display=swap" rel="stylesheet">');
-            printWindow?.document.write('<style> body { font-family: "Vazirmatn", sans-serif; direction: rtl; line-height: 2.5; padding: 20px; } .signature { margin-top: 100px; text-align: center; } .underline { border-bottom: 1px dotted black; padding: 0 5px; font-weight: bold; } </style>');
+            printWindow?.document.write(`<style> body { font-family: "Vazirmatn", sans-serif; direction: rtl; line-height: 2.5; padding: ${printMargins.top}px ${printMargins.right}px ${printMargins.bottom}px ${printMargins.left}px; } .signature { margin-top: 100px; text-align: center; } .underline { border-bottom: 1px dotted black; padding: 0 5px; font-weight: bold; } </style>`);
             printWindow?.document.write('</head><body>');
             printWindow?.document.write(printContent);
             printWindow?.document.write('</body></html>');
@@ -163,7 +153,7 @@ const AccountingCommitmentPage: React.FC = () => {
         }
     };
     
-    const handleSaveAndPrint = async (e: React.FormEvent) => {
+    const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedGuarantor) {
             setStatus({ type: 'error', message: 'لطفا ابتدا یک ضامن را انتخاب کنید.' });
@@ -191,13 +181,11 @@ const AccountingCommitmentPage: React.FC = () => {
             const data = await response.json();
             if (!response.ok) throw new Error(data.error);
 
-            setStatus({ type: 'success', message: 'نامه تعهد با موفقیت ذخیره شد. در حال آماده سازی چاپ...'});
-            handlePrint();
-
+            setStatus({ type: 'success', message: 'نامه تعهد با موفقیت در بایگانی ذخیره شد.'});
+            
              const newCommitmentResponse = await fetch(`/api/personnel?type=commitment_letters&guarantorCode=${selectedGuarantor.personnel_code}`);
              const newCommitmentData = await newCommitmentResponse.json();
              setTotalCommitted(newCommitmentData.totalCommitted || 0);
-             fetchArchivedLetters(archiveSearchTerm);
 
         } catch(err) {
              setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در ذخیره نامه' });
@@ -205,31 +193,15 @@ const AccountingCommitmentPage: React.FC = () => {
             setTimeout(() => setStatus(null), 5000);
         }
     };
-
-    const handleArchiveSearchSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        fetchArchivedLetters(archiveSearchTerm);
-    };
     
-    const handleDeleteLetter = async (id: number) => {
-        if (window.confirm('آیا از حذف این نامه از بایگانی اطمینان دارید؟ این عمل قابل بازگشت نیست.')) {
-            setStatus({ type: 'info', message: 'در حال حذف نامه...'});
-            try {
-                const response = await fetch(`/api/personnel?type=commitment_letters&id=${id}`, { method: 'DELETE' });
-                const data = await response.json();
-                if (!response.ok) throw new Error(data.error);
-                setStatus({ type: 'success', message: 'نامه با موفقیت حذف شد.' });
-                fetchArchivedLetters(archiveSearchTerm);
-                if (selectedGuarantor) {
-                    const commitmentResponse = await fetch(`/api/personnel?type=commitment_letters&guarantorCode=${selectedGuarantor.personnel_code}`);
-                    const commitmentData = await commitmentResponse.json();
-                    setTotalCommitted(commitmentData.totalCommitted || 0);
-                }
-            } catch (err) {
-                 setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در حذف نامه' });
-            } finally {
-                setTimeout(() => setStatus(null), 4000);
-            }
+    const handleCurrencyInputChange = (
+        e: React.ChangeEvent<HTMLInputElement>,
+        setter: React.Dispatch<React.SetStateAction<string>>
+    ) => {
+        const val = e.target.value;
+        const englishVal = toEnglishDigits(val).replace(/,/g, '');
+        if (/^\d*$/.test(englishVal)) {
+            setter(englishVal);
         }
     };
 
@@ -288,19 +260,19 @@ const AccountingCommitmentPage: React.FC = () => {
                     )}
                 </div>
                 <div className="lg:col-span-2 space-y-6">
-                     <form onSubmit={handleSaveAndPrint} className="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-4">
+                     <form onSubmit={handleSave} className="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-4">
                         <h3 className="font-bold text-gray-700 mb-2">۲. اطلاعات وام و وام گیرنده</h3>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                             <div><label className="text-sm">نام وام گیرنده</label><input type="text" value={recipientName} onChange={e => setRecipientName(e.target.value)} className={inputClass} required/></div>
-                             <div><label className="text-sm">کد ملی وام گیرنده</label><input type="text" value={recipientNationalId} onChange={e => setRecipientNationalId(e.target.value)} className={inputClass} required/></div>
-                             <div><label className="text-sm">مبلغ وام (ریال)</label><input type="text" value={loanAmount} onChange={e => setLoanAmount(formatCurrency(e.target.value))} className={inputClass} required/></div>
+                             <div><label className="text-sm">نام و نام خانوادگی وام گیرنده</label><input type="text" value={recipientName} onChange={e => setRecipientName(e.target.value)} className={inputClass} required/></div>
+                             <div><label className="text-sm">کد ملی وام گیرنده</label><input type="text" value={toPersianDigits(recipientNationalId)} onChange={e => setRecipientNationalId(toEnglishDigits(e.target.value))} className={inputClass} required/></div>
+                             <div><label className="text-sm">مبلغ وام (ریال)</label><input type="text" value={toPersianDigits(formatCurrency(loanAmount))} onChange={e => handleCurrencyInputChange(e, setLoanAmount)} className={inputClass} required/></div>
                              <div>
                                 <label className="text-sm">جمع عوامل حکمی ضامن (ریال)</label>
                                 <div className="flex items-center gap-2">
                                     <input 
                                         type="text" 
-                                        value={decreeFactors} 
-                                        onChange={e => setDecreeFactors(formatCurrency(e.target.value))} 
+                                        value={toPersianDigits(formatCurrency(decreeFactors))} 
+                                        onChange={e => handleCurrencyInputChange(e, setDecreeFactors)} 
                                         className={inputClass} 
                                         disabled={!selectedGuarantor}
                                     />
@@ -325,15 +297,28 @@ const AccountingCommitmentPage: React.FC = () => {
                             </div>
                          )}
                         <div className="flex justify-end gap-2 pt-4">
-                            <button type="submit" className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:bg-gray-400" disabled={!selectedGuarantor}><PrinterIcon className="w-5 h-5"/> ذخیره و چاپ</button>
+                            <button type="button" onClick={handleClearGuarantor} className="px-4 py-2 bg-gray-200 text-gray-800 font-semibold rounded-lg hover:bg-gray-300">پاک کردن فرم</button>
+                            <button type="button" onClick={handlePrint} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 disabled:bg-gray-400" disabled={!selectedGuarantor}><PrinterIcon className="w-5 h-5"/> پیش نمایش و چاپ</button>
+                            <button type="submit" className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:bg-gray-400" disabled={!selectedGuarantor}>ذخیره نامه</button>
                         </div>
                      </form>
                 </div>
             </div>
 
              <div className="mt-8 border-t pt-6">
-                <h3 className="text-xl font-bold text-gray-800 mb-4">۳. پیش نمایش نامه جهت چاپ</h3>
-                <div ref={printRef} className="p-8 border rounded-lg bg-gray-50 text-gray-800 print-container" style={{ direction: 'rtl', lineHeight: '2.5' }}>
+                <h3 className="text-xl font-bold text-gray-800 mb-4">۳. پیش نمایش و تنظیمات چاپ</h3>
+                <div className="p-4 border rounded-lg bg-slate-100 space-y-3 mb-4">
+                    <h4 className="font-semibold">تنظیمات چاپ</h4>
+                    <p className="text-xs text-gray-600">برای تنظیم دقیق نامه روی سربرگ شرکت، حاشیه‌ها را بر حسب پیکسل (px) تغییر دهید.</p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div><label className="text-sm">حاشیه بالا</label><input type="number" value={printMargins.top} onChange={e => setPrintMargins(p => ({...p, top: +e.target.value}))} className={inputClass}/></div>
+                        <div><label className="text-sm">حاشیه راست</label><input type="number" value={printMargins.right} onChange={e => setPrintMargins(p => ({...p, right: +e.target.value}))} className={inputClass}/></div>
+                        <div><label className="text-sm">حاشیه پایین</label><input type="number" value={printMargins.bottom} onChange={e => setPrintMargins(p => ({...p, bottom: +e.target.value}))} className={inputClass}/></div>
+                        <div><label className="text-sm">حاشیه چپ</label><input type="number" value={printMargins.left} onChange={e => setPrintMargins(p => ({...p, left: +e.target.value}))} className={inputClass}/></div>
+                    </div>
+                </div>
+
+                <div ref={printRef} className="p-8 border rounded-lg bg-gray-50 text-gray-800 print-container" style={{ direction: 'rtl', lineHeight: '2.5', padding: `${printMargins.top}px ${printMargins.right}px ${printMargins.bottom}px ${printMargins.left}px` }}>
                     <div className="flex justify-between items-start mb-8">
                         <div>
                             <p>تاریخ: <span className="font-mono">{toPersianDigits(new Date().toLocaleDateString('fa-IR'))}</span></p>
@@ -356,65 +341,6 @@ const AccountingCommitmentPage: React.FC = () => {
                         <p className="font-bold">مدیریت سرمایه انسانی</p>
                     </div>
                 </div>
-            </div>
-
-            <div className="mt-8 border-t pt-6">
-                <h3 className="text-xl font-bold text-gray-800 mb-4">۴. بایگانی نامه‌های صادر شده</h3>
-                 <form onSubmit={handleArchiveSearchSubmit} className="mb-6">
-                    <div className="flex">
-                        <div className="relative flex-grow">
-                            <input
-                                type="text"
-                                className="w-full pr-10 pl-4 py-2 border border-gray-300 rounded-r-md focus:ring-blue-500 focus:border-blue-500"
-                                placeholder="جستجو در بایگانی..."
-                                value={archiveSearchTerm}
-                                onChange={e => setArchiveSearchTerm(e.target.value)}
-                            />
-                            <SearchIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                        </div>
-                        <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-l-md hover:bg-blue-700">جستجو</button>
-                    </div>
-                </form>
-
-                <div className="overflow-x-auto bg-slate-50 p-4 rounded-lg border border-slate-200">
-                {archiveLoading && <p className="text-center py-4">در حال بارگذاری بایگانی...</p>}
-                {archiveError && <p className="text-center py-4 text-red-500">{archiveError}</p>}
-                {!archiveLoading && !archiveError && archivedLetters.length === 0 && (
-                    <div className="text-center py-10 text-gray-400">
-                        <DocumentReportIcon className="w-16 h-16 mx-auto mb-4" />
-                        <h3 className="text-lg font-semibold">
-                            {archiveSearchTerm ? 'هیچ نامه‌ای مطابق با جستجوی شما یافت نشد.' : 'هیچ نامه‌ای در بایگانی ثبت نشده است.'}
-                        </h3>
-                    </div>
-                )}
-                {!archiveLoading && !archiveError && archivedLetters.length > 0 && (
-                    <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-100">
-                            <tr>
-                                {['وام گیرنده', 'ضامن', 'مبلغ وام (ریال)', 'بانک', 'تاریخ صدور', 'عملیات'].map(h => (
-                                    <th key={h} scope="col" className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">{h}</th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                           {archivedLetters.map(letter => (
-                               <tr key={letter.id}>
-                                   <td className="px-4 py-3 whitespace-nowrap text-sm"><p className="font-semibold">{letter.recipient_name}</p><p className="text-xs text-gray-500">کد ملی: {toPersianDigits(letter.recipient_national_id)}</p></td>
-                                   <td className="px-4 py-3 whitespace-nowrap text-sm"><p className="font-semibold">{letter.guarantor_name}</p><p className="text-xs text-gray-500">کد پرسنلی: {toPersianDigits(letter.guarantor_personnel_code)}</p></td>
-                                   <td className="px-4 py-3 whitespace-nowrap text-sm font-mono">{toPersianDigits(formatCurrency(letter.loan_amount))}</td>
-                                   <td className="px-4 py-3 whitespace-nowrap text-sm">{letter.bank_name} - {letter.branch_name}</td>
-                                   <td className="px-4 py-3 whitespace-nowrap text-sm">{toPersianDigits(new Date(letter.issue_date).toLocaleDateString('fa-IR'))}</td>
-                                   <td className="px-4 py-3 whitespace-nowrap text-sm text-center">
-                                       <button onClick={() => handleDeleteLetter(letter.id)} className="text-red-600 hover:text-red-800 p-1 rounded-full hover:bg-red-100 transition-colors" aria-label={`حذف نامه ${letter.id}`}>
-                                           <TrashIcon className="w-5 h-5" />
-                                       </button>
-                                   </td>
-                               </tr>
-                           ))}
-                        </tbody>
-                    </table>
-                )}
-            </div>
             </div>
         </div>
     );
