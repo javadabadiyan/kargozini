@@ -1,17 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { SearchIcon, TrashIcon, DocumentReportIcon, ChevronDownIcon, ChevronUpIcon } from '../icons/Icons';
-
-interface CommitmentLetter {
-    id: number;
-    recipient_name: string;
-    recipient_national_id: string;
-    guarantor_name: string;
-    guarantor_personnel_code: string;
-    loan_amount: string;
-    bank_name: string;
-    branch_name: string;
-    issue_date: string;
-}
+import { SearchIcon, TrashIcon, DocumentReportIcon, ChevronDownIcon, ChevronUpIcon, PencilIcon } from '../icons/Icons';
+import type { CommitmentLetter } from '../../types';
+import EditCommitmentLetterModal from '../EditCommitmentLetterModal';
 
 const toPersianDigits = (s: string | number | null | undefined): string => {
     if (s === null || s === undefined) return '';
@@ -33,6 +23,9 @@ const CommitmentLetterArchivePage: React.FC = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [status, setStatus] = useState<{ type: 'info' | 'success' | 'error'; message: string } | null>(null);
     const [expandedGuarantors, setExpandedGuarantors] = useState<Set<string>>(new Set());
+
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [editingLetter, setEditingLetter] = useState<CommitmentLetter | null>(null);
 
     const fetchLetters = useCallback(async (searchQuery = '') => {
         setLoading(true);
@@ -75,6 +68,32 @@ const CommitmentLetterArchivePage: React.FC = () => {
             } finally {
                 setTimeout(() => setStatus(null), 4000);
             }
+        }
+    };
+
+    const handleEditClick = (letter: CommitmentLetter) => {
+        setEditingLetter(letter);
+        setIsEditModalOpen(true);
+    };
+
+    const handleSaveLetter = async (letter: CommitmentLetter) => {
+        setStatus({ type: 'info', message: 'در حال ویرایش نامه...' });
+        try {
+            const response = await fetch('/api/personnel?type=commitment_letters', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(letter)
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error);
+            setStatus({ type: 'success', message: 'نامه با موفقیت ویرایش شد.' });
+            setIsEditModalOpen(false);
+            setEditingLetter(null);
+            fetchLetters(searchTerm); // Refresh data
+        } catch (err) {
+            setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در ویرایش نامه' });
+        } finally {
+            setTimeout(() => setStatus(null), 5000);
         }
     };
 
@@ -217,7 +236,10 @@ const CommitmentLetterArchivePage: React.FC = () => {
                                                                     <td className="px-3 py-2 whitespace-nowrap text-sm">{letter.bank_name} - {letter.branch_name}</td>
                                                                     <td className="px-3 py-2 whitespace-nowrap text-sm">{toPersianDigits(new Date(letter.issue_date).toLocaleDateString('fa-IR'))}</td>
                                                                     <td className="px-3 py-2 whitespace-nowrap text-sm text-center">
-                                                                        <button onClick={() => handleDeleteLetter(letter.id)} className="text-red-600 hover:text-red-800 p-1 rounded-full hover:bg-red-100 transition-colors" aria-label={`حذف نامه ${letter.id}`}>
+                                                                        <button onClick={() => handleEditClick(letter)} className="text-blue-600 hover:text-blue-800 p-1 rounded-full hover:bg-blue-100 transition-colors" aria-label={`ویرایش نامه ${letter.id}`}>
+                                                                            <PencilIcon className="w-5 h-5" />
+                                                                        </button>
+                                                                        <button onClick={() => handleDeleteLetter(letter.id)} className="text-red-600 hover:text-red-800 p-1 rounded-full hover:bg-red-100 transition-colors ml-2" aria-label={`حذف نامه ${letter.id}`}>
                                                                             <TrashIcon className="w-5 h-5" />
                                                                         </button>
                                                                     </td>
@@ -235,6 +257,13 @@ const CommitmentLetterArchivePage: React.FC = () => {
                     </table>
                 )}
             </div>
+             {isEditModalOpen && editingLetter && (
+                <EditCommitmentLetterModal
+                    letter={editingLetter}
+                    onClose={() => setIsEditModalOpen(false)}
+                    onSave={handleSaveLetter}
+                />
+            )}
         </div>
     );
 };

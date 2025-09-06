@@ -146,3 +146,19 @@ export interface PersonnelDocument {
   file_data?: string; // base64 encoded, optional for list view
   uploaded_at: string; // ISO string
 }
+
+export interface CommitmentLetter {
+  id: number;
+  recipient_name: string;
+  recipient_national_id: string;
+  guarantor_personnel_code: string;
+  guarantor_name: string;
+  guarantor_national_id: string;
+  loan_amount: number;
+  sum_of_decree_factors: number | null;
+  bank_name: string | null;
+  branch_name: string | null;
+  issue_date: string;
+  reference_number: string | null;
+  created_at?: string;
+}

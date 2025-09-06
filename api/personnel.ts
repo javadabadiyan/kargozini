@@ -513,6 +513,41 @@ async function handlePostCommitmentLetter(request: VercelRequest, response: Verc
     }
 }
 
+async function handlePutCommitmentLetter(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+    const {
+        id, recipient_name, recipient_national_id, loan_amount,
+        bank_name, branch_name, reference_number
+    } = request.body;
+
+    if (!id) {
+        return response.status(400).json({ error: 'شناسه نامه برای ویرایش الزامی است.' });
+    }
+
+    try {
+        const { rows } = await pool.sql`
+            UPDATE commitment_letters SET
+                recipient_name = ${recipient_name},
+                recipient_national_id = ${recipient_national_id},
+                loan_amount = ${loan_amount},
+                bank_name = ${bank_name},
+                branch_name = ${branch_name},
+                reference_number = ${reference_number}
+            WHERE id = ${id}
+            RETURNING *;
+        `;
+        if (rows.length === 0) {
+           return response.status(404).json({ error: 'نامه‌ای با این شناسه یافت نشد.' });
+        }
+        return response.status(200).json({ message: 'نامه با موفقیت ویرایش شد.', letter: rows[0] });
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        if (errorMessage.includes('commitment_letters_reference_number_key')) {
+             return response.status(409).json({ error: 'یک نامه دیگر با این شماره ارجاع وجود دارد.' });
+        }
+        return response.status(500).json({ error: 'خطا در ویرایش نامه تعهد.', details: errorMessage });
+    }
+}
+
 async function handleDeleteCommitmentLetter(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
     const { id } = request.query;
     if (!id || typeof id !== 'string') {
@@ -563,6 +598,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
       case 'PUT':
         if (type === 'personnel') return await handlePutPersonnel(request, response, pool);
         if (type === 'dependents') return await handlePutDependent(request, response, pool);
+        if (type === 'commitment_letters') return await handlePutCommitmentLetter(request, response, pool);
         return response.status(400).json({ error: 'نوع داده نامعتبر است.' });
       
       case 'DELETE':
