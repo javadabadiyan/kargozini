@@ -154,6 +154,25 @@ export default async function handler(
     `;
     messages.push('جدول "personnel_documents" ایجاد شد.');
     
+    await client.sql`
+      CREATE TABLE IF NOT EXISTS commitment_letters (
+        id SERIAL PRIMARY KEY,
+        recipient_name VARCHAR(255) NOT NULL,
+        recipient_national_id VARCHAR(20) NOT NULL,
+        guarantor_personnel_code VARCHAR(50) NOT NULL,
+        guarantor_name VARCHAR(255) NOT NULL,
+        guarantor_national_id VARCHAR(20) NOT NULL,
+        loan_amount BIGINT NOT NULL,
+        sum_of_decree_factors BIGINT,
+        bank_name VARCHAR(255),
+        branch_name VARCHAR(255),
+        issue_date DATE NOT NULL DEFAULT CURRENT_DATE,
+        reference_number VARCHAR(100) UNIQUE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `;
+    messages.push('جدول "commitment_letters" با موفقیت ایجاد یا تایید شد.');
+
     await client.sql`COMMIT`;
     messages.push('تراکنش اصلی ایجاد جداول با موفقیت انجام شد.');
 
@@ -191,6 +210,7 @@ export default async function handler(
     await client.sql`CREATE INDEX IF NOT EXISTS dependents_personnel_code_idx ON dependents (personnel_code);`;
     await client.sql`CREATE INDEX IF NOT EXISTS personnel_documents_personnel_code_idx ON personnel_documents (personnel_code);`;
     await client.sql`CREATE INDEX IF NOT EXISTS personnel_last_first_name_idx ON personnel (last_name, first_name);`;
+    await client.sql`CREATE INDEX IF NOT EXISTS commitment_letters_guarantor_code_idx ON commitment_letters (guarantor_personnel_code);`;
     messages.push('ایندکس‌های ضروری برای جستجوی سریع ایجاد شدند.');
 
     await (client as any).query(`
@@ -223,7 +243,6 @@ export default async function handler(
     const adminPermissions = JSON.stringify({
       dashboard: true, personnel: true, personnel_list: true, dependents_info: true, document_upload: true,
       recruitment: true, accounting_commitment: true, disciplinary_committee: true, performance_review: true, job_group: true, bonus_management: true, enter_bonus: true, bonus_analyzer: true,
-      security: true, commuting_members: true, log_commute: true, commute_report: true,
       settings: true, user_management: true,
     });
     const guardPermissions = JSON.stringify({

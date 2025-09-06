@@ -451,6 +451,79 @@ async function handleDeleteDocument(request: VercelRequest, response: VercelResp
 
 
 // =================================================================================
+// COMMITMENT LETTER HANDLERS
+// =================================================================================
+async function handleGetCommitmentLetters(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+  const { guarantorCode, searchTerm } = request.query;
+
+  if (guarantorCode && typeof guarantorCode === 'string') {
+      const { rows } = await pool.sql`
+          SELECT SUM(loan_amount) as total_committed 
+          FROM commitment_letters 
+          WHERE guarantor_personnel_code = ${guarantorCode};
+      `;
+      const totalCommitted = rows[0]?.total_committed || 0;
+      return response.status(200).json({ totalCommitted: Number(totalCommitted) });
+  }
+
+  let query = `SELECT * FROM commitment_letters`;
+  const params: string[] = [];
+  if (searchTerm && typeof searchTerm === 'string') {
+      query += ` WHERE recipient_name ILIKE $1 OR guarantor_name ILIKE $1 OR recipient_national_id ILIKE $1 OR guarantor_personnel_code ILIKE $1`;
+      params.push(`%${searchTerm}%`);
+  }
+  query += ` ORDER BY issue_date DESC;`;
+
+  const { rows } = await pool.query(query, params);
+  return response.status(200).json({ letters: rows });
+}
+
+async function handlePostCommitmentLetter(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+    const {
+        recipient_name, recipient_national_id, guarantor_personnel_code,
+        guarantor_name, guarantor_national_id, loan_amount, sum_of_decree_factors,
+        bank_name, branch_name, reference_number
+    } = request.body;
+    
+    if (!recipient_name || !recipient_national_id || !guarantor_personnel_code) {
+        return response.status(400).json({ error: 'اطلاعات وام‌گیرنده و ضامن الزامی است.' });
+    }
+
+    try {
+        const { rows } = await pool.sql`
+            INSERT INTO commitment_letters (
+                recipient_name, recipient_national_id, guarantor_personnel_code, guarantor_name,
+                guarantor_national_id, loan_amount, sum_of_decree_factors, bank_name, branch_name, reference_number
+            ) VALUES (
+                ${recipient_name}, ${recipient_national_id}, ${guarantor_personnel_code}, ${guarantor_name},
+                ${guarantor_national_id}, ${loan_amount}, ${sum_of_decree_factors}, ${bank_name}, ${branch_name}, ${reference_number}
+            )
+            ON CONFLICT (reference_number) DO NOTHING
+            RETURNING *;
+        `;
+        if (rows.length === 0) {
+           return response.status(409).json({ error: 'یک نامه با این شماره ارجاع از قبل وجود دارد.' });
+        }
+        return response.status(201).json({ message: 'نامه با موفقیت ذخیره شد.', letter: rows[0] });
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return response.status(500).json({ error: 'خطا در ذخیره نامه تعهد.', details: errorMessage });
+    }
+}
+
+async function handleDeleteCommitmentLetter(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+    const { id } = request.query;
+    if (!id || typeof id !== 'string') {
+        return response.status(400).json({ error: 'شناسه نامه برای حذف الزامی است.' });
+    }
+    const result = await pool.sql`DELETE FROM commitment_letters WHERE id = ${parseInt(id, 10)};`;
+    if (result.rowCount === 0) {
+        return response.status(404).json({ error: 'نامه برای حذف یافت نشد.' });
+    }
+    return response.status(200).json({ message: 'نامه با موفقیت حذف شد.' });
+}
+
+// =================================================================================
 // MAIN HANDLER
 // =================================================================================
 export default async function handler(request: VercelRequest, response: VercelResponse) {
@@ -468,6 +541,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
         if (type === 'commuting_members') return await handleGetCommutingMembers(response, pool);
         if (type === 'documents') return await handleGetDocuments(request, response, pool);
         if (type === 'document_data') return await handleGetDocumentData(request, response, pool);
+        if (type === 'commitment_letters') return await handleGetCommitmentLetters(request, response, pool);
         return response.status(400).json({ error: 'نوع داده نامعتبر است.' });
 
       case 'POST': {
@@ -477,6 +551,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
           if (type === 'dependents') return await handlePostDependents(request, response, client);
           if (type === 'commuting_members') return await handlePostCommutingMembers(request.body, response, client);
           if (type === 'documents') return await handlePostDocument(request, response, pool);
+          if (type === 'commitment_letters') return await handlePostCommitmentLetter(request, response, pool);
           return response.status(400).json({ error: 'نوع داده نامعتبر است.' });
         } finally {
           client.release();
@@ -492,6 +567,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
         if (type === 'personnel') return await handleDeletePersonnel(request, response, pool);
         if (type === 'documents') return await handleDeleteDocument(request, response, pool);
         if (type === 'dependents') return await handleDeleteDependent(request, response, pool);
+        if (type === 'commitment_letters') return await handleDeleteCommitmentLetter(request, response, pool);
         return response.status(400).json({ error: 'نوع داده برای حذف نامعتبر است.' });
 
       default:
