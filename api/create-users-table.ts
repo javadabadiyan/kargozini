@@ -32,6 +32,7 @@ export default async function handler(
         father_name VARCHAR(100),
         national_id VARCHAR(20) UNIQUE,
         id_number VARCHAR(20),
+        birth_year VARCHAR(10),
         birth_date VARCHAR(30),
         birth_place VARCHAR(100),
         issue_date VARCHAR(30),
@@ -46,6 +47,8 @@ export default async function handler(
         hire_date VARCHAR(30),
         education_level VARCHAR(100),
         field_of_study VARCHAR(100),
+        job_group VARCHAR(100),
+        sum_of_decree_factors VARCHAR(100),
         status VARCHAR(50)
       );
     `;
@@ -155,26 +158,6 @@ export default async function handler(
     messages.push('تراکنش اصلی ایجاد جداول با موفقیت انجام شد.');
 
     // --- Phase 2: Add optional/backward-compatibility columns individually ---
-    // These are run outside the main transaction to prevent one failure from blocking all setup.
-    const columnsToAdd = [
-        { name: 'birth_year', type: 'VARCHAR(10)' },
-        { name: 'job_group', type: 'VARCHAR(100)' },
-        { name: 'sum_of_decree_factors', type: 'VARCHAR(100)' }
-    ];
-
-    for (const col of columnsToAdd) {
-        try {
-            // FIX: Use client.query for DDL with dynamic identifiers, not client.sql which parameterizes them.
-            await (client as any).query(`ALTER TABLE personnel ADD COLUMN IF NOT EXISTS ${client.escapeIdentifier(col.name)} ${col.type}`);
-            messages.push(`ستون "${col.name}" برای سازگاری با نسخه‌های قدیمی اضافه یا تایید شد.`);
-        } catch (e: any) {
-             if (e.message.includes('already exists') || e.code === '42701') {
-                messages.push(`ستون "${col.name}" از قبل وجود داشت.`);
-            } else {
-                 messages.push(`هشدار: ایجاد ستون "${col.name}" با خطا مواجه شد: ${e.message}`);
-            }
-        }
-    }
      try {
         await client.sql`ALTER TABLE dependents DROP CONSTRAINT IF EXISTS dependents_personnel_code_fkey;`;
         messages.push(`محدودیت کلید خارجی برای "dependents" (در صورت وجود) حذف شد.`);
