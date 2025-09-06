@@ -1,4 +1,66 @@
-<script type="importmap">
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>سیستم جامع کارگزینی</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts for Vazirmatn -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+    <script>
+      // On page load or when changing themes, best to add inline in `head` to avoid FOUC
+      if (localStorage.theme === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.classList.add('dark')
+      } else {
+        document.documentElement.classList.remove('dark')
+      }
+      
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Vazirmatn', 'sans-serif'],
+            },
+          },
+        },
+      }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+    <style>
+      body {
+        font-family: 'Vazirmatn', sans-serif;
+        /* Enables a more beautiful stylistic set for the Vazirmatn font */
+        font-feature-settings: "ss02";
+        -webkit-font-feature-settings: "ss02";
+        -moz-font-feature-settings: "ss02";
+      }
+      
+      /* Ensure form elements inherit the font for a consistent look */
+      input, select, button, textarea {
+        font-family: 'Vazirmatn', sans-serif;
+      }
+
+      @keyframes tick {
+        0% {
+          opacity: 0;
+          transform: translateY(-10px);
+        }
+        100% {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .digit-animate {
+        animation: tick 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+      }
+    </style>
+  <script type="importmap">
 {
   "imports": {
     "react/": "https://aistudiocdn.com/react@^19.1.1/",
@@ -9,3 +71,9 @@
   }
 }
 </script>
+</head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/index.js"></script>
+  </body>
+</html>
