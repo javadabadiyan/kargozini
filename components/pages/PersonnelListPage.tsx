@@ -29,7 +29,7 @@ const HEADER_MAP: { [key: string]: keyof Omit<Personnel, 'id'> } = {
   'مدرک تحصیلی': 'education_level',
   'رشته تحصیلی': 'field_of_study',
   'گروه شغلی': 'job_group',
-  'جمع عوامل حكمي': 'sum_of_decree_factors',
+  'جمع عوامل حکمی': 'sum_of_decree_factors',
   'وضعیت': 'status',
 };
 

@@ -12,22 +12,22 @@ const DEPENDENT_HEADER_MAP: { [key: string]: keyof Omit<Dependent, 'id'> } = {
   'نام خانوادگی': 'last_name',
   'نام پدر': 'father_name',
   'نسبت': 'relation_type',
-  'تاريخ تولد': 'birth_date',
-  'جنسيت': 'gender',
+  'تاریخ تولد': 'birth_date',
+  'جنسیت': 'gender',
   'ماه تولد': 'birth_month',
   'روز تولد': 'birth_day',
   'شماره شناسنامه': 'id_number',
-  'كد ملي بستگان': 'national_id',
-  'كد ملي سرپرست': 'guardian_national_id',
+  'کد ملی بستگان': 'national_id',
+  'کد ملی سرپرست': 'guardian_national_id',
   'محل صدور شناسنامه': 'issue_place',
   'نوع': 'insurance_type',
 };
 
 const EXPORT_HEADERS = Object.keys(DEPENDENT_HEADER_MAP);
 const TABLE_VIEW_HEADERS = [
-    'کد پرسنلی', 'نام', 'نام خانوادگی', 'نام پدر', 'نسبت', 'تاريخ تولد', 'جنسيت',
-    'ماه تولد', 'روز تولد', 'شماره شناسنامه', 'كد ملي بستگان',
-    'كد ملي سرپرست', 'محل صدور شناسنامه', 'نوع', 'عملیات'
+    'کد پرسنلی', 'نام', 'نام خانوادگی', 'نام پدر', 'نسبت', 'تاریخ تولد', 'جنسیت',
+    'ماه تولد', 'روز تولد', 'شماره شناسنامه', 'کد ملی بستگان',
+    'کد ملی سرپرست', 'محل صدور شناسنامه', 'نوع', 'عملیات'
 ];
 
 const DependentsInfoPage: React.FC = () => {
@@ -98,15 +98,29 @@ const DependentsInfoPage: React.FC = () => {
         const worksheet = workbook.Sheets[sheetName];
         const json: any[] = XLSX.utils.sheet_to_json(worksheet, { raw: false });
 
-        const mappedData = json.map(row => {
-          const newRow: { [key in keyof Omit<Dependent, 'id'>]?: string | null } = {};
-          for (const header in DEPENDENT_HEADER_MAP) {
-            const dbKey = DEPENDENT_HEADER_MAP[header as keyof typeof DEPENDENT_HEADER_MAP];
-            const value = row[header];
-            newRow[dbKey] = (value === null || value === undefined) ? null : String(value);
-          }
-          return newRow;
+        const mappedData = json.map(originalRow => {
+            const row: {[key: string]: any} = {};
+            for (const key in originalRow) {
+                if (Object.prototype.hasOwnProperty.call(originalRow, key)) {
+                    const normalizedKey = key.trim().replace(/ي/g, 'ی').replace(/ك/g, 'ک');
+                    row[normalizedKey] = originalRow[key];
+                }
+            }
+            
+            const newRow: Partial<Omit<Dependent, 'id'>> = {};
+            for (const header in DEPENDENT_HEADER_MAP) {
+                if (row.hasOwnProperty(header)) {
+                    const dbKey = DEPENDENT_HEADER_MAP[header as keyof typeof DEPENDENT_HEADER_MAP];
+                    let value = row[header];
+                    if (typeof value === 'string') {
+                        value = value.replace(/[\u0000-\u001F\u200B-\u200D\u200E\u200F\uFEFF]/g, '').trim();
+                    }
+                    (newRow as any)[dbKey] = (value === null || value === undefined) ? null : String(value);
+                }
+            }
+            return newRow as Omit<Dependent, 'id'>;
         });
+
 
         const response = await fetch('/api/personnel?type=dependents', {
           method: 'POST',
