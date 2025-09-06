@@ -65,20 +65,6 @@ const persianDateToServiceYears = (hireDateStr: string | null | undefined, curre
     return serviceYears < 0 ? 0 : serviceYears;
 };
 
-
-// Reusable Stat Card component - smaller version
-const StatCard: React.FC<{ title: string; value: string; icon: React.ComponentType<{ className?: string }>; color: string }> = ({ title, value, icon: Icon, color }) => (
-    <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-md flex items-center space-x-3 space-x-reverse">
-        <div className={`p-2.5 rounded-full ${color}`}>
-            <Icon className="w-6 h-6 text-white" />
-        </div>
-        <div>
-            <p className="text-2xl font-bold text-gray-800 dark:text-white">{value}</p>
-            <p className="text-sm text-gray-500 dark:text-gray-400">{title}</p>
-        </div>
-    </div>
-);
-
 // Reusable component for lists of stats
 const StatListCard: React.FC<{ 
     title: string; 
@@ -152,26 +138,21 @@ const HolidayCalendarCard: React.FC<{ holidayInfo: { holidaysByMonth: number[], 
     </div>
 );
 
-
 const DashboardPage: React.FC = () => {
     const [personnel, setPersonnel] = useState<Personnel[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [selectedStat, setSelectedStat] = useState('byDepartment');
-    const [selectedTopStatKey, setSelectedTopStatKey] = useState('total');
+    const [selectedStatKey, setSelectedStatKey] = useState('total');
     
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [modalData, setModalData] = useState<{ title: string; personnel: any[]; mode: 'age' | 'service' | 'general' }>({ title: '', personnel: [], mode: 'general' });
-
 
     useEffect(() => {
         const fetchPersonnel = async () => {
             try {
                 setLoading(true);
                 const response = await fetch('/api/personnel?type=personnel&pageSize=100000');
-                if (!response.ok) {
-                    throw new Error('خطا در دریافت اطلاعات پرسنل');
-                }
+                if (!response.ok) { throw new Error('خطا در دریافت اطلاعات پرسنل'); }
                 const data = await response.json();
                 setPersonnel(data.personnel || []);
             } catch (err) {
@@ -214,25 +195,19 @@ const DashboardPage: React.FC = () => {
             };
             const numA = extractNumber(keyA);
             const numB = extractNumber(keyB);
-            
-            if (numA === Infinity && numB === Infinity) {
-                return keyA.localeCompare(keyB, 'fa');
-            }
+            if (numA === Infinity && numB === Infinity) return keyA.localeCompare(keyB, 'fa');
             return numA - numB;
         });
         
         const currentDate = getCurrentPersianDate();
-        
         const ages: number[] = [];
         const closeToRetirementList: (Personnel & { age: number })[] = [];
         const retiredList: (Personnel & { age: number })[] = [];
         const ageGroups: Record<string, number> = { 'زیر ۳۰ سال': 0, '۳۱-۴۰ سال': 0, '۴۱-۵۰ سال': 0, '۵۱-۶۰ سال': 0, 'بیشتر از ۶۰': 0, 'نامشخص': 0 };
         const byAgeGroupPersonnel: Record<string, (Personnel & { age: number })[]> = { 'زیر ۳۰ سال': [], '۳۱-۴۰ سال': [], '۴۱-۵۰ سال': [], '۵۱-۶۰ سال': [], 'بیشتر از ۶۰': [], 'نامشخص': [] };
-        
         const serviceYearsList: number[] = [];
         const serviceYearGroups: Record<string, number> = { 'کمتر از ۵ سال': 0, '۵ تا ۱۰ سال': 0, '۱۱ تا ۱۵ سال': 0, '۱۶ تا ۲۰ سال': 0, 'بیشتر از ۲۰ سال': 0, 'نامشخص': 0 };
         const byServiceYearsPersonnel: Record<string, (Personnel & { serviceYears: number })[]> = { 'کمتر از ۵ سال': [], '۵ تا ۱۰ سال': [], '۱۱ تا ۱۵ سال': [], '۱۶ تا ۲۰ سال': [], 'بیشتر از ۲۰ سال': [], 'نامشخص': [] };
-
 
         personnel.forEach(p => {
             const age = persianDateToAge(p.birth_date, currentDate);
@@ -241,16 +216,12 @@ const DashboardPage: React.FC = () => {
                 ages.push(age);
                 if (age >= 55 && age < 60) closeToRetirementList.push(personnelWithAge);
                 if (age >= 60) retiredList.push(personnelWithAge);
-
                 if (age <= 30) { ageGroups['زیر ۳۰ سال']++; byAgeGroupPersonnel['زیر ۳۰ سال'].push(personnelWithAge); }
                 else if (age <= 40) { ageGroups['۳۱-۴۰ سال']++; byAgeGroupPersonnel['۳۱-۴۰ سال'].push(personnelWithAge); }
                 else if (age <= 50) { ageGroups['۴۱-۵۰ سال']++; byAgeGroupPersonnel['۴۱-۵۰ سال'].push(personnelWithAge); }
                 else if (age <= 60) { ageGroups['۵۱-۶۰ سال']++; byAgeGroupPersonnel['۵۱-۶۰ سال'].push(personnelWithAge); }
                 else if (age > 60) { ageGroups['بیشتر از ۶۰']++; byAgeGroupPersonnel['بیشتر از ۶۰'].push(personnelWithAge); }
-            } else {
-                ageGroups['نامشخص']++;
-                byAgeGroupPersonnel['نامشخص'].push(personnelWithAge);
-            }
+            } else { ageGroups['نامشخص']++; byAgeGroupPersonnel['نامشخص'].push(personnelWithAge); }
             
             const serviceYears = persianDateToServiceYears(p.hire_date, currentDate);
             const personnelWithService = { ...p, serviceYears: serviceYears ?? -1 };
@@ -261,37 +232,22 @@ const DashboardPage: React.FC = () => {
                 else if (serviceYears <= 15) { serviceYearGroups['۱۱ تا ۱۵ سال']++; byServiceYearsPersonnel['۱۱ تا ۱۵ سال'].push(personnelWithService); }
                 else if (serviceYears <= 20) { serviceYearGroups['۱۶ تا ۲۰ سال']++; byServiceYearsPersonnel['۱۶ تا ۲۰ سال'].push(personnelWithService); }
                 else { serviceYearGroups['بیشتر از ۲۰ سال']++; byServiceYearsPersonnel['بیشتر از ۲۰ سال'].push(personnelWithService); }
-            } else {
-                 serviceYearGroups['نامشخص']++; 
-                 byServiceYearsPersonnel['نامشخص'].push(personnelWithService);
-            }
+            } else { serviceYearGroups['نامشخص']++; byServiceYearsPersonnel['نامشخص'].push(personnelWithService); }
         });
 
         const averageAge = ages.length > 0 ? Math.round(ages.reduce((a, b) => a + b, 0) / ages.length) : 0;
         const averageService = serviceYearsList.length > 0 ? Math.round(serviceYearsList.reduce((a, b) => a + b, 0) / serviceYearsList.length) : 0;
 
         return {
-            total: personnel.length,
-            byDepartment: toSortedArray(groupAndCount('department')),
-            byDepartmentPersonnel: groupPersonnelByKey('department'),
-            byServiceLocation: toSortedArray(groupAndCount('service_location')),
-            byServiceLocationPersonnel: groupPersonnelByKey('service_location'),
-            byPosition: toSortedArray(groupAndCount('position')),
-            byPositionPersonnel: groupPersonnelByKey('position'),
-            byMaritalStatus: toSortedArray(groupAndCount('marital_status')),
-            byMaritalStatusPersonnel: groupPersonnelByKey('marital_status'),
-            byJobGroup: sortedJobGroups,
-            byJobGroupPersonnel: groupPersonnelByKey('job_group'),
-            byDecreeFactors: toSortedArray(groupAndCount('sum_of_decree_factors')),
-            byDecreeFactorsPersonnel: groupPersonnelByKey('sum_of_decree_factors'),
-            averageAge,
-            closeToRetirementList,
-            retiredList,
-            byAgeGroup: toSortedArray(ageGroups),
-            byAgeGroupPersonnel,
-            averageService,
-            byServiceYears: toSortedArray(serviceYearGroups),
-            byServiceYearsPersonnel
+            total: personnel.length, averageAge, averageService, closeToRetirementList, retiredList,
+            byDepartment: toSortedArray(groupAndCount('department')), byDepartmentPersonnel: groupPersonnelByKey('department'),
+            byServiceLocation: toSortedArray(groupAndCount('service_location')), byServiceLocationPersonnel: groupPersonnelByKey('service_location'),
+            byPosition: toSortedArray(groupAndCount('position')), byPositionPersonnel: groupPersonnelByKey('position'),
+            byMaritalStatus: toSortedArray(groupAndCount('marital_status')), byMaritalStatusPersonnel: groupPersonnelByKey('marital_status'),
+            byJobGroup: sortedJobGroups, byJobGroupPersonnel: groupPersonnelByKey('job_group'),
+            byDecreeFactors: toSortedArray(groupAndCount('sum_of_decree_factors')), byDecreeFactorsPersonnel: groupPersonnelByKey('sum_of_decree_factors'),
+            byAgeGroup: toSortedArray(ageGroups), byAgeGroupPersonnel,
+            byServiceYears: toSortedArray(serviceYearGroups), byServiceYearsPersonnel,
         };
     }, [personnel]);
 
@@ -301,36 +257,16 @@ const DashboardPage: React.FC = () => {
             { key: 'total', label: 'کل پرسنل', value: toPersianDigits(stats.total), icon: UsersIcon, color: 'bg-blue-500', modalData: null },
             { key: 'avgAge', label: 'میانگین سن', value: `${toPersianDigits(stats.averageAge)} سال`, icon: CakeIcon, color: 'bg-green-500', modalData: null },
             { key: 'avgService', label: 'میانگین سابقه', value: `${toPersianDigits(stats.averageService)} سال`, icon: BriefcaseIcon, color: 'bg-indigo-500', modalData: null },
-            { 
-                key: 'nearRetirement', 
-                label: 'نزدیک به بازنشستگی (۵۵-۵۹)', 
-                value: toPersianDigits(stats.closeToRetirementList.length), 
-                icon: CalendarDaysIcon, 
-                color: 'bg-orange-500', 
-                modalData: { title: 'لیست پرسنل نزدیک به بازنشستگی', personnel: stats.closeToRetirementList, mode: 'age' as const } 
-            },
-            { 
-                key: 'atRetirement', 
-                label: 'در سن بازنشستگی (۶۰+)', 
-                value: toPersianDigits(stats.retiredList.length), 
-                icon: CalendarDaysIcon, 
-                color: 'bg-red-500', 
-                modalData: { title: 'لیست پرسنل در سن بازنشستگی', personnel: stats.retiredList, mode: 'age' as const } 
-            }
+            { key: 'nearRetirement', label: 'نزدیک به بازنشستگی (۵۵-۵۹)', value: toPersianDigits(stats.closeToRetirementList.length), icon: CalendarDaysIcon, color: 'bg-orange-500', modalData: { title: 'لیست پرسنل نزدیک به بازنشستگی', personnel: stats.closeToRetirementList, mode: 'age' as const } },
+            { key: 'atRetirement', label: 'در سن بازنشستگی (۶۰+)', value: toPersianDigits(stats.retiredList.length), icon: CalendarDaysIcon, color: 'bg-red-500', modalData: { title: 'لیست پرسنل در سن بازنشستگی', personnel: stats.retiredList, mode: 'age' as const } }
         ];
     }, [stats]);
-    
-    const selectedTopStat = useMemo(() => {
-        return topStats.find(s => s.key === selectedTopStatKey);
-    }, [selectedTopStatKey, topStats]);
 
     const holidayInfo = useMemo(() => {
         const holidaysByMonth: number[] = Array(12).fill(0);
         holidays1403.forEach(holiday => {
             const monthIndex = holiday.date[1] - 1;
-            if (monthIndex >= 0 && monthIndex < 12) {
-                holidaysByMonth[monthIndex]++;
-            }
+            if (monthIndex >= 0 && monthIndex < 12) { holidaysByMonth[monthIndex]++; }
         });
 
         const today = new Date();
@@ -357,119 +293,75 @@ const DashboardPage: React.FC = () => {
         setIsModalOpen(true);
     };
 
-    const statOptions = [
+    const allStatOptions = [
+        ...topStats.map(s => ({ key: s.key, label: s.label })),
         { key: 'byDepartment', label: 'آمار بر اساس واحد' },
         { key: 'byServiceLocation', label: 'آمار بر اساس محل خدمت' },
         { key: 'byAgeGroup', label: 'آمار بر اساس گروه سنی' },
         { key: 'byServiceYears', label: 'آمار بر اساس سابقه خدمت' },
         { key: 'byPosition', label: 'آمار بر اساس سمت' },
         { key: 'byJobGroup', label: 'آمار بر اساس گروه شغلی' },
-        { key: 'byDecreeFactors', label: 'آمار بر اساس جمع عوامل حکمی' },
         { key: 'byMaritalStatus', label: 'آمار بر اساس وضعیت تاهل' },
         { key: 'holidays', label: 'تقویم تعطیلات' },
     ];
 
     const renderSelectedStat = () => {
         if (!stats) return <div className="text-center p-10 text-gray-500">داده‌ای برای نمایش وجود ندارد.</div>;
-        switch (selectedStat) {
-            case 'byDepartment':
-                return <StatListCard title="آمار بر اساس واحد" data={stats.byDepartment} icon={BuildingOffice2Icon} onItemClick={(key) => handleStatClick(`لیست پرسنل واحد: ${key}`, stats.byDepartmentPersonnel[key], 'general')} />;
-            case 'byServiceLocation':
-                return <StatListCard title="آمار بر اساس محل خدمت" data={stats.byServiceLocation} icon={MapPinIcon} onItemClick={(key) => handleStatClick(`لیست پرسنل محل خدمت: ${key}`, stats.byServiceLocationPersonnel[key], 'general')} />;
-            case 'byAgeGroup':
-                return <StatListCard 
-                            title="آمار بر اساس گروه سنی" 
-                            data={stats.byAgeGroup} 
-                            icon={CakeIcon} 
-                            onItemClick={(key) => handleStatClick(`لیست پرسنل: ${key}`, stats.byAgeGroupPersonnel[key], 'age')}
-                        />;
-             case 'byServiceYears':
-                return <StatListCard 
-                            title="آمار بر اساس سابقه خدمت" 
-                            data={stats.byServiceYears} 
-                            icon={BriefcaseIcon} 
-                            onItemClick={(key) => handleStatClick(`لیست پرسنل: ${key}`, stats.byServiceYearsPersonnel[key], 'service')}
-                        />;
-            case 'byPosition':
-                return <StatListCard title="آمار بر اساس سمت" data={stats.byPosition} icon={BriefcaseIcon} onItemClick={(key) => handleStatClick(`لیست پرسنل با سمت: ${key}`, stats.byPositionPersonnel[key], 'general')} />;
-            case 'byJobGroup':
-                return <StatListCard title="آمار بر اساس گروه شغلی" data={stats.byJobGroup} icon={DocumentReportIcon} onItemClick={(key) => handleStatClick(`لیست پرسنل با گروه شغلی: ${key}`, stats.byJobGroupPersonnel[key], 'general')} />;
-            case 'byDecreeFactors':
-                return <StatListCard title="آمار بر اساس جمع عوامل حکمی" data={stats.byDecreeFactors} icon={DocumentReportIcon} onItemClick={(key) => handleStatClick(`لیست پرسنل با جمع عوامل حکمی: ${key}`, stats.byDecreeFactorsPersonnel[key], 'general')} />;
-            case 'byMaritalStatus':
-                return <StatListCard title="آمار بر اساس وضعیت تاهل" data={stats.byMaritalStatus} icon={HeartIcon} onItemClick={(key) => handleStatClick(`لیست پرسنل با وضعیت تاهل: ${key}`, stats.byMaritalStatusPersonnel[key], 'general')} />;
-            case 'holidays':
-                return <HolidayCalendarCard holidayInfo={holidayInfo} />;
-            default:
-                return null;
+
+        const topStatInfo = topStats.find(s => s.key === selectedStatKey);
+        if (topStatInfo) {
+            return (
+                <div className="bg-slate-50 dark:bg-slate-700/50 p-6 rounded-lg flex items-center justify-center flex-col h-full min-h-[400px]">
+                    <div className={`p-4 rounded-full ${topStatInfo.color}`}>
+                        <topStatInfo.icon className="w-10 h-10 text-white" />
+                    </div>
+                    <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">{topStatInfo.label}</p>
+                    {topStatInfo.modalData ? (
+                        <button onClick={() => handleStatClick(topStatInfo.modalData!.title, topStatInfo.modalData!.personnel, topStatInfo.modalData!.mode)} className="text-5xl font-bold text-gray-800 dark:text-white hover:underline focus:outline-none">
+                            {topStatInfo.value}
+                        </button>
+                    ) : (
+                        <p className="text-5xl font-bold text-gray-800 dark:text-white">{topStatInfo.value}</p>
+                    )}
+                </div>
+            );
+        }
+
+        switch (selectedStatKey) {
+            case 'byDepartment': return <StatListCard title="آمار بر اساس واحد" data={stats.byDepartment} icon={BuildingOffice2Icon} onItemClick={(key) => handleStatClick(`لیست پرسنل واحد: ${key}`, stats.byDepartmentPersonnel[key], 'general')} />;
+            case 'byServiceLocation': return <StatListCard title="آمار بر اساس محل خدمت" data={stats.byServiceLocation} icon={MapPinIcon} onItemClick={(key) => handleStatClick(`لیست پرسنل محل خدمت: ${key}`, stats.byServiceLocationPersonnel[key], 'general')} />;
+            case 'byAgeGroup': return <StatListCard title="آمار بر اساس گروه سنی" data={stats.byAgeGroup} icon={CakeIcon} onItemClick={(key) => handleStatClick(`لیست پرسنل: ${key}`, stats.byAgeGroupPersonnel[key], 'age')} />;
+            case 'byServiceYears': return <StatListCard title="آمار بر اساس سابقه خدمت" data={stats.byServiceYears} icon={BriefcaseIcon} onItemClick={(key) => handleStatClick(`لیست پرسنل: ${key}`, stats.byServiceYearsPersonnel[key], 'service')} />;
+            case 'byPosition': return <StatListCard title="آمار بر اساس سمت" data={stats.byPosition} icon={BriefcaseIcon} onItemClick={(key) => handleStatClick(`لیست پرسنل با سمت: ${key}`, stats.byPositionPersonnel[key], 'general')} />;
+            case 'byJobGroup': return <StatListCard title="آمار بر اساس گروه شغلی" data={stats.byJobGroup} icon={DocumentReportIcon} onItemClick={(key) => handleStatClick(`لیست پرسنل با گروه شغلی: ${key}`, stats.byJobGroupPersonnel[key], 'general')} />;
+            case 'byMaritalStatus': return <StatListCard title="آمار بر اساس وضعیت تاهل" data={stats.byMaritalStatus} icon={HeartIcon} onItemClick={(key) => handleStatClick(`لیست پرسنل با وضعیت تاهل: ${key}`, stats.byMaritalStatusPersonnel[key], 'general')} />;
+            case 'holidays': return <HolidayCalendarCard holidayInfo={holidayInfo} />;
+            default: return null;
         }
     };
 
-    if (loading) {
-        return <div className="text-center p-10">در حال بارگذاری اطلاعات داشبورد...</div>;
-    }
-
-    if (error) {
-        return <div className="text-center p-10 text-red-500">{error}</div>;
-    }
+    if (loading) return <div className="text-center p-10">در حال بارگذاری اطلاعات داشبورد...</div>;
+    if (error) return <div className="text-center p-10 text-red-500">{error}</div>;
     
     return (
         <div className="space-y-6">
-            {stats && (
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-md">
-                    <div className="space-y-6">
-                        <label className="block text-lg font-bold text-gray-700 dark:text-gray-300">
-                            نمایش آمار بر اساس:
-                        </label>
-                        <div className="flex items-center justify-between flex-wrap gap-4">
-                            <div className="flex items-center gap-4">
-                                <select 
-                                    id="top-stat-selector"
-                                    value={selectedTopStatKey}
-                                    onChange={(e) => setSelectedTopStatKey(e.target.value)}
-                                    className="p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:border-slate-600 dark:text-white"
-                                >
-                                    {topStats.map(stat => (
-                                        <option key={stat.key} value={stat.key}>{stat.label}</option>
-                                    ))}
-                                </select>
-                            </div>
-        
-                            {selectedTopStat && (
-                                <div className="flex items-center space-x-3 space-x-reverse bg-slate-50 dark:bg-slate-700/50 p-3 rounded-lg">
-                                    <div className={`p-2.5 rounded-full ${selectedTopStat.color}`}>
-                                        <selectedTopStat.icon className="w-8 h-8 text-white" />
-                                    </div>
-                                    <div>
-                                        {selectedTopStat.modalData ? (
-                                            <button 
-                                                onClick={() => handleStatClick(selectedTopStat.modalData!.title, selectedTopStat.modalData!.personnel, selectedTopStat.modalData!.mode)} 
-                                                className="text-3xl font-bold text-gray-800 dark:text-white hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
-                                            >
-                                                {selectedTopStat.value}
-                                            </button>
-                                        ) : (
-                                            <p className="text-3xl font-bold text-gray-800 dark:text-white">{selectedTopStat.value}</p>
-                                        )}
-                                        <p className="text-sm text-gray-500 dark:text-gray-400">{selectedTopStat.label}</p>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-        
-                        <select 
-                            id="stat-selector"
-                            value={selectedStat}
-                            onChange={(e) => setSelectedStat(e.target.value)}
-                            className="w-full md:w-1/3 p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:border-slate-600 dark:text-white"
-                        >
-                            {statOptions.map(opt => (
-                                <option key={opt.key} value={opt.key}>{opt.label}</option>
-                            ))}
-                        </select>
-                    </div>
+            <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-md">
+                <div className="space-y-4">
+                    <label htmlFor="stat-selector" className="block text-lg font-bold text-gray-700 dark:text-gray-300">
+                        نمایش آمار:
+                    </label>
+                    <select 
+                        id="stat-selector"
+                        value={selectedStatKey}
+                        onChange={(e) => setSelectedStatKey(e.target.value)}
+                        className="w-full md:w-1/2 p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:border-slate-600 dark:text-white"
+                    >
+                        {allStatOptions.map(opt => (
+                            <option key={opt.key} value={opt.key}>{opt.label}</option>
+                        ))}
+                    </select>
                 </div>
-            )}
+            </div>
 
             <div className="min-h-[400px]">
                 {renderSelectedStat()}
