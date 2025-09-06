@@ -64,7 +64,7 @@ async function handlePostPersonnel(body: any, response: VercelResponse, pool: Ve
                     const typedKey = key as keyof NewPersonnel;
                     if (typeof p[typedKey] === 'string') {
                         (p as any)[typedKey] = (p[typedKey] as string)
-                            .replace(/[\u0000-\u001F\u200B-\u200D\u200E\u200F\uFEFF]/g, '')
+                            .replace(/[\u0000-\u001F\u200B-\u000D\u200E\u200F\uFEFF]/g, '')
                             .trim();
                     }
                 }
@@ -228,7 +228,7 @@ async function handlePostDependents(request: VercelRequest, response: VercelResp
           const typedKey = key as keyof NewDependent;
           if (typeof d[typedKey] === 'string') {
               (d as any)[typedKey] = (d[typedKey] as string)
-                  .replace(/[\u0000-\u001F\u200B-\u200D\u200E\u200F\uFEFF]/g, '')
+                  .replace(/[\u0000-\u001F\u200B-\u000D\u200E\u200F\uFEFF]/g, '')
                   .trim();
           }
       }
@@ -454,7 +454,33 @@ async function handleDeleteDocument(request: VercelRequest, response: VercelResp
 // COMMITMENT LETTER HANDLERS
 // =================================================================================
 async function handleGetCommitmentLetters(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
-  const { guarantorCode, searchTerm } = request.query;
+  const { guarantorCode, searchTerm, latest_ref } = request.query;
+  
+  if (latest_ref === 'true') {
+      try {
+          const today = new Date();
+          const formatter = new Intl.DateTimeFormat('fa-IR-u-nu-latn', { year: 'numeric' });
+          const currentPersianYear = formatter.format(today);
+          const { rows } = await pool.sql`
+              SELECT reference_number FROM commitment_letters 
+              WHERE reference_number LIKE ${currentPersianYear + '-%'}
+              ORDER BY reference_number DESC LIMIT 1;
+          `;
+          let nextNumber = 1;
+          if (rows.length > 0 && rows[0].reference_number) {
+              const lastNumStr = rows[0].reference_number.split('-')[1];
+              const lastNum = parseInt(lastNumStr, 10);
+              if (!isNaN(lastNum)) {
+                  nextNumber = lastNum + 1;
+              }
+          }
+          const newRef = `${currentPersianYear}-${String(nextNumber).padStart(3, '0')}`;
+          return response.status(200).json({ next_reference_number: newRef });
+      } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          return response.status(500).json({ error: 'خطا در تولید شماره نامه جدید.', details: errorMessage });
+      }
+  }
 
   if (guarantorCode && typeof guarantorCode === 'string') {
       const { rows } = await pool.sql`
@@ -472,7 +498,7 @@ async function handleGetCommitmentLetters(request: VercelRequest, response: Verc
       query += ` WHERE recipient_name ILIKE $1 OR guarantor_name ILIKE $1 OR recipient_national_id ILIKE $1 OR guarantor_personnel_code ILIKE $1`;
       params.push(`%${searchTerm}%`);
   }
-  query += ` ORDER BY issue_date DESC;`;
+  query += ` ORDER BY issue_date DESC, id DESC;`;
 
   const { rows } = await pool.query(query, params);
   return response.status(200).json({ letters: rows });
@@ -485,8 +511,8 @@ async function handlePostCommitmentLetter(request: VercelRequest, response: Verc
         bank_name, branch_name, reference_number
     } = request.body;
     
-    if (!recipient_name || !recipient_national_id || !guarantor_personnel_code) {
-        return response.status(400).json({ error: 'اطلاعات وام‌گیرنده و ضامن الزامی است.' });
+    if (!recipient_name || !recipient_national_id || !guarantor_personnel_code || !reference_number) {
+        return response.status(400).json({ error: 'اطلاعات وام‌گیرنده، ضامن و شماره نامه الزامی است.' });
     }
 
     try {
@@ -510,6 +536,38 @@ async function handlePostCommitmentLetter(request: VercelRequest, response: Verc
         return response.status(500).json({ error: 'خطا در ذخیره نامه تعهد.', details: errorMessage });
     }
 }
+
+async function handlePutCommitmentLetter(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+    const letter = request.body;
+    if (!letter || !letter.id) {
+        return response.status(400).json({ error: 'شناسه نامه برای ویرایش الزامی است.' });
+    }
+    try {
+        const { rows } = await pool.sql`
+            UPDATE commitment_letters SET
+                recipient_name = ${letter.recipient_name},
+                recipient_national_id = ${letter.recipient_national_id},
+                loan_amount = ${letter.loan_amount},
+                sum_of_decree_factors = ${letter.sum_of_decree_factors},
+                bank_name = ${letter.bank_name},
+                branch_name = ${letter.branch_name},
+                reference_number = ${letter.reference_number}
+            WHERE id = ${letter.id}
+            RETURNING *;
+        `;
+         if (rows.length === 0) {
+            return response.status(404).json({ error: 'نامه برای ویرایش یافت نشد.' });
+        }
+        return response.status(200).json({ message: 'نامه با موفقیت ویرایش شد.', letter: rows[0] });
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        if (errorMessage.includes('duplicate key')) {
+             return response.status(409).json({ error: 'یک نامه دیگر با این شماره ارجاع وجود دارد.' });
+        }
+        return response.status(500).json({ error: 'خطا در ویرایش نامه.', details: errorMessage });
+    }
+}
+
 
 async function handleDeleteCommitmentLetter(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
     const { id } = request.query;
@@ -561,6 +619,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
       case 'PUT':
         if (type === 'personnel') return await handlePutPersonnel(request, response, pool);
         if (type === 'dependents') return await handlePutDependent(request, response, pool);
+        if (type === 'commitment_letters') return await handlePutCommitmentLetter(request, response, pool);
         return response.status(400).json({ error: 'نوع داده نامعتبر است.' });
       
       case 'DELETE':
