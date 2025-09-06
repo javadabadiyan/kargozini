@@ -7,8 +7,14 @@ const toPersianDigits = (s: string | number | null | undefined): string => {
     return String(s).replace(/[0-9]/g, (w) => '۰۱۲۳۴۵۶۷۸۹'[parseInt(w, 10)]);
 };
 
+const toEnglishDigits = (str: string): string => {
+    if (!str) return '';
+    return str.replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d).toString())
+              .replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d).toString());
+};
+
 const formatCurrency = (value: string | number): string => {
-    if (!value) return '۰';
+    if (!value) return '';
     const num = String(value).replace(/,/g, '');
     if (isNaN(Number(num))) return String(value);
     return num.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
@@ -34,11 +40,11 @@ const AccountingCommitmentPage: React.FC = () => {
 
     const [recipientName, setRecipientName] = useState('');
     const [recipientNationalId, setRecipientNationalId] = useState('');
-    const [loanAmount, setLoanAmount] = useState('');
+    const [loanAmount, setLoanAmount] = useState(''); // Raw numeric string
     const [bankName, setBankName] = useState('');
     const [branchName, setBranchName] = useState('');
     const [referenceNumber, setReferenceNumber] = useState('');
-    const [decreeFactors, setDecreeFactors] = useState('');
+    const [decreeFactors, setDecreeFactors] = useState(''); // Raw numeric string
     
     const [totalCommitted, setTotalCommitted] = useState(0);
     const [loadingCommitment, setLoadingCommitment] = useState(false);
@@ -120,12 +126,12 @@ const AccountingCommitmentPage: React.FC = () => {
     const handleSelectGuarantor = (person: Personnel) => {
         setSelectedGuarantor(person);
         setSearchTerm('');
-        setDecreeFactors(formatCurrency(person.sum_of_decree_factors || '0'));
+        setDecreeFactors(toEnglishDigits(String(person.sum_of_decree_factors || '0')).replace(/,/g, ''));
     };
     
     const handleRefreshDecreeFactors = useCallback(() => {
         if (selectedGuarantor) {
-            setDecreeFactors(formatCurrency(selectedGuarantor.sum_of_decree_factors || '0'));
+            setDecreeFactors(toEnglishDigits(String(selectedGuarantor.sum_of_decree_factors || '0')).replace(/,/g, ''));
         }
     }, [selectedGuarantor]);
 
@@ -177,8 +183,8 @@ const AccountingCommitmentPage: React.FC = () => {
                 guarantor_personnel_code: selectedGuarantor.personnel_code,
                 guarantor_name: `${selectedGuarantor.first_name} ${selectedGuarantor.last_name}`,
                 guarantor_national_id: selectedGuarantor.national_id,
-                loan_amount: Number(loanAmount.replace(/,/g, '')),
-                sum_of_decree_factors: Number((decreeFactors || '0').replace(/,/g, '')),
+                loan_amount: Number(loanAmount || '0'),
+                sum_of_decree_factors: Number(decreeFactors || '0'),
                 bank_name: bankName,
                 branch_name: branchName,
                 reference_number: referenceNumber,
@@ -234,13 +240,27 @@ const AccountingCommitmentPage: React.FC = () => {
     };
 
     const { creditLimit, remainingCredit, isOverLimit } = useMemo(() => {
-        const factors = Number((decreeFactors || '0').replace(/,/g, ''));
-        const amount = Number((loanAmount || '0').replace(/,/g, ''));
+        const factors = Number(decreeFactors || '0');
+        const amount = Number(loanAmount || '0');
         const creditLimit = factors * 30;
         const remainingCredit = creditLimit - totalCommitted;
         const isOverLimit = amount > remainingCredit && amount > 0;
         return { creditLimit, remainingCredit, isOverLimit };
     }, [decreeFactors, loanAmount, totalCommitted]);
+
+    const handleLoanAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = toEnglishDigits(e.target.value).replace(/,/g, '');
+        if (/^\d*$/.test(val)) {
+            setLoanAmount(val);
+        }
+    };
+
+    const handleDecreeFactorsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = toEnglishDigits(e.target.value).replace(/,/g, '');
+        if (/^\d*$/.test(val)) {
+            setDecreeFactors(val);
+        }
+    };
 
     const statusColor = { info: 'bg-blue-100 text-blue-800', success: 'bg-green-100 text-green-800', error: 'bg-red-100 text-red-800' };
     const inputClass = "w-full px-3 py-2 text-gray-700 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent";
@@ -293,14 +313,14 @@ const AccountingCommitmentPage: React.FC = () => {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                              <div><label className="text-sm">نام وام گیرنده</label><input type="text" value={recipientName} onChange={e => setRecipientName(e.target.value)} className={inputClass} required/></div>
                              <div><label className="text-sm">کد ملی وام گیرنده</label><input type="text" value={recipientNationalId} onChange={e => setRecipientNationalId(e.target.value)} className={inputClass} required/></div>
-                             <div><label className="text-sm">مبلغ وام (ریال)</label><input type="text" value={loanAmount} onChange={e => setLoanAmount(formatCurrency(e.target.value))} className={inputClass} required/></div>
+                             <div><label className="text-sm">مبلغ وام (ریال)</label><input type="text" value={toPersianDigits(formatCurrency(loanAmount))} onChange={handleLoanAmountChange} className={inputClass} required/></div>
                              <div>
                                 <label className="text-sm">جمع عوامل حکمی ضامن (ریال)</label>
                                 <div className="flex items-center gap-2">
                                     <input 
                                         type="text" 
-                                        value={decreeFactors} 
-                                        onChange={e => setDecreeFactors(formatCurrency(e.target.value))} 
+                                        value={toPersianDigits(formatCurrency(decreeFactors))} 
+                                        onChange={handleDecreeFactorsChange} 
                                         className={inputClass} 
                                         disabled={!selectedGuarantor}
                                     />
