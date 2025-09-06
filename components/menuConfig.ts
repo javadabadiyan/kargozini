@@ -1,3 +1,4 @@
+
 import React from 'react';
 import type { MenuItem } from '../types';
 import { HomeIcon, UsersIcon, CircleIcon, DocumentTextIcon, BriefcaseIcon, ShieldCheckIcon, DocumentReportIcon, CogIcon, DocumentPlusIcon } from './icons/Icons';
@@ -11,7 +12,8 @@ import SettingsPage from './pages/SettingsPage';
 import DashboardPage from './pages/DashboardPage';
 import DocumentUploadPage from './pages/DocumentUploadPage';
 
-const AccountingCommitmentPage: React.FC = () => React.createElement(PlaceholderPage, { title: "نامه تعهد حسابداری" });
+const AccountingCommitmentPage: React.FC = () => React.createElement(PlaceholderPage, { title: "صدور نامه تعهد حسابداری" });
+const CommitmentLetterArchivePage: React.FC = () => React.createElement(PlaceholderPage, { title: "بایگانی نامه ها" });
 const DisciplinaryCommitteePage: React.FC = () => React.createElement(PlaceholderPage, { title: "کمیته تشویق و انضباطی" });
 const PerformanceReviewPage: React.FC = () => React.createElement(PlaceholderPage, { title: "ارزیابی عملکرد" });
 const JobGroupPage: React.FC = () => React.createElement(PlaceholderPage, { title: "گروه شغلی پرسنل" });
@@ -31,7 +33,15 @@ export const ALL_MENU_ITEMS: MenuItem[] = [
   { 
     id: 'recruitment', label: 'کارگزینی', icon: BriefcaseIcon,
     children: [
-      { id: 'accounting_commitment', label: 'نامه تعهد حسابداری', icon: CircleIcon, page: AccountingCommitmentPage },
+      { 
+        id: 'accounting_commitment_parent',
+        label: 'نامه تعهد حسابداری', 
+        icon: DocumentReportIcon,
+        children: [
+          { id: 'accounting_commitment', label: 'صدور نامه تعهد', icon: CircleIcon, page: AccountingCommitmentPage },
+          { id: 'commitment_letter_archive', label: 'بایگانی نامه ها', icon: CircleIcon, page: CommitmentLetterArchivePage }
+        ]
+      },
       { id: 'disciplinary_committee', label: 'کمیته تشویق و انضباطی', icon: CircleIcon, page: DisciplinaryCommitteePage },
       { id: 'performance_review', label: 'ارزیابی عملکرد', icon: CircleIcon, page: PerformanceReviewPage },
       { id: 'job_group', label: 'گروه شغلی پرسنل', icon: CircleIcon, page: JobGroupPage },

@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type { AppUser, UserPermissions } from '../../types';
 import UserEditModal from '../UserEditModal';
@@ -12,7 +13,9 @@ const PERMISSION_KEYS: { key: keyof UserPermissions, label: string }[] = [
     { key: 'dependents_info', label: ' - اطلاعات بستگان' },
     { key: 'document_upload', label: ' - بارگذاری مدارک' },
     { key: 'recruitment', label: 'منوی کارگزینی' },
-    { key: 'accounting_commitment', label: ' - نامه تعهد حسابداری' },
+    { key: 'accounting_commitment_parent', label: ' - نامه تعهد حسابداری' },
+    { key: 'accounting_commitment', label: '   - صدور نامه تعهد' },
+    { key: 'commitment_letter_archive', label: '   - بایگانی نامه ها' },
     { key: 'disciplinary_committee', label: ' - کمیته تشویق و انضباطی' },
     { key: 'performance_review', label: ' - ارزیابی عملکرد' },
     { key: 'job_group', label: ' - گروه شغلی پرسنل' },
