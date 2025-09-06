@@ -33,13 +33,10 @@ export const ALL_MENU_ITEMS: MenuItem[] = [
     id: 'recruitment', label: 'کارگزینی', icon: BriefcaseIcon,
     children: [
       { 
-        id: 'accounting_commitment_parent',
+        id: 'accounting_commitment',
         label: 'نامه تعهد حسابداری', 
         icon: DocumentReportIcon,
-        children: [
-          { id: 'accounting_commitment', label: 'صدور نامه تعهد', icon: CircleIcon, page: AccountingCommitmentPage },
-          { id: 'commitment_letter_archive', label: 'بایگانی نامه ها', icon: CircleIcon, page: CommitmentLetterArchivePage }
-        ]
+        page: AccountingCommitmentPage
       },
       { id: 'disciplinary_committee', label: 'کمیته تشویق و انضباطی', icon: CircleIcon, page: DisciplinaryCommitteePage },
       { id: 'performance_review', label: 'ارزیابی عملکرد', icon: CircleIcon, page: PerformanceReviewPage },
