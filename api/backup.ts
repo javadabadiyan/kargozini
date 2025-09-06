@@ -45,7 +45,8 @@ async function handleGet(response: VercelResponse, client: VercelPoolClient) {
     try {
         const backupData: { [key: string]: any[] } = {};
         for (const table of TABLES_IN_ORDER) {
-            const { rows } = await client.sql`SELECT * FROM ${client.escapeIdentifier(table)}`;
+// FIX: Replace non-existent `client.escapeIdentifier` and incorrect `client.sql` usage with `client.query` for dynamic table names.
+            const { rows } = await (client as any).query(`SELECT * FROM ${quote(table)}`);
             backupData[table] = rows;
         }
         return response.status(200).json(backupData);
@@ -68,7 +69,8 @@ async function handlePost(request: VercelRequest, response: VercelResponse, clie
         await client.sql`BEGIN`;
         // Truncate in reverse order of creation to respect foreign keys
         for (const table of [...TABLES_IN_ORDER].reverse()) {
-            await client.sql`TRUNCATE TABLE ${client.escapeIdentifier(table)} RESTART IDENTITY CASCADE`;
+// FIX: Replace non-existent `client.escapeIdentifier` and incorrect `client.sql` usage with `client.query` for dynamic table names.
+            await (client as any).query(`TRUNCATE TABLE ${quote(table)} RESTART IDENTITY CASCADE`);
         }
         
         for (const table of TABLES_IN_ORDER) {
@@ -121,7 +123,8 @@ async function handleDelete(response: VercelResponse, client: VercelPoolClient) 
     try {
         await client.sql`BEGIN`;
         for (const table of [...TABLES_IN_ORDER].reverse()) {
-             await client.sql`TRUNCATE TABLE ${client.escapeIdentifier(table)} RESTART IDENTITY CASCADE`;
+// FIX: Replace non-existent `client.escapeIdentifier` and incorrect `client.sql` usage with `client.query` for dynamic table names.
+             await (client as any).query(`TRUNCATE TABLE ${quote(table)} RESTART IDENTITY CASCADE`);
         }
         await client.sql`COMMIT`;
         return response.status(200).json({ message: 'تمام اطلاعات با موفقیت پاک شد.' });

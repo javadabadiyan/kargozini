@@ -21,7 +21,8 @@ async function handleGeneralReport(request: VercelRequest, response: VercelRespo
     if (position && typeof position === 'string') { conditions.push(`cm."position" = $${paramIndex++}`); params.push(position); }
     if (conditions.length > 0) query += ` WHERE ${conditions.join(' AND ')}`;
     query += ` ORDER BY cm.full_name, cl.entry_time DESC;`;
-    const { rows } = await pool.query(query, params);
+// FIX: Cast pool to any to use the untyped `query` method for dynamic queries.
+    const { rows } = await (pool as any).query(query, params);
     return response.status(200).json({ reports: rows });
 }
 
@@ -54,7 +55,8 @@ async function handleHourlyReport(request: VercelRequest, response: VercelRespon
     if (position && typeof position === 'string') { conditions.push(`cm."position" = $${paramIndex++}`); params.push(position); }
     if (conditions.length > 0) query += ` WHERE ${conditions.join(' AND ')}`;
     query += ` ORDER BY cm.full_name, COALESCE(hcl.exit_time, hcl.entry_time) DESC;`;
-    const { rows } = await pool.query(query, params);
+// FIX: Cast pool to any to use the untyped `query` method for dynamic queries.
+    const { rows } = await (pool as any).query(query, params);
     return response.status(200).json({ reports: rows });
 }
 
@@ -74,7 +76,8 @@ async function handleEditsReport(request: VercelRequest, response: VercelRespons
     if (position && typeof position === 'string') { conditions.push(`cm."position" = $${paramIndex++}`); params.push(position); }
     if (conditions.length > 0) query += ` WHERE ${conditions.join(' AND ')}`;
     query += ` ORDER BY cel.edit_timestamp DESC;`;
-    const { rows } = await pool.query(query, params);
+// FIX: Cast pool to any to use the untyped `query` method for dynamic queries.
+    const { rows } = await (pool as any).query(query, params);
     return response.status(200).json({ logs: rows });
 }
 

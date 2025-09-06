@@ -466,15 +466,17 @@ async function handleGetCommitmentLetters(request: VercelRequest, response: Verc
       return response.status(200).json({ totalCommitted: Number(totalCommitted) });
   }
 
-  let query = `SELECT * FROM commitment_letters`;
-  const params: string[] = [];
+// FIX: Refactor to use `pool.sql` instead of the untyped `pool.query`
   if (searchTerm && typeof searchTerm === 'string') {
-      query += ` WHERE recipient_name ILIKE $1 OR guarantor_name ILIKE $1 OR recipient_national_id ILIKE $1 OR guarantor_personnel_code ILIKE $1`;
-      params.push(`%${searchTerm}%`);
+    const searchQuery = `%${searchTerm}%`;
+    const { rows } = await pool.sql`
+      SELECT * FROM commitment_letters
+      WHERE recipient_name ILIKE ${searchQuery} OR guarantor_name ILIKE ${searchQuery} OR recipient_national_id ILIKE ${searchQuery} OR guarantor_personnel_code ILIKE ${searchQuery}
+      ORDER BY issue_date DESC;`;
+    return response.status(200).json({ letters: rows });
   }
-  query += ` ORDER BY issue_date DESC;`;
 
-  const { rows } = await pool.query(query, params);
+  const { rows } = await pool.sql`SELECT * FROM commitment_letters ORDER BY issue_date DESC;`;
   return response.status(200).json({ letters: rows });
 }
 

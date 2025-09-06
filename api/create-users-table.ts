@@ -241,12 +241,35 @@ export default async function handler(
     messages.push('تریگرهای به‌روزرسانی خودکار برای جداول تردد ایجاد شدند.');
     
     const adminPermissions = JSON.stringify({
-      dashboard: true, personnel: true, personnel_list: true, dependents_info: true, document_upload: true,
-      recruitment: true, accounting_commitment: true, disciplinary_committee: true, performance_review: true, job_group: true, bonus_management: true, enter_bonus: true, bonus_analyzer: true,
-      settings: true, user_management: true,
+      dashboard: true,
+      personnel: true,
+      personnel_list: true,
+      dependents_info: true,
+      document_upload: true,
+      recruitment: true,
+      accounting_commitment_parent: true,
+      accounting_commitment: true,
+      commitment_letter_archive: true,
+      disciplinary_committee: true,
+      performance_review: true,
+      job_group: true,
+      bonus_management: true,
+      enter_bonus: true,
+      bonus_analyzer: true,
+      security: true,
+      commuting_members: true,
+      log_commute: true,
+      commute_report: true,
+      settings: true,
+      user_management: true,
     });
     const guardPermissions = JSON.stringify({
-      dashboard: false, personnel: false, security: true, log_commute: true,
+      dashboard: false,
+      personnel: false,
+      security: true,
+      commuting_members: true,
+      log_commute: true,
+      commute_report: true,
     });
 
     await client.sql`
