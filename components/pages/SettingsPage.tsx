@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import type { AppUser, UserPermissions } from '../../types';
 import UserEditModal from '../UserEditModal';

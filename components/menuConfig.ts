@@ -1,4 +1,3 @@
-
 import React from 'react';
 import type { MenuItem } from '../types';
 import { HomeIcon, UsersIcon, CircleIcon, DocumentTextIcon, BriefcaseIcon, ShieldCheckIcon, DocumentReportIcon, CogIcon, DocumentPlusIcon } from './icons/Icons';
