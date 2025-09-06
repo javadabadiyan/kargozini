@@ -71,41 +71,73 @@ const StatListCard: React.FC<{
     data: [string, string | number][]; 
     icon: React.ComponentType<{ className?: string }>;
     onItemClick?: (key: string) => void;
-}> = ({ title, data, icon: Icon, onItemClick }) => (
-    <div className="bg-white dark:bg-slate-800 p-5 rounded-xl shadow-md h-full flex flex-col">
-        <div className="flex items-center mb-4">
-            <Icon className="w-6 h-6 text-gray-500 ml-3" />
-            <h3 className="text-lg font-bold text-gray-800 dark:text-white">{title}</h3>
-        </div>
-        <div className="overflow-y-auto flex-1 pr-2 max-h-96">
-            <ul className="space-y-3">
-                {data.map(([key, value]) => (
-                    <li key={key} className="flex justify-between items-center text-sm">
-                        <span className="text-gray-600 dark:text-gray-300">{key || 'نامشخص'}</span>
-                        {onItemClick ? (
-                             <button 
+}> = ({ title, data, icon: Icon, onItemClick }) => {
+    const maxValue = useMemo(() => {
+        if (!data || data.length === 0) return 0;
+        const numericValues = data.map(([, value]) => typeof value === 'string' ? parseFloat(value) : value).filter(v => !isNaN(v));
+        return Math.max(...numericValues, 1); // Use 1 as minimum max to avoid division by zero
+    }, [data]);
+    
+    const colors = [
+        'bg-blue-500', 'bg-green-500', 'bg-indigo-500', 'bg-yellow-500', 
+        'bg-pink-500', 'bg-purple-500', 'bg-teal-500', 'bg-sky-500'
+    ];
+
+    return (
+        <div className="bg-white dark:bg-slate-800 p-5 rounded-xl shadow-md h-full flex flex-col transition-all duration-300">
+            <div className="flex items-center mb-4">
+                <Icon className="w-6 h-6 text-gray-500 dark:text-gray-400 ml-3" />
+                <h3 className="text-lg font-bold text-gray-800 dark:text-white">{title}</h3>
+            </div>
+            <div className="overflow-y-auto flex-1 pr-2 space-y-2 max-h-96">
+                {data.map(([key, value], index) => {
+                    const numericValue = typeof value === 'string' ? parseFloat(value) : Number(value);
+                    const percentage = maxValue > 0 ? (numericValue / maxValue) * 100 : 0;
+                    const barColor = colors[index % colors.length];
+
+                    const content = (
+                        <div className="relative w-full h-10 flex items-center pr-4 rounded-lg overflow-hidden group">
+                            <div 
+                                className={`absolute inset-0 ${barColor} opacity-20 dark:opacity-30 transform origin-right transition-transform duration-500 ease-out`}
+                                style={{ width: `${percentage}%` }}
+                            ></div>
+                            <div className="relative flex justify-between items-center w-full z-10">
+                                <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">{key || 'نامشخص'}</span>
+                                <span className="text-sm font-bold text-gray-800 dark:text-white bg-white/50 dark:bg-black/20 backdrop-blur-sm px-2 py-1 rounded-md">
+                                    {toPersianDigits(value)}
+                                </span>
+                            </div>
+                        </div>
+                    );
+
+                    if (onItemClick) {
+                        return (
+                            <button 
+                                key={key}
                                 onClick={() => onItemClick(key)}
-                                className="font-semibold bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/50 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                                className="w-full text-right focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-slate-800 focus:ring-blue-400 rounded-lg"
+                                aria-label={`مشاهده جزئیات برای ${key}`}
                             >
-                                {toPersianDigits(value)}
+                                {content}
                             </button>
-                        ) : (
-                            <span className="font-semibold bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded-full">{toPersianDigits(value)}</span>
-                        )}
-                    </li>
-                ))}
-            </ul>
+                        );
+                    }
+                    
+                    return <div key={key}>{content}</div>;
+                })}
+            </div>
         </div>
-    </div>
-);
+    );
+};
+
 
 const HolidayCalendarCard: React.FC<{ holidayInfo: { holidaysByMonth: number[], upcomingHolidays: any[] } }> = ({ holidayInfo }) => (
-    <div className="bg-white dark:bg-slate-800 p-5 rounded-xl shadow-md">
+    <div className="bg-white dark:bg-slate-800 p-5 rounded-xl shadow-md h-full flex flex-col transition-all duration-300">
         <div className="flex items-center mb-4">
             <CalendarDaysIcon className="w-6 h-6 text-gray-500 ml-3" />
             <h3 className="text-lg font-bold text-gray-800 dark:text-white">تقویم تعطیلات رسمی سال ۱۴۰۳</h3>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 flex-1">
             <div>
                 <h4 className="font-semibold mb-3 text-gray-700 dark:text-gray-200">تعداد روزهای تعطیل در هر ماه</h4>
                 <div className="grid grid-cols-2 gap-x-6 gap-y-3">
@@ -117,7 +149,7 @@ const HolidayCalendarCard: React.FC<{ holidayInfo: { holidaysByMonth: number[], 
                     ))}
                 </div>
             </div>
-            <div>
+            <div className="overflow-y-auto max-h-80 pr-2">
                 <h4 className="font-semibold mb-3 text-gray-700 dark:text-gray-200">تعطیلات رسمی پیش رو</h4>
                 <ul className="space-y-3">
                     {holidayInfo.upcomingHolidays.map((holiday, index) => (
@@ -311,17 +343,17 @@ const DashboardPage: React.FC = () => {
         const topStatInfo = topStats.find(s => s.key === selectedStatKey);
         if (topStatInfo) {
             return (
-                <div className="bg-slate-50 dark:bg-slate-700/50 p-6 rounded-lg flex items-center justify-center flex-col h-full min-h-[400px]">
-                    <div className={`p-4 rounded-full ${topStatInfo.color}`}>
+                <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-700 dark:to-slate-800 p-6 rounded-xl shadow-lg flex items-center justify-center flex-col h-full min-h-[400px] transition-all duration-300">
+                    <div className={`p-4 rounded-full ${topStatInfo.color} shadow-lg`}>
                         <topStatInfo.icon className="w-10 h-10 text-white" />
                     </div>
-                    <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">{topStatInfo.label}</p>
+                    <p className="mt-4 text-lg text-gray-500 dark:text-gray-400">{topStatInfo.label}</p>
                     {topStatInfo.modalData ? (
-                        <button onClick={() => handleStatClick(topStatInfo.modalData!.title, topStatInfo.modalData!.personnel, topStatInfo.modalData!.mode)} className="text-5xl font-bold text-gray-800 dark:text-white hover:underline focus:outline-none">
+                        <button onClick={() => handleStatClick(topStatInfo.modalData!.title, topStatInfo.modalData!.personnel, topStatInfo.modalData!.mode)} className="text-6xl font-bold text-gray-800 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 transition-colors focus:outline-none">
                             {topStatInfo.value}
                         </button>
                     ) : (
-                        <p className="text-5xl font-bold text-gray-800 dark:text-white">{topStatInfo.value}</p>
+                        <p className="text-6xl font-bold text-gray-800 dark:text-white">{topStatInfo.value}</p>
                     )}
                 </div>
             );
