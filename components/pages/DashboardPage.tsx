@@ -400,59 +400,63 @@ const DashboardPage: React.FC = () => {
     return (
         <div className="space-y-6">
             {stats && (
-                 <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-md flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                         <label htmlFor="top-stat-selector" className="text-sm font-medium text-gray-700 dark:text-gray-300">نمایش آمار:</label>
-                         <select 
-                            id="top-stat-selector"
-                            value={selectedTopStatKey}
-                            onChange={(e) => setSelectedTopStatKey(e.target.value)}
-                            className="p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:border-slate-600 dark:text-white"
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-md space-y-6">
+                    {/* Top stats part */}
+                    <div className="flex items-center justify-between flex-wrap gap-4">
+                        <div className="flex items-center gap-4">
+                            <label htmlFor="top-stat-selector" className="text-sm font-medium text-gray-700 dark:text-gray-300 flex-shrink-0">نمایش آمار کلی:</label>
+                            <select 
+                                id="top-stat-selector"
+                                value={selectedTopStatKey}
+                                onChange={(e) => setSelectedTopStatKey(e.target.value)}
+                                className="p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:border-slate-600 dark:text-white"
+                            >
+                                {topStats.map(stat => (
+                                    <option key={stat.key} value={stat.key}>{stat.label}</option>
+                                ))}
+                            </select>
+                        </div>
+    
+                        {selectedTopStat && (
+                            <div className="flex items-center space-x-3 space-x-reverse bg-slate-50 dark:bg-slate-700/50 p-3 rounded-lg">
+                                <div className={`p-2.5 rounded-full ${selectedTopStat.color}`}>
+                                    <selectedTopStat.icon className="w-8 h-8 text-white" />
+                                </div>
+                                <div>
+                                    {selectedTopStat.modalData ? (
+                                        <button 
+                                            onClick={() => handleStatClick(selectedTopStat.modalData!.title, selectedTopStat.modalData!.personnel, selectedTopStat.modalData!.mode)} 
+                                            className="text-3xl font-bold text-gray-800 dark:text-white hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
+                                        >
+                                            {selectedTopStat.value}
+                                        </button>
+                                    ) : (
+                                        <p className="text-3xl font-bold text-gray-800 dark:text-white">{selectedTopStat.value}</p>
+                                    )}
+                                    <p className="text-sm text-gray-500 dark:text-gray-400">{selectedTopStat.label}</p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+    
+                    <div className="border-t border-gray-200 dark:border-slate-700 pt-6">
+                        {/* Detailed stats part */}
+                        <label htmlFor="stat-selector" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                            نمایش آمار تفصیلی بر اساس:
+                        </label>
+                        <select 
+                            id="stat-selector"
+                            value={selectedStat}
+                            onChange={(e) => setSelectedStat(e.target.value)}
+                            className="w-full md:w-1/3 p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:border-slate-600 dark:text-white"
                         >
-                            {topStats.map(stat => (
-                                <option key={stat.key} value={stat.key}>{stat.label}</option>
+                            {statOptions.map(opt => (
+                                <option key={opt.key} value={opt.key}>{opt.label}</option>
                             ))}
                         </select>
                     </div>
-
-                    {selectedTopStat && (
-                        <div className="flex items-center space-x-3 space-x-reverse">
-                            <div className={`p-2.5 rounded-full ${selectedTopStat.color}`}>
-                                <selectedTopStat.icon className="w-8 h-8 text-white" />
-                            </div>
-                            <div>
-                                {selectedTopStat.modalData ? (
-                                    <button 
-                                        onClick={() => handleStatClick(selectedTopStat.modalData!.title, selectedTopStat.modalData!.personnel, selectedTopStat.modalData!.mode)} 
-                                        className="text-3xl font-bold text-gray-800 dark:text-white hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
-                                    >
-                                        {selectedTopStat.value}
-                                    </button>
-                                ) : (
-                                    <p className="text-3xl font-bold text-gray-800 dark:text-white">{selectedTopStat.value}</p>
-                                )}
-                                <p className="text-sm text-gray-500 dark:text-gray-400">{selectedTopStat.label}</p>
-                            </div>
-                        </div>
-                    )}
                 </div>
             )}
-
-            <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-md">
-                <label htmlFor="stat-selector" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    نمایش آمار تفصیلی بر اساس:
-                </label>
-                <select 
-                    id="stat-selector"
-                    value={selectedStat}
-                    onChange={(e) => setSelectedStat(e.target.value)}
-                    className="w-full md:w-1/3 p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-slate-700 dark:border-slate-600 dark:text-white"
-                >
-                    {statOptions.map(opt => (
-                        <option key={opt.key} value={opt.key}>{opt.label}</option>
-                    ))}
-                </select>
-            </div>
 
             <div className="min-h-[400px]">
                 {renderSelectedStat()}
