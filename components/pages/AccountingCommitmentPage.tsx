@@ -164,6 +164,12 @@ const AccountingCommitmentPage: React.FC = () => {
         setSumOfDecreeFactors(person.sum_of_decree_factors || '');
     };
     
+    const handleFetchDecreeFactors = () => {
+        if (selectedGuarantor) {
+            setSumOfDecreeFactors(selectedGuarantor.sum_of_decree_factors || '');
+        }
+    };
+    
     const handleRecipientChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
         setRecipientInfo(prev => ({ ...prev, [name]: value }));
@@ -217,7 +223,24 @@ const AccountingCommitmentPage: React.FC = () => {
                         </div>
                          <div>
                             <label htmlFor="sumOfDecreeFactors" className="block text-sm font-medium text-gray-700 mb-1">جمع عوامل حکم ضامن (ریال)</label>
-                            <input type="text" id="sumOfDecreeFactors" value={formatCurrency(sumOfDecreeFactors)} onChange={e => setSumOfDecreeFactors(e.target.value.replace(/,/g, ''))} className="w-full p-2 border border-gray-300 rounded-md" />
+                            <div className="flex items-center gap-2">
+                                <input 
+                                    type="text" 
+                                    id="sumOfDecreeFactors" 
+                                    value={formatCurrency(sumOfDecreeFactors)} 
+                                    onChange={e => setSumOfDecreeFactors(e.target.value.replace(/,/g, ''))} 
+                                    className="w-full p-2 border border-gray-300 rounded-md" 
+                                />
+                                <button 
+                                    type="button"
+                                    onClick={handleFetchDecreeFactors}
+                                    disabled={!selectedGuarantor}
+                                    className="p-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    title="واکشی از اطلاعات ضامن"
+                                >
+                                    <RefreshIcon className="w-5 h-5" />
+                                </button>
+                            </div>
                         </div>
                         
                         <div>
@@ -283,11 +306,7 @@ const AccountingCommitmentPage: React.FC = () => {
                                 {' '}
                                 <span className="font-bold px-1">{selectedGuarantor ? toPersianDigits(selectedGuarantor.personnel_code) : '...'}</span>
                                 {' '}
-                                و جمع عوامل حکمی
-                                {' '}
-                                <span className="font-bold px-1">{sumOfDecreeFactors ? toPersianDigits(formatCurrency(sumOfDecreeFactors)) : '...'}</span>
-                                {' '}
-                                ریال در این شرکت شاغل باشد بعد از اعلام بانک و با رعایت سقف قانونی کسر و به حساب آن بانک واریز نماید.
+                                در این شرکت شاغل باشد بعد از اعلام بانک و با رعایت سقف قانونی کسر و به حساب آن بانک واریز نماید.
                             </p>
                             <p className="mt-8">
                                 این گواهی بنا به درخواست نامبرده جهت ارائه به بانک فوق صادر گردیده است و فاقد هرگونه ارزش دیگری می باشد.
