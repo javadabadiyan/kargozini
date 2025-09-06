@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { SearchIcon, TrashIcon, DocumentReportIcon } from '../icons/Icons';
 
 interface CommitmentLetter {
@@ -76,6 +76,17 @@ const CommitmentLetterArchivePage: React.FC = () => {
             }
         }
     };
+
+    const summary = useMemo(() => {
+        if (!letters || letters.length === 0) {
+            return { count: 0, totalAmount: 0 };
+        }
+        const totalAmount = letters.reduce((sum, letter) => sum + Number(letter.loan_amount), 0);
+        return {
+            count: letters.length,
+            totalAmount: totalAmount
+        };
+    }, [letters]);
     
     const statusColor = { info: 'bg-blue-100 text-blue-800', success: 'bg-green-100 text-green-800', error: 'bg-red-100 text-red-800' };
 
@@ -83,6 +94,17 @@ const CommitmentLetterArchivePage: React.FC = () => {
         <div className="bg-white p-6 rounded-lg shadow-lg">
             <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b-2 border-gray-100 pb-4">بایگانی نامه‌های تعهد</h2>
             {status && <div className={`p-4 mb-4 text-sm rounded-lg ${statusColor[status.type]}`}>{status.message}</div>}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                    <h4 className="font-bold text-blue-800">تعداد کل نامه‌ها</h4>
+                    <p className="text-2xl font-bold text-blue-900">{toPersianDigits(summary.count)}</p>
+                </div>
+                <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                    <h4 className="font-bold text-green-800">جمع مبالغ تعهد شده (ریال)</h4>
+                    <p className="text-2xl font-bold text-green-900 font-mono">{toPersianDigits(formatCurrency(summary.totalAmount))}</p>
+                </div>
+            </div>
 
             <form onSubmit={handleSearchSubmit} className="mb-6">
                 <label htmlFor="search-letters" className="block text-sm font-medium text-gray-700 mb-2">
