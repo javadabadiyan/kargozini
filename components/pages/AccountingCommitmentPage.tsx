@@ -10,6 +10,7 @@ const toPersianDigits = (s: string | number | null | undefined): string => {
 const formatCurrency = (value: string): string => {
     if (!value) return '';
     const num = value.replace(/,/g, '');
+    if (isNaN(Number(num))) return value;
     return num.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 };
 
@@ -114,11 +115,16 @@ const AccountingCommitmentPage: React.FC = () => {
     const [branchName, setBranchName] = useState('شعبه مرکزی سیرجان');
     const [loanAmount, setLoanAmount] = useState('3000000000');
     
-    const [recipientSearch, setRecipientSearch] = useState('');
-    const [selectedRecipient, setSelectedRecipient] = useState<Personnel | null>(null);
+    const [recipientInfo, setRecipientInfo] = useState({
+        firstName: '',
+        lastName: '',
+        fatherName: '',
+        nationalId: '',
+    });
 
     const [guarantorSearch, setGuarantorSearch] = useState('');
     const [selectedGuarantor, setSelectedGuarantor] = useState<Personnel | null>(null);
+    const [sumOfDecreeFactors, setSumOfDecreeFactors] = useState('');
 
     const letterRef = useRef<HTMLDivElement>(null);
     const todayPersian = useMemo(() => new Intl.DateTimeFormat('fa-IR', { year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()), []);
@@ -150,34 +156,34 @@ const AccountingCommitmentPage: React.FC = () => {
         ).slice(0, 10);
     };
 
-    const recipientResults = useMemo(() => filterPersonnel(recipientSearch), [recipientSearch, allPersonnel]);
     const guarantorResults = useMemo(() => filterPersonnel(guarantorSearch), [guarantorSearch, allPersonnel]);
 
-    const handleSelectRecipient = (person: Personnel) => {
-        setSelectedRecipient(person);
-        setRecipientSearch(`${person.first_name} ${person.last_name}`);
-    };
-    
     const handleSelectGuarantor = (person: Personnel) => {
         setSelectedGuarantor(person);
         setGuarantorSearch(`${person.first_name} ${person.last_name}`);
+        setSumOfDecreeFactors(person.sum_of_decree_factors || '');
+    };
+    
+    const handleRecipientChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        setRecipientInfo(prev => ({ ...prev, [name]: value }));
     };
 
     const handleReset = () => {
         setBankName('بانک رفاه');
         setBranchName('شعبه مرکزی سیرجان');
         setLoanAmount('3000000000');
-        setRecipientSearch('');
-        setSelectedRecipient(null);
+        setRecipientInfo({ firstName: '', lastName: '', fatherName: '', nationalId: '' });
         setGuarantorSearch('');
         setSelectedGuarantor(null);
+        setSumOfDecreeFactors('');
     };
 
     const handlePrint = () => {
         window.print();
     };
 
-    const isReady = selectedRecipient && selectedGuarantor && loanAmount && bankName && branchName;
+    const isReady = recipientInfo.firstName && recipientInfo.lastName && recipientInfo.nationalId && selectedGuarantor && loanAmount && bankName && branchName;
 
     return (
         <div className="bg-white p-6 rounded-lg shadow-lg">
@@ -209,8 +215,23 @@ const AccountingCommitmentPage: React.FC = () => {
                             <label htmlFor="loanAmount" className="block text-sm font-medium text-gray-700 mb-1">مبلغ وام (ریال)</label>
                             <input type="text" id="loanAmount" value={formatCurrency(loanAmount)} onChange={e => setLoanAmount(e.target.value.replace(/,/g, ''))} className="w-full p-2 border border-gray-300 rounded-md" />
                         </div>
-                        <SearchablePersonnelInput label="وام گیرنده" searchTerm={recipientSearch} setSearchTerm={setRecipientSearch} results={recipientResults} onSelect={handleSelectRecipient} selectedPerson={selectedRecipient} />
+                        
+                        <div>
+                            <h4 className="block text-sm font-medium text-gray-700 mb-2">اطلاعات وام گیرنده (دستی)</h4>
+                            <div className="space-y-2 p-3 border rounded-md bg-white">
+                                <input type="text" name="firstName" value={recipientInfo.firstName} onChange={handleRecipientChange} placeholder="نام" className="w-full p-2 border border-gray-300 rounded-md" />
+                                <input type="text" name="lastName" value={recipientInfo.lastName} onChange={handleRecipientChange} placeholder="نام خانوادگی" className="w-full p-2 border border-gray-300 rounded-md" />
+                                <input type="text" name="fatherName" value={recipientInfo.fatherName} onChange={handleRecipientChange} placeholder="نام پدر" className="w-full p-2 border border-gray-300 rounded-md" />
+                                <input type="text" name="nationalId" value={recipientInfo.nationalId} onChange={handleRecipientChange} placeholder="کد ملی" className="w-full p-2 border border-gray-300 rounded-md" />
+                            </div>
+                        </div>
+
                         <SearchablePersonnelInput label="ضامن" searchTerm={guarantorSearch} setSearchTerm={setGuarantorSearch} results={guarantorResults} onSelect={handleSelectGuarantor} selectedPerson={selectedGuarantor} />
+                        
+                        <div>
+                            <label htmlFor="sumOfDecreeFactors" className="block text-sm font-medium text-gray-700 mb-1">جمع عوامل حکم ضامن (ریال)</label>
+                            <input type="text" id="sumOfDecreeFactors" value={formatCurrency(sumOfDecreeFactors)} onChange={e => setSumOfDecreeFactors(e.target.value.replace(/,/g, ''))} className="w-full p-2 border border-gray-300 rounded-md" />
+                        </div>
                     </div>
                      <div className="flex items-center gap-2">
                         <button onClick={handlePrint} disabled={!isReady} className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed">
@@ -237,18 +258,20 @@ const AccountingCommitmentPage: React.FC = () => {
                                 احتراماً حسابداری این شرکت تعهد می نماید در صورت عدم پرداخت اقساط وام به مبلغ 
                                 <span className="font-bold px-1">{toPersianDigits(formatCurrency(loanAmount))}</span>
                                 ({numberToPersianWords(loanAmount)}) ریال بنام آقای 
-                                <span className="font-bold px-1">{selectedRecipient ? `${selectedRecipient.first_name} ${selectedRecipient.last_name}` : '...'}</span>
+                                <span className="font-bold px-1">{recipientInfo.firstName ? `${recipientInfo.firstName} ${recipientInfo.lastName}` : '...'}</span>
                                 فرزند 
-                                <span className="font-bold px-1">{selectedRecipient ? selectedRecipient.father_name : '...'}</span>
+                                <span className="font-bold px-1">{recipientInfo.fatherName || '...'}</span>
                                 با کد ملی
-                                <span className="font-bold px-1">{selectedRecipient ? toPersianDigits(selectedRecipient.national_id) : '...'}</span>
+                                <span className="font-bold px-1">{recipientInfo.nationalId ? toPersianDigits(recipientInfo.nationalId) : '...'}</span>
                                 از حقوق ضامن نامبرده آقای
                                 <span className="font-bold px-1">{selectedGuarantor ? `${selectedGuarantor.first_name} ${selectedGuarantor.last_name}` : '...'}</span>
                                 فرزند
                                 <span className="font-bold px-1">{selectedGuarantor ? selectedGuarantor.father_name : '...'}</span>
                                 با کد پرسنلی
                                 <span className="font-bold px-1">{selectedGuarantor ? toPersianDigits(selectedGuarantor.personnel_code) : '...'}</span>
-                                در این شرکت شاغل باشد بعد از اعلام بانک و با رعایت سقف قانونی کسر و به حساب آن بانک واریز نماید.
+                                و جمع عوامل حکمی
+                                <span className="font-bold px-1">{sumOfDecreeFactors ? toPersianDigits(formatCurrency(sumOfDecreeFactors)) : '...'}</span>
+                                ریال در این شرکت شاغل باشد بعد از اعلام بانک و با رعایت سقف قانونی کسر و به حساب آن بانک واریز نماید.
                             </p>
                             <p className="mt-8">
                                 این گواهی بنا به درخواست نامبرده جهت ارائه به بانک فوق صادر گردیده است و فاقد هرگونه ارزش دیگری می باشد.
