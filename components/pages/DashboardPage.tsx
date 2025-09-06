@@ -416,12 +416,14 @@ const DashboardPage: React.FC = () => {
     return (
         <div className="space-y-6">
             {stats && (
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-md space-y-6">
-                    <div>
+                <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-md">
+                    <div className="flex flex-col gap-6">
                         {/* Top stats part */}
-                        <div className="flex items-center justify-between flex-wrap gap-4 mb-6">
+                        <div className="flex items-center justify-between flex-wrap gap-4">
                             <div className="flex items-center gap-4">
-                                <label htmlFor="top-stat-selector" className="text-sm font-medium text-gray-700 dark:text-gray-300 flex-shrink-0">نمایش آمار کلی:</label>
+                                <label htmlFor="top-stat-selector" className="text-sm font-medium text-gray-700 dark:text-gray-300 flex-shrink-0">
+                                    نمایش آمار کلی:
+                                </label>
                                 <select 
                                     id="top-stat-selector"
                                     value={selectedTopStatKey}
