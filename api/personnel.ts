@@ -52,7 +52,8 @@ async function handleGetPersonnel(request: VercelRequest, response: VercelRespon
   }
 }
 
-async function handlePostPersonnel(body: any, response: VercelResponse, client: VercelPoolClient) {
+async function handlePostPersonnel(body: any, response: VercelResponse, pool: VercelPool) {
+    const client = await pool.connect();
     try {
         if (Array.isArray(body)) { // Bulk insert
             const allPersonnel: NewPersonnel[] = body;
@@ -63,7 +64,7 @@ async function handlePostPersonnel(body: any, response: VercelResponse, client: 
                     const typedKey = key as keyof NewPersonnel;
                     if (typeof p[typedKey] === 'string') {
                         (p as any)[typedKey] = (p[typedKey] as string)
-                            .replace(/[\u0000-\u001F\u200B-\u000D\u200E\u200F\uFEFF]/g, '')
+                            .replace(/[\u0000-\u001F\u200B-\u200D\u200E\u200F\uFEFF]/g, '')
                             .trim();
                     }
                 }
@@ -81,7 +82,7 @@ async function handlePostPersonnel(body: any, response: VercelResponse, client: 
             for (let i = 0; i < validPersonnelList.length; i += BATCH_SIZE) {
                 const batch = validPersonnelList.slice(i, i + BATCH_SIZE);
                 if (batch.length === 0) continue;
-                await client.query('BEGIN');
+                await client.sql`BEGIN`;
                 const values: (string | null)[] = [];
                 const valuePlaceholders: string[] = [];
                 let paramIndex = 1;
@@ -91,24 +92,22 @@ async function handlePostPersonnel(body: any, response: VercelResponse, client: 
                     valuePlaceholders.push(`(${recordPlaceholders.join(', ')})`);
                 }
                 const query = `INSERT INTO personnel (${columnNames}) VALUES ${valuePlaceholders.join(', ')} ON CONFLICT (personnel_code) DO UPDATE SET ${updateSet};`;
-                await client.query(query, values);
-                await client.query('COMMIT');
+                await (client as any).query(query, values);
+                await client.sql`COMMIT`;
                 totalProcessed += batch.length;
             }
             return response.status(200).json({ message: `عملیات موفق. ${totalProcessed} رکورد پردازش شد.` });
         } else { // Single insert
             const p: NewPersonnel = body;
             if (!p || !p.personnel_code || !p.first_name || !p.last_name) return response.status(400).json({ error: 'کد پرسنلی، نام و نام خانوادگی الزامی هستند.' });
-            const { rows } = await client.query(
-              `INSERT INTO personnel (personnel_code, first_name, last_name, father_name, national_id, id_number, birth_year, birth_date, birth_place, issue_date, issue_place, marital_status, military_status, job_title, "position", employment_type, department, service_location, hire_date, education_level, field_of_study, job_group, sum_of_decree_factors, status)
-              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
-              RETURNING *;`,
-              [p.personnel_code, p.first_name, p.last_name, p.father_name, p.national_id, p.id_number, p.birth_year, p.birth_date, p.birth_place, p.issue_date, p.issue_place, p.marital_status, p.military_status, p.job_title, p.position, p.employment_type, p.department, p.service_location, p.hire_date, p.education_level, p.field_of_study, p.job_group, p.sum_of_decree_factors, p.status]
-            );
+            const { rows } = await pool.sql`
+              INSERT INTO personnel (personnel_code, first_name, last_name, father_name, national_id, id_number, birth_year, birth_date, birth_place, issue_date, issue_place, marital_status, military_status, job_title, "position", employment_type, department, service_location, hire_date, education_level, field_of_study, job_group, sum_of_decree_factors, status)
+              VALUES (${p.personnel_code}, ${p.first_name}, ${p.last_name}, ${p.father_name}, ${p.national_id}, ${p.id_number}, ${p.birth_year}, ${p.birth_date}, ${p.birth_place}, ${p.issue_date}, ${p.issue_place}, ${p.marital_status}, ${p.military_status}, ${p.job_title}, ${p.position}, ${p.employment_type}, ${p.department}, ${p.service_location}, ${p.hire_date}, ${p.education_level}, ${p.field_of_study}, ${p.job_group}, ${p.sum_of_decree_factors}, ${p.status})
+              RETURNING *;`;
             return response.status(201).json({ message: 'پرسنل جدید با موفقیت اضافه شد.', personnel: rows[0] });
         }
     } catch (error) {
-        await client.query('ROLLBACK').catch(() => {});
+        await client.sql`ROLLBACK`.catch(() => {});
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
         console.error("Error in handlePostPersonnel:", error);
 
@@ -130,6 +129,8 @@ async function handlePostPersonnel(body: any, response: VercelResponse, client: 
             error: 'خطا در عملیات پایگاه داده. لطفاً فرمت فایل اکسل و مقادیر داخل آن را بررسی کنید.',
             details: `جزئیات فنی: ${errorMessage}` 
         });
+    } finally {
+        client.release();
     }
 }
 
@@ -227,7 +228,7 @@ async function handlePostDependents(request: VercelRequest, response: VercelResp
           const typedKey = key as keyof NewDependent;
           if (typeof d[typedKey] === 'string') {
               (d as any)[typedKey] = (d[typedKey] as string)
-                  .replace(/[\u0000-\u001F\u200B-\u000D\u200E\u200F\uFEFF]/g, '')
+                  .replace(/[\u0000-\u001F\u200B-\u200D\u200E\u200F\uFEFF]/g, '')
                   .trim();
           }
       }
@@ -239,7 +240,7 @@ async function handlePostDependents(request: VercelRequest, response: VercelResp
   }
   
   try {
-    await client.query('BEGIN');
+    await client.sql`BEGIN`;
     const BATCH_SIZE = 250;
     let totalProcessed = 0;
 
@@ -267,16 +268,16 @@ async function handlePostDependents(request: VercelRequest, response: VercelResp
 
         if (values.length > 0) {
             const query = `INSERT INTO dependents (${quotedColumns.join(', ')}) VALUES ${valuePlaceholders.join(', ')} ON CONFLICT ("personnel_code", "national_id") DO UPDATE SET ${updateSet};`;
-            await client.query(query, values);
+            await (client as any).query(query, values);
         }
         
         totalProcessed += batch.length;
     }
 
-    await client.query('COMMIT');
+    await client.sql`COMMIT`;
     return response.status(200).json({ message: `عملیات موفق. ${totalProcessed} رکورد پردازش شد.` });
   } catch (error) {
-    await client.query('ROLLBACK').catch(() => {});
+    await client.sql`ROLLBACK`.catch(() => {});
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     console.error("Error in handlePostDependents:", error);
     return response.status(500).json({ 
@@ -356,7 +357,7 @@ async function handlePostCommutingMembers(body: any, response: VercelResponse, c
         if (validList.length === 0) return response.status(400).json({ error: 'هیچ رکورد معتبری یافت نشد.' });
         
         try {
-            await client.query('BEGIN');
+            await client.sql`BEGIN`;
             const columns = ['personnel_code', 'full_name', 'department', 'position'];
             const columnNames = columns.map(c => c === 'position' ? `"${c}"` : c).join(', ');
             const updateSet = columns.filter(c => c !== 'personnel_code').map(c => `${c === 'position' ? `"${c}"` : c} = EXCLUDED.${c === 'position' ? `"${c}"` : c}`).join(', ');
@@ -369,11 +370,11 @@ async function handlePostCommutingMembers(body: any, response: VercelResponse, c
                 valuePlaceholders.push(`(${recordPlaceholders.join(', ')})`);
             }
             const query = `INSERT INTO commuting_members (${columnNames}) VALUES ${valuePlaceholders.join(', ')} ON CONFLICT (personnel_code) DO UPDATE SET ${updateSet};`;
-            await client.query(query, values);
-            await client.query('COMMIT');
+            await (client as any).query(query, values);
+            await client.sql`COMMIT`;
             return response.status(200).json({ message: `عملیات موفق. ${validList.length} رکورد پردازش شد.` });
         } catch (error) {
-            await client.query('ROLLBACK').catch(() => {});
+            await client.sql`ROLLBACK`.catch(() => {});
             const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
             if (errorMessage.includes('duplicate key')) return response.status(409).json({ error: 'کد پرسنلی تکراری است.' });
             return response.status(500).json({ error: 'خطا در عملیات پایگاه داده.', details: errorMessage });
@@ -381,16 +382,14 @@ async function handlePostCommutingMembers(body: any, response: VercelResponse, c
     } else { // Single
         const m: NewCommutingMember = body;
         if (!m || !m.personnel_code || !m.full_name) return response.status(400).json({ error: 'کد پرسنلی و نام کامل الزامی است.' });
-        const { rows } = await client.query(
-          `INSERT INTO commuting_members (personnel_code, full_name, department, "position") 
-           VALUES ($1, $2, $3, $4)
-           ON CONFLICT (personnel_code) DO UPDATE SET
-               full_name = EXCLUDED.full_name,
-               department = EXCLUDED.department,
-               "position" = EXCLUDED."position"
-           RETURNING *;`,
-          [m.personnel_code, m.full_name, m.department, m.position]
-        );
+        const { rows } = await client.sql`
+            INSERT INTO commuting_members (personnel_code, full_name, department, "position") 
+            VALUES (${m.personnel_code}, ${m.full_name}, ${m.department}, ${m.position})
+            ON CONFLICT (personnel_code) DO UPDATE SET
+                full_name = EXCLUDED.full_name,
+                department = EXCLUDED.department,
+                "position" = EXCLUDED."position"
+            RETURNING *;`;
         return response.status(201).json({ message: 'عضو جدید اضافه یا به‌روزرسانی شد.', member: rows[0] });
     }
 }
@@ -455,33 +454,7 @@ async function handleDeleteDocument(request: VercelRequest, response: VercelResp
 // COMMITMENT LETTER HANDLERS
 // =================================================================================
 async function handleGetCommitmentLetters(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
-  const { guarantorCode, searchTerm, latest_ref } = request.query;
-  
-  if (latest_ref === 'true') {
-      try {
-          const today = new Date();
-          const formatter = new Intl.DateTimeFormat('fa-IR-u-nu-latn', { year: 'numeric' });
-          const currentPersianYear = formatter.format(today);
-          const { rows } = await pool.sql`
-              SELECT reference_number FROM commitment_letters 
-              WHERE reference_number LIKE ${currentPersianYear + '-%'}
-              ORDER BY reference_number DESC LIMIT 1;
-          `;
-          let nextNumber = 1;
-          if (rows.length > 0 && rows[0].reference_number) {
-              const lastNumStr = rows[0].reference_number.split('-')[1];
-              const lastNum = parseInt(lastNumStr, 10);
-              if (!isNaN(lastNum)) {
-                  nextNumber = lastNum + 1;
-              }
-          }
-          const newRef = `${currentPersianYear}-${String(nextNumber).padStart(3, '0')}`;
-          return response.status(200).json({ next_reference_number: newRef });
-      } catch (error) {
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          return response.status(500).json({ error: 'خطا در تولید شماره نامه جدید.', details: errorMessage });
-      }
-  }
+  const { guarantorCode, searchTerm } = request.query;
 
   if (guarantorCode && typeof guarantorCode === 'string') {
       const { rows } = await pool.sql`
@@ -499,7 +472,7 @@ async function handleGetCommitmentLetters(request: VercelRequest, response: Verc
       query += ` WHERE recipient_name ILIKE $1 OR guarantor_name ILIKE $1 OR recipient_national_id ILIKE $1 OR guarantor_personnel_code ILIKE $1`;
       params.push(`%${searchTerm}%`);
   }
-  query += ` ORDER BY issue_date DESC, id DESC;`;
+  query += ` ORDER BY issue_date DESC;`;
 
   const { rows } = await pool.query(query, params);
   return response.status(200).json({ letters: rows });
@@ -512,8 +485,8 @@ async function handlePostCommitmentLetter(request: VercelRequest, response: Verc
         bank_name, branch_name, reference_number
     } = request.body;
     
-    if (!recipient_name || !recipient_national_id || !guarantor_personnel_code || !reference_number) {
-        return response.status(400).json({ error: 'اطلاعات وام‌گیرنده، ضامن و شماره نامه الزامی است.' });
+    if (!recipient_name || !recipient_national_id || !guarantor_personnel_code) {
+        return response.status(400).json({ error: 'اطلاعات وام‌گیرنده و ضامن الزامی است.' });
     }
 
     try {
@@ -537,38 +510,6 @@ async function handlePostCommitmentLetter(request: VercelRequest, response: Verc
         return response.status(500).json({ error: 'خطا در ذخیره نامه تعهد.', details: errorMessage });
     }
 }
-
-async function handlePutCommitmentLetter(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
-    const letter = request.body;
-    if (!letter || !letter.id) {
-        return response.status(400).json({ error: 'شناسه نامه برای ویرایش الزامی است.' });
-    }
-    try {
-        const { rows } = await pool.sql`
-            UPDATE commitment_letters SET
-                recipient_name = ${letter.recipient_name},
-                recipient_national_id = ${letter.recipient_national_id},
-                loan_amount = ${letter.loan_amount},
-                sum_of_decree_factors = ${letter.sum_of_decree_factors},
-                bank_name = ${letter.bank_name},
-                branch_name = ${letter.branch_name},
-                reference_number = ${letter.reference_number}
-            WHERE id = ${letter.id}
-            RETURNING *;
-        `;
-         if (rows.length === 0) {
-            return response.status(404).json({ error: 'نامه برای ویرایش یافت نشد.' });
-        }
-        return response.status(200).json({ message: 'نامه با موفقیت ویرایش شد.', letter: rows[0] });
-    } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        if (errorMessage.includes('duplicate key')) {
-             return response.status(409).json({ error: 'یک نامه دیگر با این شماره ارجاع وجود دارد.' });
-        }
-        return response.status(500).json({ error: 'خطا در ویرایش نامه.', details: errorMessage });
-    }
-}
-
 
 async function handleDeleteCommitmentLetter(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
     const { id } = request.query;
@@ -606,7 +547,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
       case 'POST': {
         const client = await pool.connect();
         try {
-          if (type === 'personnel') return await handlePostPersonnel(request.body, response, client);
+          if (type === 'personnel') return await handlePostPersonnel(request.body, response, pool); // Uses its own client logic
           if (type === 'dependents') return await handlePostDependents(request, response, client);
           if (type === 'commuting_members') return await handlePostCommutingMembers(request.body, response, client);
           if (type === 'documents') return await handlePostDocument(request, response, pool);
@@ -620,7 +561,6 @@ export default async function handler(request: VercelRequest, response: VercelRe
       case 'PUT':
         if (type === 'personnel') return await handlePutPersonnel(request, response, pool);
         if (type === 'dependents') return await handlePutDependent(request, response, pool);
-        if (type === 'commitment_letters') return await handlePutCommitmentLetter(request, response, pool);
         return response.status(400).json({ error: 'نوع داده نامعتبر است.' });
       
       case 'DELETE':
