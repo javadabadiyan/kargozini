@@ -189,32 +189,56 @@ async function handleDeletePersonnel(request: VercelRequest, response: VercelRes
 // DEPENDENTS HANDLERS
 // =================================================================================
 async function handleGetDependents(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
-  const { personnel_code, searchTerm } = request.query;
+    const { personnel_code } = request.query;
 
-  if (searchTerm && typeof searchTerm === 'string' && searchTerm.trim() !== '') {
+    if (personnel_code && typeof personnel_code === 'string') {
+        const result = await pool.sql`SELECT * FROM dependents WHERE personnel_code = ${personnel_code} ORDER BY last_name, first_name;`;
+        return response.status(200).json({ dependents: result.rows });
+    }
+    
+    const page = parseInt(request.query.page as string) || 1;
+    const pageSize = parseInt(request.query.pageSize as string) || 10;
+    const searchTerm = (request.query.searchTerm as string) || '';
+    const offset = (page - 1) * pageSize;
     const searchQuery = `%${searchTerm.trim()}%`;
-    const result = await pool.sql`
-        SELECT * FROM dependents 
-        WHERE 
-            first_name ILIKE ${searchQuery} OR 
-            last_name ILIKE ${searchQuery} OR 
-            (first_name || ' ' || last_name) ILIKE ${searchQuery} OR
-            national_id ILIKE ${searchQuery} OR
-            guardian_national_id ILIKE ${searchQuery} OR
-            personnel_code ILIKE ${searchQuery}
-        ORDER BY personnel_code, last_name, first_name;
-    `;
-    return response.status(200).json({ dependents: result.rows });
-  }
-
-  if (personnel_code && typeof personnel_code === 'string') {
-    const result = await pool.sql`SELECT * FROM dependents WHERE personnel_code = ${personnel_code} ORDER BY last_name, first_name;`;
-    return response.status(200).json({ dependents: result.rows });
-  }
   
-  // Default: get all dependents if no specific filter is provided
-  const result = await pool.sql`SELECT * FROM dependents ORDER BY personnel_code, last_name, first_name;`;
-  return response.status(200).json({ dependents: result.rows });
+    let countResult;
+    let dataResult;
+  
+    if (searchTerm) {
+      countResult = await pool.sql`
+          SELECT COUNT(*) FROM dependents 
+          WHERE 
+              first_name ILIKE ${searchQuery} OR 
+              last_name ILIKE ${searchQuery} OR 
+              (first_name || ' ' || last_name) ILIKE ${searchQuery} OR
+              national_id ILIKE ${searchQuery} OR
+              guardian_national_id ILIKE ${searchQuery} OR
+              personnel_code ILIKE ${searchQuery};
+      `;
+      dataResult = await pool.sql`
+          SELECT * FROM dependents 
+          WHERE 
+              first_name ILIKE ${searchQuery} OR 
+              last_name ILIKE ${searchQuery} OR 
+              (first_name || ' ' || last_name) ILIKE ${searchQuery} OR
+              national_id ILIKE ${searchQuery} OR
+              guardian_national_id ILIKE ${searchQuery} OR
+              personnel_code ILIKE ${searchQuery}
+          ORDER BY personnel_code, last_name, first_name
+          LIMIT ${pageSize} OFFSET ${offset};
+      `;
+    } else {
+      countResult = await pool.sql`SELECT COUNT(*) FROM dependents;`;
+      dataResult = await pool.sql`
+          SELECT * FROM dependents
+          ORDER BY personnel_code, last_name, first_name
+          LIMIT ${pageSize} OFFSET ${offset};
+      `;
+    }
+    
+    const totalCount = parseInt(countResult.rows[0].count, 10);
+    return response.status(200).json({ dependents: dataResult.rows, totalCount });
 }
 
 async function handlePostDependents(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {

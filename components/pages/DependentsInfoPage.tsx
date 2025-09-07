@@ -47,6 +47,7 @@ const TABLE_VIEW_HEADERS = [
     'ماه تولد', 'روز تولد', 'شماره شناسنامه', 'کد ملی بستگان',
     'کد ملی سرپرست', 'محل صدور شناسنامه', 'نوع', 'عملیات'
 ];
+const PAGE_SIZE = 10;
 
 const DependentsInfoPage: React.FC = () => {
   const [dependents, setDependents] = useState<Dependent[]>([]);
@@ -59,6 +60,9 @@ const DependentsInfoPage: React.FC = () => {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingDependent, setEditingDependent] = useState<Partial<Dependent> | null>(null);
+  
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
 
   const toPersianDigits = (s: string | null | undefined): string => {
     if (s === null || s === undefined) return '';
@@ -66,17 +70,18 @@ const DependentsInfoPage: React.FC = () => {
     return str.replace(/[0-9]/g, (w) => '۰۱۲۳۴۵۶۷۸۹'[parseInt(w, 10)]);
   };
   
-  const fetchDependents = useCallback(async (searchQuery = '') => {
+  const fetchDependents = useCallback(async (page: number, searchQuery = '') => {
       setLoading(true);
       setError(null);
       try {
-          const response = await fetch(`/api/personnel?type=dependents&searchTerm=${encodeURIComponent(searchQuery)}`);
+          const response = await fetch(`/api/personnel?type=dependents&page=${page}&pageSize=${PAGE_SIZE}&searchTerm=${encodeURIComponent(searchQuery)}`);
           if (!response.ok) {
              const errorData = await response.json();
              throw new Error(errorData.error || 'خطا در دریافت اطلاعات بستگان');
           }
           const data = await response.json();
           setDependents(data.dependents || []);
+          setTotalPages(Math.ceil((data.totalCount || 0) / PAGE_SIZE));
       } catch (err) {
           setError(err instanceof Error ? err.message : 'یک خطای ناشناخته رخ داد');
       } finally {
@@ -85,12 +90,16 @@ const DependentsInfoPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    fetchDependents(); // Initial fetch for all dependents
-  }, [fetchDependents]);
+    fetchDependents(currentPage, searchTerm);
+  }, [fetchDependents, currentPage]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    fetchDependents(searchTerm);
+    if (currentPage !== 1) {
+        setCurrentPage(1);
+    } else {
+        fetchDependents(1, searchTerm);
+    }
   };
 
 
@@ -153,7 +162,8 @@ const DependentsInfoPage: React.FC = () => {
 
         const successData = await response.json();
         setStatus({ type: 'success', message: successData.message || 'اطلاعات با موفقیت وارد شد.' });
-        fetchDependents(searchTerm); // Refresh current view
+        if(currentPage !== 1) setCurrentPage(1);
+        else fetchDependents(1, searchTerm); // Refresh current view
 
       } catch (err) {
         const message = err instanceof Error ? err.message : 'خطایی در پردازش فایل رخ داد.';
@@ -169,8 +179,8 @@ const DependentsInfoPage: React.FC = () => {
   const handleExport = async () => {
     setStatus({type: 'info', message: 'در حال آماده‌سازی فایل اکسل...'});
     try {
-        // Fetch all dependents for a complete backup
-        const response = await fetch('/api/personnel?type=dependents');
+        // Fetch all dependents for a complete backup (ignore pagination)
+        const response = await fetch('/api/personnel?type=dependents&pageSize=100000');
         if(!response.ok) throw new Error('خطا در دریافت اطلاعات برای خروجی');
         const data = await response.json();
         const allDependents: Dependent[] = data.dependents || [];
@@ -227,7 +237,7 @@ const DependentsInfoPage: React.FC = () => {
             }
             setStatus({ type: 'success', message: data.message });
             handleCloseModal();
-            fetchDependents(searchTerm); // Refresh current view
+            fetchDependents(currentPage, searchTerm);
         } catch (err) {
             const message = err instanceof Error ? err.message : 'خطای ناشناخته رخ داد.';
             setStatus({ type: 'error', message });
@@ -248,7 +258,12 @@ const DependentsInfoPage: React.FC = () => {
                     throw new Error(data.error || 'خطا در حذف');
                 }
                 setStatus({ type: 'success', message: 'وابسته با موفقیت حذف شد.' });
-                fetchDependents(searchTerm); // Refresh current view
+                
+                if (dependents.length === 1 && currentPage > 1) {
+                    setCurrentPage(currentPage - 1);
+                } else {
+                    fetchDependents(currentPage, searchTerm);
+                }
             } catch (err) {
                 const message = err instanceof Error ? err.message : 'خطای ناشناخته رخ داد.';
                 setStatus({ type: 'error', message });
@@ -363,6 +378,28 @@ const DependentsInfoPage: React.FC = () => {
             </table>
         )}
       </div>
+
+      {!loading && !error && totalPages > 1 && (
+        <div className="flex justify-center items-center gap-4 mt-6">
+          <button
+            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+            disabled={currentPage === 1}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            قبلی
+          </button>
+          <span className="text-sm text-gray-600">
+            صفحه {toPersianDigits(String(currentPage))} از {toPersianDigits(String(totalPages))}
+          </span>
+          <button
+            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+            disabled={currentPage === totalPages}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            بعدی
+          </button>
+        </div>
+      )}
 
       {isModalOpen && editingDependent && (
         <EditDependentModal
