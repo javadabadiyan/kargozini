@@ -228,6 +228,12 @@ export default async function handler(
     } catch (e: any) {
         messages.push(`هشدار هنگام افزودن ستون birth_day: ${e.message}`);
     }
+    try {
+        await client.sql`ALTER TABLE dependents ADD COLUMN IF NOT EXISTS id_number VARCHAR(20);`;
+        messages.push('ستون "id_number" در جدول "dependents" تایید یا اضافه شد.');
+    } catch (e: any) {
+        messages.push(`هشدار هنگام افزودن ستون id_number: ${e.message}`);
+    }
 
 
     // --- Phase 3: Create triggers, indexes, and default data ---
