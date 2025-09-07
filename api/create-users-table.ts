@@ -216,6 +216,18 @@ export default async function handler(
     } catch (e: any) {
         messages.push(`هشدار هنگام افزودن ستون father_name: ${e.message}`);
     }
+    try {
+        await client.sql`ALTER TABLE dependents ADD COLUMN IF NOT EXISTS birth_month VARCHAR(20);`;
+        messages.push('ستون "birth_month" در جدول "dependents" تایید یا اضافه شد.');
+    } catch (e: any) {
+        messages.push(`هشدار هنگام افزودن ستون birth_month: ${e.message}`);
+    }
+    try {
+        await client.sql`ALTER TABLE dependents ADD COLUMN IF NOT EXISTS birth_day VARCHAR(20);`;
+        messages.push('ستون "birth_day" در جدول "dependents" تایید یا اضافه شد.');
+    } catch (e: any) {
+        messages.push(`هشدار هنگام افزودن ستون birth_day: ${e.message}`);
+    }
 
 
     // --- Phase 3: Create triggers, indexes, and default data ---
