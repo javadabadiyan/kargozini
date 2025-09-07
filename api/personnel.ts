@@ -218,28 +218,50 @@ async function handleGetDependents(request: VercelRequest, response: VercelRespo
 }
 
 async function handlePostDependents(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
-  const allDependents = request.body as NewDependent[];
-  if (!Array.isArray(allDependents)) {
-    return response.status(400).json({ error: 'فرمت داده‌های ارسالی نامعتبر است.' });
-  }
+  const bodyData = request.body;
 
-  allDependents.forEach(d => {
-      for (const key in d) {
-          const typedKey = key as keyof NewDependent;
-          if (typeof d[typedKey] === 'string') {
-              (d as any)[typedKey] = (d[typedKey] as string)
-                  .replace(/[\u0000-\u001F\u200B-\u200D\u200E\u200F\uFEFF]/g, '')
-                  .trim();
-          }
-      }
-  });
-  
-  const validList = allDependents.filter(d => d.personnel_code && d.first_name && d.last_name && d.national_id);
-  if (validList.length === 0) {
-    return response.status(400).json({ error: 'هیچ رکورد معتبری برای ورود یافت نشد. لطفاً از وجود ستون‌های کد پرسنلی، نام، نام خانوادگی و کد ملی بستگان اطمینان حاصل کنید.' });
-  }
-  
   try {
+    // Handle single object for manual entry
+    if (!Array.isArray(bodyData)) {
+        const d = bodyData as NewDependent;
+        if (!d.personnel_code || !d.national_id) {
+            return response.status(400).json({ error: 'کد پرسنلی و کد ملی بستگان الزامی است.' });
+        }
+        
+        const { rows: personnelCheck } = await client.sql`SELECT 1 FROM personnel WHERE personnel_code = ${d.personnel_code};`;
+        if (personnelCheck.length === 0) {
+            return response.status(400).json({ error: 'خطا در ارتباط با پرسنل.', details: 'کد پرسنلی وارد شده در لیست پرسنل اصلی وجود ندارد.'});
+        }
+
+        const columns = ['personnel_code', 'first_name', 'last_name', 'father_name', 'relation_type', 'birth_date', 'gender', 'birth_month', 'birth_day', 'id_number', 'national_id', 'guardian_national_id', 'issue_place', 'insurance_type'];
+        const values = columns.map(col => d[col as keyof NewDependent] ?? null);
+        const valuePlaceholders = columns.map((_, i) => `$${i + 1}`).join(', ');
+        
+        const { rows } = await (client as any).query(
+            `INSERT INTO dependents (${columns.join(', ')}) VALUES (${valuePlaceholders}) RETURNING *;`,
+            values
+        );
+        return response.status(201).json({ message: 'وابسته با موفقیت اضافه شد.', dependent: rows[0] });
+    }
+
+    // Handle bulk insert (Excel)
+    const allDependents = bodyData as NewDependent[];
+    allDependents.forEach(d => {
+        for (const key in d) {
+            const typedKey = key as keyof NewDependent;
+            if (typeof d[typedKey] === 'string') {
+                (d as any)[typedKey] = (d[typedKey] as string)
+                    .replace(/[\u0000-\u001F\u200B-\u200D\u200E\u200F\uFEFF]/g, '')
+                    .trim();
+            }
+        }
+    });
+    
+    const validList = allDependents.filter(d => d.personnel_code && d.first_name && d.last_name && d.national_id);
+    if (validList.length === 0) {
+        return response.status(400).json({ error: 'هیچ رکورد معتبری برای ورود یافت نشد. لطفاً از وجود ستون‌های کد پرسنلی، نام، نام خانوادگی و کد ملی بستگان اطمینان حاصل کنید.' });
+    }
+  
     await client.sql`BEGIN`;
     const BATCH_SIZE = 250;
     let totalProcessed = 0;
@@ -276,10 +298,15 @@ async function handlePostDependents(request: VercelRequest, response: VercelResp
 
     await client.sql`COMMIT`;
     return response.status(200).json({ message: `عملیات موفق. ${totalProcessed} رکورد پردازش شد.` });
+
   } catch (error) {
     await client.sql`ROLLBACK`.catch(() => {});
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     console.error("Error in handlePostDependents:", error);
+
+    if (errorMessage.includes('unique_dependent')) {
+        return response.status(409).json({ error: 'این وابسته (ترکیب کد پرسنلی و کد ملی) از قبل ثبت شده است.'});
+    }
     if (errorMessage.includes('violates foreign key constraint "fk_personnel"')) {
         return response.status(400).json({
             error: 'خطا در ارتباط با پرسنل.',

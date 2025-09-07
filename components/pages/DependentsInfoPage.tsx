@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { SearchIcon, PencilIcon, TrashIcon, UsersIcon } from '../icons/Icons';
+import { SearchIcon, PencilIcon, TrashIcon, UsersIcon, UploadIcon, DownloadIcon } from '../icons/Icons';
 import type { Dependent } from '../../types';
 import EditDependentModal from '../EditDependentModal';
 
@@ -23,6 +23,24 @@ const DEPENDENT_HEADER_MAP: { [key: string]: keyof Omit<Dependent, 'id'> } = {
   'نوع': 'insurance_type',
 };
 
+const DEFAULT_DEPENDENT: Omit<Dependent, 'id'> = {
+  personnel_code: '',
+  first_name: '',
+  last_name: '',
+  father_name: null,
+  relation_type: '',
+  birth_date: '',
+  gender: '',
+  birth_month: null,
+  birth_day: null,
+  id_number: null,
+  national_id: '',
+  guardian_national_id: null,
+  issue_place: null,
+  insurance_type: null,
+};
+
+
 const EXPORT_HEADERS = Object.keys(DEPENDENT_HEADER_MAP);
 const TABLE_VIEW_HEADERS = [
     'کد پرسنلی', 'نام', 'نام خانوادگی', 'نام پدر', 'نسبت', 'تاریخ تولد', 'جنسیت',
@@ -36,11 +54,11 @@ const DependentsInfoPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   
-  const [importStatus, setImportStatus] = useState<{ type: 'info' | 'success' | 'error'; message: string } | null>(null);
+  const [status, setStatus] = useState<{ type: 'info' | 'success' | 'error'; message: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editingDependent, setEditingDependent] = useState<Dependent | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingDependent, setEditingDependent] = useState<Partial<Dependent> | null>(null);
 
   const toPersianDigits = (s: string | null | undefined): string => {
     if (s === null || s === undefined) return '';
@@ -87,7 +105,7 @@ const DependentsInfoPage: React.FC = () => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    setImportStatus({ type: 'info', message: 'در حال پردازش فایل اکسل...' });
+    setStatus({ type: 'info', message: 'در حال پردازش فایل اکسل...' });
 
     const reader = new FileReader();
     reader.onload = async (e) => {
@@ -130,26 +148,26 @@ const DependentsInfoPage: React.FC = () => {
 
         if (!response.ok) {
             const errorData = await response.json();
-            throw new Error(errorData.error || 'خطا در ورود اطلاعات');
+            throw new Error(errorData.details || errorData.error || 'خطا در ورود اطلاعات');
         }
 
         const successData = await response.json();
-        setImportStatus({ type: 'success', message: successData.message || 'اطلاعات با موفقیت وارد شد.' });
+        setStatus({ type: 'success', message: successData.message || 'اطلاعات با موفقیت وارد شد.' });
         fetchDependents(searchTerm); // Refresh current view
 
       } catch (err) {
         const message = err instanceof Error ? err.message : 'خطایی در پردازش فایل رخ داد.';
-        setImportStatus({ type: 'error', message });
+        setStatus({ type: 'error', message });
       } finally {
          if(fileInputRef.current) fileInputRef.current.value = "";
-         setTimeout(() => setImportStatus(null), 5000);
+         setTimeout(() => setStatus(null), 5000);
       }
     };
     reader.readAsArrayBuffer(file);
   };
 
   const handleExport = async () => {
-    setImportStatus({type: 'info', message: 'در حال آماده‌سازی فایل اکسل...'});
+    setStatus({type: 'info', message: 'در حال آماده‌سازی فایل اکسل...'});
     try {
         // Fetch all dependents for a complete backup
         const response = await fetch('/api/personnel?type=dependents');
@@ -170,50 +188,57 @@ const DependentsInfoPage: React.FC = () => {
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, 'Dependents');
         XLSX.writeFile(workbook, 'Dependents_List.xlsx');
-        setImportStatus(null);
+        setStatus(null);
     } catch(err) {
         const message = err instanceof Error ? err.message : 'خطا در خروجی گرفتن.';
-        setImportStatus({type: 'error', message});
-        setTimeout(() => setImportStatus(null), 5000);
+        setStatus({type: 'error', message});
+        setTimeout(() => setStatus(null), 5000);
     }
   };
   
+    const handleOpenAddModal = () => {
+        setEditingDependent(DEFAULT_DEPENDENT);
+        setIsModalOpen(true);
+    };
+    
     const handleEditClick = (dependent: Dependent) => {
         setEditingDependent(dependent);
-        setIsEditModalOpen(true);
+        setIsModalOpen(true);
     };
 
     const handleCloseModal = () => {
-        setIsEditModalOpen(false);
+        setIsModalOpen(false);
         setEditingDependent(null);
     };
 
-    const handleSaveDependent = async (updatedDependent: Dependent) => {
-        setImportStatus({ type: 'info', message: 'در حال ذخیره تغییرات...' });
+    const handleSaveDependent = async (dependentData: Partial<Dependent>) => {
+        const isNew = !dependentData.id;
+        const method = isNew ? 'POST' : 'PUT';
+        setStatus({ type: 'info', message: 'در حال ذخیره اطلاعات...' });
         try {
             const response = await fetch('/api/personnel?type=dependents', {
-                method: 'PUT',
+                method: method,
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updatedDependent),
+                body: JSON.stringify(dependentData),
             });
             const data = await response.json();
             if (!response.ok) {
-                throw new Error(data.error || 'خطا در به‌روزرسانی اطلاعات');
+                throw new Error(data.details || data.error || 'خطا در ذخیره اطلاعات');
             }
-            setImportStatus({ type: 'success', message: 'اطلاعات با موفقیت به‌روزرسانی شد.' });
+            setStatus({ type: 'success', message: data.message });
             handleCloseModal();
             fetchDependents(searchTerm); // Refresh current view
         } catch (err) {
             const message = err instanceof Error ? err.message : 'خطای ناشناخته رخ داد.';
-            setImportStatus({ type: 'error', message });
+            setStatus({ type: 'error', message });
         } finally {
-            setTimeout(() => setImportStatus(null), 5000);
+            setTimeout(() => setStatus(null), 5000);
         }
     };
     
     const handleDeleteDependent = async (dependentId: number) => {
         if (window.confirm('آیا از حذف این وابسته اطمینان دارید؟ این عمل قابل بازگشت نیست.')) {
-            setImportStatus({ type: 'info', message: 'در حال حذف...' });
+            setStatus({ type: 'info', message: 'در حال حذف...' });
             try {
                 const response = await fetch(`/api/personnel?type=dependents&id=${dependentId}`, {
                     method: 'DELETE',
@@ -222,13 +247,13 @@ const DependentsInfoPage: React.FC = () => {
                 if (!response.ok) {
                     throw new Error(data.error || 'خطا در حذف');
                 }
-                setImportStatus({ type: 'success', message: 'وابسته با موفقیت حذف شد.' });
+                setStatus({ type: 'success', message: 'وابسته با موفقیت حذف شد.' });
                 fetchDependents(searchTerm); // Refresh current view
             } catch (err) {
                 const message = err instanceof Error ? err.message : 'خطای ناشناخته رخ داد.';
-                setImportStatus({ type: 'error', message });
+                setStatus({ type: 'error', message });
             } finally {
-                setTimeout(() => setImportStatus(null), 5000);
+                setTimeout(() => setStatus(null), 5000);
             }
         }
     };
@@ -244,16 +269,23 @@ const DependentsInfoPage: React.FC = () => {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 border-b-2 border-gray-100 pb-4">
         <h2 className="text-2xl font-bold text-gray-800">اطلاعات بستگان</h2>
         <div className="flex items-center gap-2 flex-wrap">
-              <button onClick={handleDownloadSample} className="px-4 py-2 bg-gray-100 text-gray-700 border border-gray-300 text-sm rounded-lg hover:bg-gray-200 transition-colors">دانلود نمونه</button>
+              <button onClick={handleOpenAddModal} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">افزودن دستی</button>
+              <button onClick={handleDownloadSample} className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 border border-gray-300 text-sm rounded-lg hover:bg-gray-200 transition-colors">
+                <DownloadIcon className="w-4 h-4"/> دانلود نمونه
+              </button>
               <input type="file" accept=".xlsx, .xls" ref={fileInputRef} onChange={handleFileImport} className="hidden" id="excel-import-dependents" />
-              <label htmlFor="excel-import-dependents" className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 cursor-pointer transition-colors">بازیابی از فایل</label>
-              <button onClick={handleExport} className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">تهیه پشتیبان</button>
+              <label htmlFor="excel-import-dependents" className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 cursor-pointer transition-colors">
+                <UploadIcon className="w-4 h-4"/> بازیابی از فایل
+              </label>
+              <button onClick={handleExport} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                <DownloadIcon className="w-4 h-4"/> تهیه پشتیبان
+              </button>
         </div>
       </div>
       
-      {importStatus && (
-        <div className={`p-4 mb-4 text-sm rounded-lg ${statusColor[importStatus.type]}`} role="alert">
-          {importStatus.message}
+      {status && (
+        <div className={`p-4 mb-4 text-sm rounded-lg ${statusColor[status.type]}`} role="alert" style={{ whiteSpace: 'pre-wrap' }}>
+          {status.message}
         </div>
       )}
 
@@ -289,7 +321,7 @@ const DependentsInfoPage: React.FC = () => {
                 <h3 className="text-lg font-semibold">
                     {searchTerm ? 'هیچ وابسته‌ای مطابق با جستجوی شما یافت نشد.' : 'هیچ وابسته‌ای در سیستم ثبت نشده است.'}
                 </h3>
-                <p className="text-sm">می‌توانید اطلاعات را از طریق یک فایل اکسل وارد کنید.</p>
+                <p className="text-sm">می‌توانید اطلاعات را به صورت دستی یا از طریق یک فایل اکسل وارد کنید.</p>
             </div>
         )}
         {!loading && !error && dependents.length > 0 && (
@@ -332,7 +364,7 @@ const DependentsInfoPage: React.FC = () => {
         )}
       </div>
 
-      {isEditModalOpen && editingDependent && (
+      {isModalOpen && editingDependent && (
         <EditDependentModal
             dependent={editingDependent}
             onClose={handleCloseModal}

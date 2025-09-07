@@ -2,14 +2,16 @@ import React, { useState, useEffect } from 'react';
 import type { Dependent } from '../types';
 
 interface EditDependentModalProps {
-  dependent: Dependent;
+  dependent: Partial<Dependent>;
   onClose: () => void;
-  onSave: (dependent: Dependent) => Promise<void>;
+  onSave: (dependent: Partial<Dependent>) => Promise<void>;
 }
 
 const EditDependentModal: React.FC<EditDependentModalProps> = ({ dependent, onClose, onSave }) => {
-  const [formData, setFormData] = useState<Dependent>(dependent);
+  const [formData, setFormData] = useState<Partial<Dependent>>(dependent);
   const [isSaving, setIsSaving] = useState(false);
+  
+  const isNew = !dependent.id;
 
   useEffect(() => {
     setFormData(dependent);
@@ -32,7 +34,8 @@ const EditDependentModal: React.FC<EditDependentModalProps> = ({ dependent, onCl
 
   const inputClass = "w-full px-3 py-2 text-gray-700 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent";
 
-  const fields: { key: keyof Omit<Dependent, 'id' | 'personnel_code'>; label: string }[] = [
+  const fields: { key: keyof Omit<Dependent, 'id'>; label: string }[] = [
+    { key: 'personnel_code', label: 'کد پرسنلی' },
     { key: 'first_name', label: 'نام' },
     { key: 'last_name', label: 'نام خانوادگی' },
     { key: 'father_name', label: 'نام پدر' },
@@ -62,7 +65,7 @@ const EditDependentModal: React.FC<EditDependentModalProps> = ({ dependent, onCl
       >
         <div className="flex justify-between items-center p-4 border-b">
           <h3 id="modal-title" className="text-xl font-semibold text-gray-800">
-            ویرایش اطلاعات {dependent.first_name} {dependent.last_name}
+            {isNew ? 'افزودن وابسته جدید' : `ویرایش اطلاعات ${dependent.first_name} ${dependent.last_name}`}
           </h3>
           <button 
             onClick={onClose} 
@@ -88,7 +91,8 @@ const EditDependentModal: React.FC<EditDependentModalProps> = ({ dependent, onCl
                     value={String(formData[field.key as keyof typeof formData] ?? '')}
                     onChange={handleChange}
                     className={inputClass}
-                    readOnly={field.key === 'national_id'} 
+                    readOnly={!isNew && (field.key === 'national_id' || field.key === 'personnel_code')}
+                    required={['personnel_code', 'first_name', 'last_name', 'national_id'].includes(field.key)}
                   />
                 </div>
               ))}
@@ -109,7 +113,7 @@ const EditDependentModal: React.FC<EditDependentModalProps> = ({ dependent, onCl
               className="mr-3 px-6 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-blue-300"
               disabled={isSaving}
             >
-              {isSaving ? 'در حال ذخیره...' : 'ذخیره تغییرات'}
+              {isSaving ? 'در حال ذخیره...' : (isNew ? 'افزودن' : 'ذخیره تغییرات')}
             </button>
           </div>
         </form>
