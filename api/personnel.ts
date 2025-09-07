@@ -245,10 +245,10 @@ async function handlePostDependents(request: VercelRequest, response: VercelResp
     let totalProcessed = 0;
 
     const columns = ['personnel_code', 'first_name', 'last_name', 'father_name', 'relation_type', 'birth_date', 'gender', 'birth_month', 'birth_day', 'id_number', 'national_id', 'guardian_national_id', 'issue_place', 'insurance_type'];
-    const quotedColumns = columns.map(c => `"${c}"`);
+    const columnNames = columns.join(', ');
     const updateSet = columns
       .filter(c => !['personnel_code', 'national_id'].includes(c))
-      .map(c => `"${c}" = EXCLUDED."${c}"`).join(', ');
+      .map(c => `${c} = EXCLUDED.${c}`).join(', ');
 
     for (let i = 0; i < validList.length; i += BATCH_SIZE) {
         const batch = validList.slice(i, i + BATCH_SIZE);
@@ -267,7 +267,7 @@ async function handlePostDependents(request: VercelRequest, response: VercelResp
         }
 
         if (values.length > 0) {
-            const query = `INSERT INTO dependents (${quotedColumns.join(', ')}) VALUES ${valuePlaceholders.join(', ')} ON CONFLICT ("personnel_code", "national_id") DO UPDATE SET ${updateSet};`;
+            const query = `INSERT INTO dependents (${columnNames}) VALUES ${valuePlaceholders.join(', ')} ON CONFLICT (personnel_code, national_id) DO UPDATE SET ${updateSet};`;
             await (client as any).query(query, values);
         }
         
@@ -280,6 +280,12 @@ async function handlePostDependents(request: VercelRequest, response: VercelResp
     await client.sql`ROLLBACK`.catch(() => {});
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     console.error("Error in handlePostDependents:", error);
+    if (errorMessage.includes('violates foreign key constraint "fk_personnel"')) {
+        return response.status(400).json({
+            error: 'خطا در ارتباط با پرسنل.',
+            details: 'یک یا چند کد پرسنلی در فایل اکسل شما در لیست پرسنل اصلی وجود ندارد. لطفاً ابتدا پرسنل مربوطه را ثبت کنید یا کد پرسنلی را در فایل اکسل اصلاح نمایید.'
+        });
+    }
     return response.status(500).json({ 
         error: 'خطا در عملیات پایگاه داده.', 
         details: `این خطا ممکن است به دلیل فرمت نادرست فایل اکسل یا داده‌های نامعتبر باشد. جزئیات فنی: ${errorMessage}` 
