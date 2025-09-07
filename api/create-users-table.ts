@@ -260,6 +260,8 @@ export default async function handler(
       commitment_letter_archive: true,
       disciplinary_committee: true,
       performance_review: true,
+      send_performance_review: true,
+      archive_performance_review: true,
       job_group: true,
       bonus_management: true,
       enter_bonus: true,

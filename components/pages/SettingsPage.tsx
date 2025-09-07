@@ -15,6 +15,8 @@ const PERMISSION_KEYS: { key: keyof UserPermissions, label: string }[] = [
     { key: 'accounting_commitment', label: ' - نامه تعهد (صدور و بایگانی)' },
     { key: 'disciplinary_committee', label: ' - کمیته تشویق و انضباطی' },
     { key: 'performance_review', label: ' - ارزیابی عملکرد' },
+    { key: 'send_performance_review', label: '   - ارسال ارزیابی عملکرد پرسنل' },
+    { key: 'archive_performance_review', label: '   - بایگانی ارزیابی عملکرد پرسنل' },
     { key: 'job_group', label: ' - گروه شغلی پرسنل' },
     { key: 'bonus_management', label: ' - مدیریت کارانه' },
     { key: 'enter_bonus', label: '   - وارد کردن کارانه' },

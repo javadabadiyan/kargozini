@@ -13,7 +13,8 @@ import DocumentUploadPage from './pages/DocumentUploadPage';
 import AccountingCommitmentPage from './pages/AccountingCommitmentPage';
 import DisciplinaryCommitteePage from './pages/DisciplinaryCommitteePage';
 
-const PerformanceReviewPage: React.FC = () => React.createElement(PlaceholderPage, { title: "ارزیابی عملکرد" });
+const SendPerformanceReviewPage: React.FC = () => React.createElement(PlaceholderPage, { title: "ارسال ارزیابی عملکرد پرسنل" });
+const ArchivePerformanceReviewPage: React.FC = () => React.createElement(PlaceholderPage, { title: "بایگانی ارزیابی عملکرد پرسنل" });
 const JobGroupPage: React.FC = () => React.createElement(PlaceholderPage, { title: "گروه شغلی پرسنل" });
 const EnterBonusPage: React.FC = () => React.createElement(PlaceholderPage, { title: "وارد کردن کارانه" });
 const BonusAnalyzerPage: React.FC = () => React.createElement(PlaceholderPage, { title: "تحلیلگر هوشمند کارانه" });
@@ -38,7 +39,15 @@ export const ALL_MENU_ITEMS: MenuItem[] = [
         page: AccountingCommitmentPage
       },
       { id: 'disciplinary_committee', label: 'کمیته تشویق و انضباطی', icon: CircleIcon, page: DisciplinaryCommitteePage },
-      { id: 'performance_review', label: 'ارزیابی عملکرد', icon: CircleIcon, page: PerformanceReviewPage },
+      { 
+        id: 'performance_review', 
+        label: 'ارزیابی عملکرد', 
+        icon: DocumentReportIcon,
+        children: [
+            { id: 'send_performance_review', label: 'ارسال ارزیابی عملکرد پرسنل', icon: CircleIcon, page: SendPerformanceReviewPage },
+            { id: 'archive_performance_review', label: 'بایگانی ارزیابی عملکرد پرسنل', icon: CircleIcon, page: ArchivePerformanceReviewPage }
+        ]
+      },
       { id: 'job_group', label: 'گروه شغلی پرسنل', icon: CircleIcon, page: JobGroupPage },
       {
         id: 'bonus_management', label: 'مدیریت کارانه', icon: DocumentReportIcon,
