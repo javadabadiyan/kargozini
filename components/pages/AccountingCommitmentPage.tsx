@@ -120,8 +120,8 @@ const AccountingCommitmentPage: React.FC = () => {
             printWindow?.document.write('<html><head><title>چاپ نامه تعهد</title>');
             printWindow?.document.write('<link rel="preconnect" href="https://fonts.googleapis.com">');
             printWindow?.document.write('<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>');
-            printWindow?.document.write('<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700&display=swap" rel="stylesheet">');
-            printWindow?.document.write('<style> body { font-family: "Vazirmatn", sans-serif; direction: rtl; line-height: 2.5; padding: 20px; } .signature { margin-top: 100px; text-align: left; } .underline { border-bottom: 1px dotted black; padding: 0 5px; font-weight: bold; } </style>');
+            printWindow?.document.write('<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&display=swap" rel="stylesheet">');
+            printWindow?.document.write('<style> body { font-family: "Amiri", serif; direction: rtl; line-height: 2.5; padding: 20px; font-size: 16px; } .signature { margin-top: 100px; text-align: left; } .underline { border-bottom: 1px dotted black; padding: 0 5px; font-weight: bold; } </style>');
             printWindow?.document.write('</head><body>');
             printWindow?.document.write(printContent);
             printWindow?.document.write('</body></html>');
