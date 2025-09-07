@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import type { Personnel, CommitmentLetter } from '../../types';
-import { SearchIcon, PrinterIcon, RefreshIcon, DocumentReportIcon, TrashIcon, ChevronDownIcon, ChevronUpIcon, PencilIcon } from '../icons/Icons';
+import { SearchIcon, PrinterIcon, RefreshIcon, DocumentReportIcon, TrashIcon, ChevronDownIcon, ChevronUpIcon, PencilIcon, DocumentIcon } from '../icons/Icons';
 import EditCommitmentLetterModal from '../EditCommitmentLetterModal';
 
 
@@ -49,6 +49,7 @@ const AccountingCommitmentPage: React.FC = () => {
 
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editingLetter, setEditingLetter] = useState<CommitmentLetter | null>(null);
+    const [isPrintingArchived, setIsPrintingArchived] = useState(false);
 
     const printRef = useRef<HTMLDivElement>(null);
 
@@ -109,6 +110,31 @@ const AccountingCommitmentPage: React.FC = () => {
         fetchCommitment();
     }, [selectedGuarantor]);
 
+    const handlePrint = useCallback(() => {
+        const printContent = printRef.current?.innerHTML;
+        if (printContent) {
+            const printWindow = window.open('', '', 'height=600,width=800');
+            printWindow?.document.write('<html><head><title>چاپ نامه تعهد</title>');
+            printWindow?.document.write('<link rel="preconnect" href="https://fonts.googleapis.com">');
+            printWindow?.document.write('<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>');
+            printWindow?.document.write('<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700&display=swap" rel="stylesheet">');
+            printWindow?.document.write('<style> body { font-family: "Vazirmatn", sans-serif; direction: rtl; line-height: 2.5; padding: 20px; } .signature { margin-top: 100px; text-align: center; } .underline { border-bottom: 1px dotted black; padding: 0 5px; font-weight: bold; } </style>');
+            printWindow?.document.write('</head><body>');
+            printWindow?.document.write(printContent);
+            printWindow?.document.write('</body></html>');
+            printWindow?.document.close();
+            printWindow?.focus();
+            printWindow?.print();
+        }
+    }, []);
+
+    useEffect(() => {
+        if (isPrintingArchived) {
+            handlePrint();
+            setIsPrintingArchived(false);
+        }
+    }, [isPrintingArchived, handlePrint]);
+
     const filteredPersonnel = useMemo(() => {
         const lowercasedTerm = searchTerm.toLowerCase().trim();
         if (!lowercasedTerm) return [];
@@ -144,24 +170,6 @@ const AccountingCommitmentPage: React.FC = () => {
         setSearchTerm('');
         setDecreeFactors('');
         resetForm();
-    };
-
-    const handlePrint = () => {
-        const printContent = printRef.current?.innerHTML;
-        if (printContent) {
-            const printWindow = window.open('', '', 'height=600,width=800');
-            printWindow?.document.write('<html><head><title>چاپ نامه تعهد</title>');
-            printWindow?.document.write('<link rel="preconnect" href="https://fonts.googleapis.com">');
-            printWindow?.document.write('<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>');
-            printWindow?.document.write('<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700&display=swap" rel="stylesheet">');
-            printWindow?.document.write('<style> body { font-family: "Vazirmatn", sans-serif; direction: rtl; line-height: 2.5; padding: 20px; } .signature { margin-top: 100px; text-align: center; } .underline { border-bottom: 1px dotted black; padding: 0 5px; font-weight: bold; } </style>');
-            printWindow?.document.write('</head><body>');
-            printWindow?.document.write(printContent);
-            printWindow?.document.write('</body></html>');
-            printWindow?.document.close();
-            printWindow?.focus();
-            printWindow?.print();
-        }
     };
     
     const handleSaveAndPrint = async (e: React.FormEvent) => {
@@ -253,12 +261,35 @@ const AccountingCommitmentPage: React.FC = () => {
             setStatus({ type: 'success', message: 'نامه با موفقیت ویرایش شد.' });
             setIsEditModalOpen(false);
             setEditingLetter(null);
-            fetchArchivedLetters(archiveSearchTerm); // Refresh data
+            fetchArchivedLetters(archiveSearchTerm);
         } catch (err) {
             setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در ویرایش نامه' });
         } finally {
             setTimeout(() => setStatus(null), 5000);
         }
+    };
+    
+    const handleShowArchivedLetter = (letter: CommitmentLetter) => {
+        const guarantor = personnelList.find(p => p.personnel_code === letter.guarantor_personnel_code);
+        if (guarantor) {
+            setSelectedGuarantor(guarantor);
+        }
+        setRecipientName(letter.recipient_name);
+        setRecipientNationalId(letter.recipient_national_id);
+        setLoanAmount(String(letter.loan_amount));
+        setBankName(letter.bank_name || '');
+        setBranchName(letter.branch_name || '');
+        setReferenceNumber(letter.reference_number || '');
+        setDecreeFactors(String(letter.sum_of_decree_factors || '0'));
+        
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        setStatus({ type: 'info', message: `اطلاعات نامه شماره ${toPersianDigits(letter.id)} در فرم بالا نمایش داده شد.` });
+        setTimeout(() => setStatus(null), 4000);
+    };
+
+    const handlePrintArchivedLetter = (letter: CommitmentLetter) => {
+        handleShowArchivedLetter(letter);
+        setIsPrintingArchived(true);
     };
 
     const { creditLimit, remainingCredit, isOverLimit } = useMemo(() => {
@@ -411,8 +442,9 @@ const AccountingCommitmentPage: React.FC = () => {
              <div className="mt-8 border-t pt-6">
                 <h3 className="text-xl font-bold text-gray-800 mb-4">۳. پیش نمایش نامه جهت چاپ</h3>
                 <div ref={printRef} className="p-8 border rounded-lg bg-gray-50 text-gray-800 print-container" style={{ direction: 'rtl', lineHeight: '2.5' }}>
-                    <div className="flex justify-end items-start mb-8">
-                        <div>
+                    <div className="flex justify-between items-start mb-8">
+                        <div className="flex-1"></div>
+                        <div className="text-left">
                             <p>تاریخ: ۱۴۰۴/۶/۱۶</p>
                             <p>شماره: ....................</p>
                             <p>پیوست: ندارد</p>
@@ -508,12 +540,20 @@ const AccountingCommitmentPage: React.FC = () => {
                                                                         <td className="px-3 py-2 whitespace-nowrap text-sm">{letter.bank_name} - {letter.branch_name}</td>
                                                                         <td className="px-3 py-2 whitespace-nowrap text-sm">{toPersianDigits(new Date(letter.issue_date).toLocaleDateString('fa-IR'))}</td>
                                                                         <td className="px-3 py-2 whitespace-nowrap text-sm text-center">
-                                                                            <button onClick={() => handleEditClick(letter)} className="text-blue-600 hover:text-blue-800 p-1 rounded-full hover:bg-blue-100 transition-colors" aria-label={`ویرایش نامه ${letter.id}`}>
-                                                                                <PencilIcon className="w-5 h-5" />
-                                                                            </button>
-                                                                            <button onClick={() => handleDeleteLetter(letter.id)} className="text-red-600 hover:text-red-800 p-1 rounded-full hover:bg-red-100 transition-colors ml-2" aria-label={`حذف نامه ${letter.id}`}>
-                                                                                <TrashIcon className="w-5 h-5" />
-                                                                            </button>
+                                                                            <div className="flex items-center justify-center gap-1">
+                                                                                <button onClick={() => handleShowArchivedLetter(letter)} className="text-gray-600 hover:text-gray-800 p-1 rounded-full hover:bg-gray-100 transition-colors" aria-label={`نمایش نامه ${letter.id}`}>
+                                                                                    <DocumentIcon className="w-5 h-5" />
+                                                                                </button>
+                                                                                <button onClick={() => handlePrintArchivedLetter(letter)} className="text-gray-600 hover:text-gray-800 p-1 rounded-full hover:bg-gray-100 transition-colors" aria-label={`چاپ نامه ${letter.id}`}>
+                                                                                    <PrinterIcon className="w-5 h-5" />
+                                                                                </button>
+                                                                                <button onClick={() => handleEditClick(letter)} className="text-blue-600 hover:text-blue-800 p-1 rounded-full hover:bg-blue-100 transition-colors" aria-label={`ویرایش نامه ${letter.id}`}>
+                                                                                    <PencilIcon className="w-5 h-5" />
+                                                                                </button>
+                                                                                <button onClick={() => handleDeleteLetter(letter.id)} className="text-red-600 hover:text-red-800 p-1 rounded-full hover:bg-red-100 transition-colors ml-1" aria-label={`حذف نامه ${letter.id}`}>
+                                                                                    <TrashIcon className="w-5 h-5" />
+                                                                                </button>
+                                                                            </div>
                                                                         </td>
                                                                     </tr>
                                                                 ))}
