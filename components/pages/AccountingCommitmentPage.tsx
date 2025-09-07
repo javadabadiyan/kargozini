@@ -53,8 +53,35 @@ const AccountingCommitmentPage: React.FC = () => {
 
     const [archiveCurrentPage, setArchiveCurrentPage] = useState(1);
     const ARCHIVE_PAGE_SIZE = 10;
+    
+    // State for layout adjustment
+    const [isAdjusting, setIsAdjusting] = useState(false);
+    const [position, setPosition] = useState({ x: 0, y: 0 });
+    const dragInfo = useRef<{ isDragging: boolean; startX: number; startY: number; initialX: number; initialY: number; }>({ isDragging: false, startX: 0, startY: 0, initialX: 0, initialY: 0 });
 
     const printRef = useRef<HTMLDivElement>(null);
+
+    // Load/Save layout position
+    useEffect(() => {
+        const savedPosition = localStorage.getItem('commitmentLetterPosition');
+        if (savedPosition) {
+            setPosition(JSON.parse(savedPosition));
+        }
+    }, []);
+
+    const handleSavePosition = () => {
+        localStorage.setItem('commitmentLetterPosition', JSON.stringify(position));
+        setStatus({ type: 'success', message: 'موقعیت جدید نامه ذخیره شد.' });
+        setIsAdjusting(false);
+        setTimeout(() => setStatus(null), 3000);
+    };
+
+    const handleResetPosition = () => {
+        localStorage.removeItem('commitmentLetterPosition');
+        setPosition({ x: 0, y: 0 });
+        setStatus({ type: 'info', message: 'موقعیت به حالت پیش‌فرض بازگشت.' });
+        setTimeout(() => setStatus(null), 3000);
+    };
 
     const fetchArchivedLetters = useCallback(async (searchQuery = '') => {
         setArchiveLoading(true);
@@ -116,20 +143,27 @@ const AccountingCommitmentPage: React.FC = () => {
     const handlePrint = useCallback(() => {
         const printContent = printRef.current?.innerHTML;
         if (printContent) {
-            const printWindow = window.open('', '', 'height=600,width=800');
-            printWindow?.document.write('<html><head><title>چاپ نامه تعهد</title>');
-            printWindow?.document.write('<link rel="preconnect" href="https://fonts.googleapis.com">');
-            printWindow?.document.write('<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>');
-            printWindow?.document.write('<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&display=swap" rel="stylesheet">');
-            printWindow?.document.write('<style> body { font-family: "Amiri", serif; direction: rtl; line-height: 2.5; padding: 20px; font-size: 16px; } .signature { margin-top: 100px; text-align: left; } .underline { border-bottom: 1px dotted black; padding: 0 5px; font-weight: bold; } </style>');
-            printWindow?.document.write('</head><body>');
-            printWindow?.document.write(printContent);
-            printWindow?.document.write('</body></html>');
-            printWindow?.document.close();
-            printWindow?.focus();
-            printWindow?.print();
+            const printWindow = window.open('', '', 'height=800,width=800');
+            if (printWindow) {
+                printWindow.document.write('<html><head><title>چاپ نامه تعهد</title>');
+                printWindow.document.write('<link rel="preconnect" href="https://fonts.googleapis.com">');
+                printWindow.document.write('<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>');
+                printWindow.document.write('<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&display=swap" rel="stylesheet">');
+                printWindow.document.write('<style> body { font-family: "Amiri", serif; direction: rtl; line-height: 2.5; padding: 20px; font-size: 16px; margin: 0; } .content-wrapper { position: relative; } .signature { margin-top: 100px; text-align: left; } .underline { border-bottom: 1px dotted black; padding: 0 5px; font-weight: bold; } </style>');
+                printWindow.document.write('</head><body>');
+                const styledContent = `<div class="content-wrapper" style="top: ${position.y}px; left: ${position.x}px;">${printContent}</div>`;
+                printWindow.document.write(styledContent);
+                printWindow.document.write('</body></html>');
+                printWindow.document.close();
+                printWindow.focus();
+                // Delay print to allow fonts to load
+                setTimeout(() => {
+                    printWindow.print();
+                    printWindow.close();
+                }, 500);
+            }
         }
-    }, []);
+    }, [position]);
 
     useEffect(() => {
         if (isPrintingArchived) {
@@ -369,6 +403,37 @@ const AccountingCommitmentPage: React.FC = () => {
             return newSet;
         });
     };
+    
+    // --- Drag Logic ---
+    const handleMouseMove = useCallback((e: MouseEvent) => {
+        if (!dragInfo.current.isDragging) return;
+        const dx = e.clientX - dragInfo.current.startX;
+        const dy = e.clientY - dragInfo.current.startY;
+        setPosition({
+            x: dragInfo.current.initialX + dx,
+            y: dragInfo.current.initialY + dy,
+        });
+    }, []);
+
+    const handleMouseUp = useCallback(() => {
+        dragInfo.current.isDragging = false;
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+    }, [handleMouseMove]);
+
+    const handleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+        if (!isAdjusting) return;
+        e.preventDefault();
+        dragInfo.current = {
+            isDragging: true,
+            startX: e.clientX,
+            startY: e.clientY,
+            initialX: position.x,
+            initialY: position.y,
+        };
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+    }, [isAdjusting, position.x, position.y, handleMouseMove, handleMouseUp]);
 
     const statusColor = { info: 'bg-blue-100 text-blue-800', success: 'bg-green-100 text-green-800', error: 'bg-red-100 text-red-800' };
     const inputClass = "w-full px-3 py-2 text-gray-700 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent";
@@ -459,20 +524,50 @@ const AccountingCommitmentPage: React.FC = () => {
                 </div>
             </div>
 
-             <div className="mt-8 border-t pt-6">
-                <h3 className="text-xl font-bold text-gray-800 mb-4">۳. پیش نمایش نامه جهت چاپ</h3>
-                <div ref={printRef} className="p-8 border rounded-lg bg-gray-50 text-gray-800 print-container" style={{ direction: 'rtl', lineHeight: '2.5' }}>
-                    
-                    <p className="font-bold my-8">ریاست محترم بانک <span className="underline">{bankName || '....................'}</span> شعبه <span className="underline">{branchName || '....................'}</span></p>
-                    
-                    <p>
-                        احتراماً، بدینوسیله گواهی می‌شود آقای/خانم <span className="underline">{selectedGuarantor ? `${selectedGuarantor.first_name} ${selectedGuarantor.last_name}` : '..............................'}</span> به شماره پرسنلی <span className="underline">{toPersianDigits(selectedGuarantor?.personnel_code)}</span> و کد ملی <span className="underline">{toPersianDigits(selectedGuarantor?.national_id)}</span> کارمند این شرکت بوده و این شرکت متعهد می‌گردد در صورت عدم پرداخت اقساط وام دریافتی آقای/خانم <span className="underline">{recipientName || '..............................'}</span> به کد ملی <span className="underline">{toPersianDigits(recipientNationalId)}</span> به مبلغ <span className="underline">{toPersianDigits(formatCurrency(loanAmount))}</span> ریال، پس از اعلام کتبی بانک، نسبت به کسر از حقوق و مزایای ضامن و واریز به حساب آن بانک اقدام نماید.
-                    </p>
-                    <p>این گواهی صرفاً جهت اطلاع بانک صادر گردیده و فاقد هرگونه ارزش و اعتبار دیگری می‌باشد.</p>
-                    <br />
-                    <div className="signature text-left">
-                        <p className="font-bold">با تشکر</p>
-                        <p className="font-bold">مدیریت سرمایه انسانی</p>
+            <div className="mt-8 border-t pt-6">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-xl font-bold text-gray-800">۳. پیش نمایش و تنظیم نامه جهت چاپ</h3>
+                    <div className="flex items-center gap-2">
+                        {!isAdjusting ? (
+                            <button onClick={() => setIsAdjusting(true)} className="px-4 py-2 text-sm bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">
+                                تنظیم چیدمان
+                            </button>
+                        ) : (
+                            <div className="flex items-center gap-2 p-2 rounded-lg bg-blue-50 border border-blue-200">
+                                <span className="text-sm font-semibold text-blue-700">حالت تنظیم</span>
+                                <button onClick={handleSavePosition} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">ذخیره</button>
+                                <button onClick={handleResetPosition} className="px-4 py-2 text-sm bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">بازنشانی</button>
+                                <button onClick={() => setIsAdjusting(false)} className="px-4 py-2 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200">اتمام</button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+                <div className="border rounded-lg bg-gray-50 text-gray-800 relative overflow-hidden" style={{ minHeight: '800px' }}>
+                    <div
+                        onMouseDown={handleMouseDown}
+                        className={`transition-shadow p-8 ${isAdjusting ? 'shadow-2xl border-2 border-dashed border-blue-500' : ''}`}
+                        style={{
+                            position: 'absolute',
+                            top: `${position.y}px`,
+                            left: `${position.x}px`,
+                            cursor: isAdjusting ? 'move' : 'default',
+                            width: '100%',
+                            boxSizing: 'border-box'
+                        }}
+                    >
+                        <div ref={printRef} style={{ direction: 'rtl', lineHeight: '2.5' }}>
+                            <p className="font-bold my-8">ریاست محترم بانک <span className="underline">{bankName || '....................'}</span> شعبه <span className="underline">{branchName || '....................'}</span></p>
+                            
+                            <p>
+                                احتراماً، بدینوسیله گواهی می‌شود آقای/خانم <span className="underline">{selectedGuarantor ? `${selectedGuarantor.first_name} ${selectedGuarantor.last_name}` : '..............................'}</span> به شماره پرسنلی <span className="underline">{toPersianDigits(selectedGuarantor?.personnel_code)}</span> و کد ملی <span className="underline">{toPersianDigits(selectedGuarantor?.national_id)}</span> کارمند این شرکت بوده و این شرکت متعهد می‌گردد در صورت عدم پرداخت اقساط وام دریافتی آقای/خانم <span className="underline">{recipientName || '..............................'}</span> به کد ملی <span className="underline">{toPersianDigits(recipientNationalId)}</span> به مبلغ <span className="underline">{toPersianDigits(formatCurrency(loanAmount))}</span> ریال، پس از اعلام کتبی بانک، نسبت به کسر از حقوق و مزایای ضامن و واریز به حساب آن بانک اقدام نماید.
+                            </p>
+                            <p>این گواهی صرفاً جهت اطلاع بانک صادر گردیده و فاقد هرگونه ارزش و اعتبار دیگری می‌باشد.</p>
+                            <br />
+                            <div className="signature text-left">
+                                <p className="font-bold">با تشکر</p>
+                                <p className="font-bold">مدیریت سرمایه انسانی</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
