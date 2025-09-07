@@ -11,8 +11,8 @@ import SettingsPage from './pages/SettingsPage';
 import DashboardPage from './pages/DashboardPage';
 import DocumentUploadPage from './pages/DocumentUploadPage';
 import AccountingCommitmentPage from './pages/AccountingCommitmentPage';
+import DisciplinaryCommitteePage from './pages/DisciplinaryCommitteePage';
 
-const DisciplinaryCommitteePage: React.FC = () => React.createElement(PlaceholderPage, { title: "کمیته تشویق و انضباطی" });
 const PerformanceReviewPage: React.FC = () => React.createElement(PlaceholderPage, { title: "ارزیابی عملکرد" });
 const JobGroupPage: React.FC = () => React.createElement(PlaceholderPage, { title: "گروه شغلی پرسنل" });
 const EnterBonusPage: React.FC = () => React.createElement(PlaceholderPage, { title: "وارد کردن کارانه" });

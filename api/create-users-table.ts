@@ -174,6 +174,19 @@ export default async function handler(
     `;
     messages.push('جدول "commitment_letters" با موفقیت ایجاد یا تایید شد.');
 
+    await client.sql`
+      CREATE TABLE IF NOT EXISTS disciplinary_records (
+        id SERIAL PRIMARY KEY,
+        full_name VARCHAR(255) NOT NULL,
+        personnel_code VARCHAR(50) NOT NULL,
+        meeting_date VARCHAR(50),
+        letter_description TEXT,
+        final_decision TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `;
+    messages.push('جدول "disciplinary_records" با موفقیت ایجاد یا تایید شد.');
+
     await client.sql`COMMIT`;
     messages.push('تراکنش اصلی ایجاد جداول با موفقیت انجام شد.');
 

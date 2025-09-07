@@ -1,6 +1,6 @@
 import { createPool, VercelPool, VercelPoolClient } from '@vercel/postgres';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import type { Personnel, Dependent, CommutingMember } from '../types';
+import type { Personnel, Dependent, CommutingMember, DisciplinaryRecord } from '../types';
 
 // --- Type Aliases for Payloads ---
 type NewPersonnel = Omit<Personnel, 'id'>;
@@ -561,6 +561,66 @@ async function handleDeleteCommitmentLetter(request: VercelRequest, response: Ve
 }
 
 // =================================================================================
+// DISCIPLINARY RECORDS HANDLERS
+// =================================================================================
+async function handleGetDisciplinaryRecords(response: VercelResponse, pool: VercelPool) {
+  const { rows } = await pool.sql`SELECT * FROM disciplinary_records ORDER BY meeting_date DESC, created_at DESC;`;
+  return response.status(200).json({ records: rows });
+}
+
+async function handlePostDisciplinaryRecords(body: any, response: VercelResponse, client: VercelPoolClient) {
+    if (!Array.isArray(body)) return response.status(400).json({ error: 'فرمت داده‌های ارسالی نامعتبر است.' });
+    
+    const validList = body.filter((r: any) => r.personnel_code && r.full_name);
+    if (validList.length === 0) return response.status(400).json({ error: 'هیچ رکورد معتبری برای ورود یافت نشد.' });
+    
+    try {
+        await client.sql`BEGIN`;
+        const columns = ['full_name', 'personnel_code', 'meeting_date', 'letter_description', 'final_decision'];
+        const values: (string | null)[] = [];
+        let valuePlaceholders = [];
+        let paramIndex = 1;
+        for (const record of validList) {
+            values.push(record.full_name, record.personnel_code, record.meeting_date, record.letter_description, record.final_decision);
+            valuePlaceholders.push(`($${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++})`);
+        }
+        const query = `INSERT INTO disciplinary_records (${columns.join(', ')}) VALUES ${valuePlaceholders.join(', ')}`;
+        await (client as any).query(query, values);
+        await client.sql`COMMIT`;
+        return response.status(201).json({ message: `عملیات موفق. ${validList.length} رکورد با موفقیت وارد شد.` });
+    } catch (error) {
+        await client.sql`ROLLBACK`.catch(()=>{});
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return response.status(500).json({ error: 'خطا در عملیات پایگاه داده.', details: errorMessage });
+    }
+}
+
+async function handlePutDisciplinaryRecord(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+    const { id, full_name, personnel_code, meeting_date, letter_description, final_decision } = request.body as DisciplinaryRecord;
+    if (!id) return response.status(400).json({ error: 'شناسه رکورد برای ویرایش الزامی است.' });
+    const { rows } = await pool.sql`
+        UPDATE disciplinary_records SET
+            full_name = ${full_name},
+            personnel_code = ${personnel_code},
+            meeting_date = ${meeting_date},
+            letter_description = ${letter_description},
+            final_decision = ${final_decision}
+        WHERE id = ${id} RETURNING *;
+    `;
+    if (rows.length === 0) return response.status(404).json({ error: 'رکوردی با این شناسه یافت نشد.' });
+    return response.status(200).json({ message: 'رکورد با موفقیت ویرایش شد.', record: rows[0] });
+}
+
+async function handleDeleteDisciplinaryRecord(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+    const { id } = request.query;
+    if (!id || typeof id !== 'string') return response.status(400).json({ error: 'شناسه رکورد برای حذف الزامی است.' });
+    const result = await pool.sql`DELETE FROM disciplinary_records WHERE id = ${parseInt(id, 10)};`;
+    if (result.rowCount === 0) return response.status(404).json({ error: 'رکوردی برای حذف یافت نشد.' });
+    return response.status(200).json({ message: 'رکورد با موفقیت حذف شد.' });
+}
+
+
+// =================================================================================
 // MAIN HANDLER
 // =================================================================================
 export default async function handler(request: VercelRequest, response: VercelResponse) {
@@ -579,6 +639,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
         if (type === 'documents') return await handleGetDocuments(request, response, pool);
         if (type === 'document_data') return await handleGetDocumentData(request, response, pool);
         if (type === 'commitment_letters') return await handleGetCommitmentLetters(request, response, pool);
+        if (type === 'disciplinary_records') return await handleGetDisciplinaryRecords(response, pool);
         return response.status(400).json({ error: 'نوع داده نامعتبر است.' });
 
       case 'POST': {
@@ -589,6 +650,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
           if (type === 'commuting_members') return await handlePostCommutingMembers(request.body, response, client);
           if (type === 'documents') return await handlePostDocument(request, response, pool);
           if (type === 'commitment_letters') return await handlePostCommitmentLetter(request, response, pool);
+          if (type === 'disciplinary_records') return await handlePostDisciplinaryRecords(request.body, response, client);
           return response.status(400).json({ error: 'نوع داده نامعتبر است.' });
         } finally {
           client.release();
@@ -599,6 +661,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
         if (type === 'personnel') return await handlePutPersonnel(request, response, pool);
         if (type === 'dependents') return await handlePutDependent(request, response, pool);
         if (type === 'commitment_letters') return await handlePutCommitmentLetter(request, response, pool);
+        if (type === 'disciplinary_records') return await handlePutDisciplinaryRecord(request, response, pool);
         return response.status(400).json({ error: 'نوع داده نامعتبر است.' });
       
       case 'DELETE':
@@ -606,6 +669,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
         if (type === 'documents') return await handleDeleteDocument(request, response, pool);
         if (type === 'dependents') return await handleDeleteDependent(request, response, pool);
         if (type === 'commitment_letters') return await handleDeleteCommitmentLetter(request, response, pool);
+        if (type === 'disciplinary_records') return await handleDeleteDisciplinaryRecord(request, response, pool);
         return response.status(400).json({ error: 'نوع داده برای حذف نامعتبر است.' });
 
       default:

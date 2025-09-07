@@ -284,6 +284,7 @@ const AccountingCommitmentPage: React.FC = () => {
                 first_name: letter.guarantor_name.split(' ')[0] || '',
                 last_name: letter.guarantor_name.split(' ').slice(1).join(' ') || '',
                 national_id: letter.guarantor_national_id,
+                sum_of_decree_factors: String(letter.sum_of_decree_factors)
             };
             setSelectedGuarantor(archivedGuarantorData as Personnel);
         }
@@ -461,13 +462,8 @@ const AccountingCommitmentPage: React.FC = () => {
              <div className="mt-8 border-t pt-6">
                 <h3 className="text-xl font-bold text-gray-800 mb-4">۳. پیش نمایش نامه جهت چاپ</h3>
                 <div ref={printRef} className="p-8 border rounded-lg bg-gray-50 text-gray-800 print-container" style={{ direction: 'rtl', lineHeight: '2.5' }}>
-                    <div className="text-left mb-8">
-                        <p>تاریخ: ....................</p>
-                        <p>شماره: ....................</p>
-                        <p>پیوست: ندارد</p>
-                    </div>
                     
-                    <p className="font-bold mb-4">ریاست محترم بانک <span className="underline">{bankName || '....................'}</span> شعبه <span className="underline">{branchName || '....................'}</span></p>
+                    <p className="font-bold my-8">ریاست محترم بانک <span className="underline">{bankName || '....................'}</span> شعبه <span className="underline">{branchName || '....................'}</span></p>
                     
                     <p>
                         احتراماً، بدینوسیله گواهی می‌شود آقای/خانم <span className="underline">{selectedGuarantor ? `${selectedGuarantor.first_name} ${selectedGuarantor.last_name}` : '..............................'}</span> به شماره پرسنلی <span className="underline">{toPersianDigits(selectedGuarantor?.personnel_code)}</span> و کد ملی <span className="underline">{toPersianDigits(selectedGuarantor?.national_id)}</span> کارمند این شرکت بوده و این شرکت متعهد می‌گردد در صورت عدم پرداخت اقساط وام دریافتی آقای/خانم <span className="underline">{recipientName || '..............................'}</span> به کد ملی <span className="underline">{toPersianDigits(recipientNationalId)}</span> به مبلغ <span className="underline">{toPersianDigits(formatCurrency(loanAmount))}</span> ریال، پس از اعلام کتبی بانک، نسبت به کسر از حقوق و مزایای ضامن و واریز به حساب آن بانک اقدام نماید.

@@ -10,6 +10,8 @@ const TABLES_IN_ORDER = [
     'hourly_commute_logs',
     'commute_edit_logs',
     'personnel_documents',
+    'commitment_letters',
+    'disciplinary_records'
 ];
 
 const TABLE_COLUMNS: Record<string, string[]> = {
@@ -36,6 +38,12 @@ const TABLE_COLUMNS: Record<string, string[]> = {
       'field_name', 'old_value', 'new_value'
     ],
     personnel_documents: ['personnel_code', 'title', 'file_name', 'file_type', 'file_data', 'uploaded_at'],
+    commitment_letters: [
+      'recipient_name', 'recipient_national_id', 'guarantor_personnel_code', 'guarantor_name',
+      'guarantor_national_id', 'loan_amount', 'sum_of_decree_factors', 'bank_name', 'branch_name',
+      'issue_date', 'reference_number', 'created_at'
+    ],
+    disciplinary_records: ['full_name', 'personnel_code', 'meeting_date', 'letter_description', 'final_decision', 'created_at']
 };
 
 // Helper to safely quote all column names

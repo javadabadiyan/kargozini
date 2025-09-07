@@ -162,3 +162,12 @@ export interface CommitmentLetter {
   reference_number: string | null;
   created_at?: string;
 }
+
+export interface DisciplinaryRecord {
+  id: number;
+  full_name: string;
+  personnel_code: string;
+  meeting_date: string;
+  letter_description: string;
+  final_decision: string;
+}
