@@ -10,6 +10,7 @@ interface EditDisciplinaryRecordModalProps {
 const EditDisciplinaryRecordModal: React.FC<EditDisciplinaryRecordModalProps> = ({ record, onClose, onSave }) => {
   const [formData, setFormData] = useState<DisciplinaryRecord>(record);
   const [isSaving, setIsSaving] = useState(false);
+  const isNew = !record.id;
 
   useEffect(() => {
     setFormData(record);
@@ -43,7 +44,9 @@ const EditDisciplinaryRecordModal: React.FC<EditDisciplinaryRecordModalProps> = 
         onClick={e => e.stopPropagation()}
       >
         <div className="flex justify-between items-center p-4 border-b">
-          <h3 className="text-xl font-semibold text-gray-800">ویرایش رکورد انضباطی</h3>
+          <h3 className="text-xl font-semibold text-gray-800">
+            {isNew ? 'افزودن رکورد انضباطی جدید' : `ویرایش رکورد برای ${record.full_name}`}
+          </h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
           </button>
@@ -80,7 +83,7 @@ const EditDisciplinaryRecordModal: React.FC<EditDisciplinaryRecordModalProps> = 
               انصراف
             </button>
             <button type="submit" className="mr-3 px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-blue-300" disabled={isSaving}>
-              {isSaving ? 'در حال ذخیره...' : 'ذخیره تغییرات'}
+              {isSaving ? 'در حال ذخیره...' : (isNew ? 'افزودن رکورد' : 'ذخیره تغییرات')}
             </button>
           </div>
         </form>

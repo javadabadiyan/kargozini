@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import type { DisciplinaryRecord } from '../../types';
 import EditDisciplinaryRecordModal from '../EditDisciplinaryRecordModal';
-import { PencilIcon, TrashIcon, DownloadIcon, UploadIcon, DocumentReportIcon } from '../icons/Icons';
+import { PencilIcon, TrashIcon, DownloadIcon, UploadIcon, DocumentReportIcon, SearchIcon } from '../icons/Icons';
 
 declare const XLSX: any;
 
@@ -15,6 +15,15 @@ const HEADER_MAP: { [key: string]: keyof Omit<DisciplinaryRecord, 'id'> } = {
 
 const TABLE_HEADERS = [...Object.keys(HEADER_MAP), 'عملیات'];
 const PAGE_SIZE = 20;
+
+const DEFAULT_RECORD: DisciplinaryRecord = {
+    id: 0,
+    full_name: '',
+    personnel_code: '',
+    meeting_date: '',
+    letter_description: '',
+    final_decision: '',
+};
 
 const toPersianDigits = (s: string | number | null | undefined): string => {
     if (s === null || s === undefined) return '';
@@ -30,16 +39,9 @@ const DisciplinaryCommitteePage: React.FC = () => {
 
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editingRecord, setEditingRecord] = useState<DisciplinaryRecord | null>(null);
-
+    const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     
-    const paginatedRecords = React.useMemo(() => {
-        const startIndex = (currentPage - 1) * PAGE_SIZE;
-        return records.slice(startIndex, startIndex + PAGE_SIZE);
-    }, [records, currentPage]);
-
-    const totalPages = Math.ceil(records.length / PAGE_SIZE);
-
     const fetchRecords = useCallback(async () => {
         setLoading(true);
         setError(null);
@@ -61,6 +63,28 @@ const DisciplinaryCommitteePage: React.FC = () => {
     useEffect(() => {
         fetchRecords();
     }, [fetchRecords]);
+
+    const filteredRecords = useMemo(() => {
+        if (!searchTerm) return records;
+        const lowercasedTerm = searchTerm.toLowerCase().trim();
+        return records.filter(r =>
+            r.full_name.toLowerCase().includes(lowercasedTerm) ||
+            r.personnel_code.toLowerCase().includes(lowercasedTerm) ||
+            r.letter_description.toLowerCase().includes(lowercasedTerm) ||
+            r.final_decision.toLowerCase().includes(lowercasedTerm)
+        );
+    }, [records, searchTerm]);
+
+    const paginatedRecords = useMemo(() => {
+        const startIndex = (currentPage - 1) * PAGE_SIZE;
+        return filteredRecords.slice(startIndex, startIndex + PAGE_SIZE);
+    }, [filteredRecords, currentPage]);
+
+    const totalPages = Math.ceil(filteredRecords.length / PAGE_SIZE);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm]);
 
     const handleDownloadSample = () => {
         const ws = XLSX.utils.aoa_to_sheet([Object.keys(HEADER_MAP)]);
@@ -132,22 +156,36 @@ const DisciplinaryCommitteePage: React.FC = () => {
         setEditingRecord(record);
         setIsEditModalOpen(true);
     };
+    
+    const handleAddNewClick = () => {
+        setEditingRecord(DEFAULT_RECORD);
+        setIsEditModalOpen(true);
+    };
 
     const handleCloseModal = () => {
         setIsEditModalOpen(false);
         setEditingRecord(null);
     };
 
-    const handleSave = async (updatedRecord: DisciplinaryRecord) => {
-        setStatus({ type: 'info', message: 'در حال ذخیره تغییرات...' });
+    const handleSave = async (recordToSave: DisciplinaryRecord) => {
+        const isNew = !recordToSave.id;
+        const method = isNew ? 'POST' : 'PUT';
+        const url = '/api/personnel?type=disciplinary_records';
+
+        // For PUT, send the full object. For POST, send object without id.
+        const payload = isNew ? (({ id, ...rest }) => rest)(recordToSave) : recordToSave;
+
+        setStatus({ type: 'info', message: isNew ? 'در حال افزودن رکورد...' : 'در حال ذخیره تغییرات...' });
         try {
-            const response = await fetch('/api/personnel?type=disciplinary_records', {
-                method: 'PUT',
+            const response = await fetch(url, {
+                method: method,
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updatedRecord),
+                body: JSON.stringify(payload),
             });
-            if (!response.ok) throw new Error((await response.json()).error);
-            setStatus({ type: 'success', message: 'تغییرات با موفقیت ذخیره شد.' });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error);
+            
+            setStatus({ type: 'success', message: result.message });
             handleCloseModal();
             fetchRecords();
         } catch (err) {
@@ -180,6 +218,7 @@ const DisciplinaryCommitteePage: React.FC = () => {
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 border-b-2 border-gray-100 pb-4">
                 <h2 className="text-2xl font-bold text-gray-800">کمیته تشویق و انضباطی</h2>
                 <div className="flex items-center gap-2 flex-wrap">
+                    <button onClick={handleAddNewClick} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">افزودن رکورد دستی</button>
                     <button onClick={handleDownloadSample} className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 border border-gray-300 text-sm rounded-lg hover:bg-gray-200">
                         <DownloadIcon className="w-4 h-4" /> دانلود نمونه
                     </button>
@@ -193,6 +232,22 @@ const DisciplinaryCommitteePage: React.FC = () => {
                 </div>
             </div>
             {status && <div className={`p-4 mb-4 text-sm rounded-lg ${statusColor[status.type]}`}>{status.message}</div>}
+
+            <div className="mb-4">
+                <label htmlFor="search-disciplinary" className="block text-sm font-medium text-gray-700 mb-2">جستجوی پیشرفته</label>
+                <div className="relative">
+                    <input
+                        type="text"
+                        id="search-disciplinary"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full pr-10 pl-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="جستجو در نام، کد پرسنلی، شرح یا رای نهایی..."
+                    />
+                    <SearchIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                </div>
+            </div>
+
             <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200 border">
                     <thead className="bg-gray-100">
@@ -206,21 +261,21 @@ const DisciplinaryCommitteePage: React.FC = () => {
                         {loading && <tr><td colSpan={TABLE_HEADERS.length} className="text-center p-4">در حال بارگذاری...</td></tr>}
                         {error && <tr><td colSpan={TABLE_HEADERS.length} className="text-center p-4 text-red-500">{error}</td></tr>}
                         {!loading && !error && paginatedRecords.length > 0 && paginatedRecords.map((r) => (
-                            <tr key={r.id} className="hover:bg-slate-50">
+                            <tr key={r.id} onClick={() => handleEditClick(r)} className="hover:bg-slate-50 cursor-pointer">
                                 {Object.keys(HEADER_MAP).map(header => {
                                     const key = HEADER_MAP[header as keyof typeof HEADER_MAP];
                                     return <td key={key} className="px-4 py-3 whitespace-pre-wrap text-sm text-gray-700">{toPersianDigits(String(r[key] ?? ''))}</td>;
                                 })}
                                 <td className="px-4 py-3 whitespace-nowrap text-sm text-center">
-                                    <div className="flex items-center justify-center gap-2">
+                                    <div className="flex items-center justify-center gap-2" onClick={(e) => e.stopPropagation()}>
                                         <button onClick={() => handleEditClick(r)} className="p-1 text-blue-600 hover:text-blue-800 rounded-full hover:bg-blue-100"><PencilIcon className="w-5 h-5" /></button>
                                         <button onClick={() => handleDelete(r.id)} className="p-1 text-red-600 hover:text-red-800 rounded-full hover:bg-red-100"><TrashIcon className="w-5 h-5" /></button>
                                     </div>
                                 </td>
                             </tr>
                         ))}
-                        {!loading && !error && records.length === 0 && (
-                            <tr><td colSpan={TABLE_HEADERS.length} className="text-center p-8 text-gray-500"><DocumentReportIcon className="w-12 h-12 mx-auto mb-2 text-gray-300" />هیچ رکوردی یافت نشد.</td></tr>
+                        {!loading && !error && filteredRecords.length === 0 && (
+                            <tr><td colSpan={TABLE_HEADERS.length} className="text-center p-8 text-gray-500"><DocumentReportIcon className="w-12 h-12 mx-auto mb-2 text-gray-300" />{searchTerm ? 'هیچ رکوردی مطابق با جستجوی شما یافت نشد.' : 'هیچ رکوردی یافت نشد.'}</td></tr>
                         )}
                     </tbody>
                 </table>

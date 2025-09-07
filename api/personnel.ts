@@ -427,7 +427,7 @@ async function handleGetDocumentData(request: VercelRequest, response: VercelRes
 async function handlePostDocument(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
     const { personnel_code, title, file_name, file_type, file_data } = request.body;
     if (!personnel_code || !title || !file_name || !file_type || !file_data) {
-        return response.status(400).json({ error: 'تمام فیلدها الزامی هستند.' });
+        return response.status(400).json({ error: 'اطلاعات ارسالی ناقص است.' });
     }
     const { rows } = await pool.sql`
         INSERT INTO personnel_documents (personnel_code, title, file_name, file_type, file_data)
@@ -444,7 +444,7 @@ async function handleDeleteDocument(request: VercelRequest, response: VercelResp
     }
     const result = await pool.sql`DELETE FROM personnel_documents WHERE id = ${parseInt(id, 10)};`;
     if (result.rowCount === 0) {
-        return response.status(404).json({ error: 'مدرک برای حذف یافت نشد.' });
+        return response.status(404).json({ error: 'مدرک یافت نشد.' });
     }
     return response.status(200).json({ message: 'مدرک با موفقیت حذف شد.' });
 }
@@ -454,235 +454,208 @@ async function handleDeleteDocument(request: VercelRequest, response: VercelResp
 // COMMITMENT LETTER HANDLERS
 // =================================================================================
 async function handleGetCommitmentLetters(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
-  const { guarantorCode, searchTerm } = request.query;
+    const { guarantorCode, searchTerm } = request.query;
 
-  if (guarantorCode && typeof guarantorCode === 'string') {
-      const { rows } = await pool.sql`
-          SELECT SUM(loan_amount) as total_committed 
-          FROM commitment_letters 
-          WHERE guarantor_personnel_code = ${guarantorCode};
-      `;
-      const totalCommitted = rows[0]?.total_committed || 0;
-      return response.status(200).json({ totalCommitted: Number(totalCommitted) });
-  }
-
-// FIX: Refactor to use `pool.sql` instead of the untyped `pool.query`
-  if (searchTerm && typeof searchTerm === 'string') {
-    const searchQuery = `%${searchTerm}%`;
-    const { rows } = await pool.sql`
-      SELECT * FROM commitment_letters
-      WHERE recipient_name ILIKE ${searchQuery} OR guarantor_name ILIKE ${searchQuery} OR recipient_national_id ILIKE ${searchQuery} OR guarantor_personnel_code ILIKE ${searchQuery}
-      ORDER BY issue_date DESC;`;
+    if (guarantorCode && typeof guarantorCode === 'string') {
+        const result = await pool.sql`SELECT COALESCE(SUM(loan_amount), 0) as total FROM commitment_letters WHERE guarantor_personnel_code = ${guarantorCode};`;
+        return response.status(200).json({ totalCommitted: result.rows[0].total });
+    }
+    
+    if (searchTerm && typeof searchTerm === 'string' && searchTerm.trim() !== '') {
+        const searchQuery = `%${searchTerm.trim()}%`;
+        const { rows } = await pool.sql`
+            SELECT * FROM commitment_letters WHERE
+            recipient_name ILIKE ${searchQuery} OR
+            recipient_national_id ILIKE ${searchQuery} OR
+            guarantor_name ILIKE ${searchQuery} OR
+            guarantor_personnel_code ILIKE ${searchQuery} OR
+            guarantor_national_id ILIKE ${searchQuery}
+            ORDER BY created_at DESC;
+        `;
+        return response.status(200).json({ letters: rows });
+    }
+    
+    const { rows } = await pool.sql`SELECT * FROM commitment_letters ORDER BY created_at DESC;`;
     return response.status(200).json({ letters: rows });
-  }
-
-  const { rows } = await pool.sql`SELECT * FROM commitment_letters ORDER BY issue_date DESC;`;
-  return response.status(200).json({ letters: rows });
 }
 
 async function handlePostCommitmentLetter(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
-    const {
-        recipient_name, recipient_national_id, guarantor_personnel_code,
-        guarantor_name, guarantor_national_id, loan_amount, sum_of_decree_factors,
-        bank_name, branch_name, reference_number
-    } = request.body;
-    
-    if (!recipient_name || !recipient_national_id || !guarantor_personnel_code) {
-        return response.status(400).json({ error: 'اطلاعات وام‌گیرنده و ضامن الزامی است.' });
+    const letter = request.body;
+    if (!letter.guarantor_personnel_code || !letter.recipient_name) {
+        return response.status(400).json({ error: 'اطلاعات ضامن و وام گیرنده الزامی است.'});
     }
-
-    try {
-        const { rows } = await pool.sql`
-            INSERT INTO commitment_letters (
-                recipient_name, recipient_national_id, guarantor_personnel_code, guarantor_name,
-                guarantor_national_id, loan_amount, sum_of_decree_factors, bank_name, branch_name, reference_number
-            ) VALUES (
-                ${recipient_name}, ${recipient_national_id}, ${guarantor_personnel_code}, ${guarantor_name},
-                ${guarantor_national_id}, ${loan_amount}, ${sum_of_decree_factors}, ${bank_name}, ${branch_name}, ${reference_number}
-            )
-            ON CONFLICT (reference_number) DO NOTHING
-            RETURNING *;
-        `;
-        if (rows.length === 0) {
-           return response.status(409).json({ error: 'یک نامه با این شماره ارجاع از قبل وجود دارد.' });
-        }
-        return response.status(201).json({ message: 'نامه با موفقیت ذخیره شد.', letter: rows[0] });
-    } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        return response.status(500).json({ error: 'خطا در ذخیره نامه تعهد.', details: errorMessage });
-    }
+    const { rows } = await pool.sql`
+        INSERT INTO commitment_letters (recipient_name, recipient_national_id, guarantor_personnel_code, guarantor_name, guarantor_national_id, loan_amount, sum_of_decree_factors, bank_name, branch_name, reference_number)
+        VALUES (${letter.recipient_name}, ${letter.recipient_national_id}, ${letter.guarantor_personnel_code}, ${letter.guarantor_name}, ${letter.guarantor_national_id}, ${letter.loan_amount}, ${letter.sum_of_decree_factors}, ${letter.bank_name}, ${letter.branch_name}, ${letter.reference_number || null})
+        RETURNING *;
+    `;
+    return response.status(201).json({ message: 'نامه با موفقیت ثبت شد.', letter: rows[0] });
 }
 
 async function handlePutCommitmentLetter(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
-    const {
-        id, recipient_name, recipient_national_id, loan_amount,
-        bank_name, branch_name, reference_number
-    } = request.body;
-
-    if (!id) {
-        return response.status(400).json({ error: 'شناسه نامه برای ویرایش الزامی است.' });
-    }
-
-    try {
-        const { rows } = await pool.sql`
-            UPDATE commitment_letters SET
-                recipient_name = ${recipient_name},
-                recipient_national_id = ${recipient_national_id},
-                loan_amount = ${loan_amount},
-                bank_name = ${bank_name},
-                branch_name = ${branch_name},
-                reference_number = ${reference_number}
-            WHERE id = ${id}
-            RETURNING *;
-        `;
-        if (rows.length === 0) {
-           return response.status(404).json({ error: 'نامه‌ای با این شناسه یافت نشد.' });
-        }
-        return response.status(200).json({ message: 'نامه با موفقیت ویرایش شد.', letter: rows[0] });
-    } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        if (errorMessage.includes('commitment_letters_reference_number_key')) {
-             return response.status(409).json({ error: 'یک نامه دیگر با این شماره ارجاع وجود دارد.' });
-        }
-        return response.status(500).json({ error: 'خطا در ویرایش نامه تعهد.', details: errorMessage });
-    }
+    const letter = request.body;
+    if (!letter.id) return response.status(400).json({ error: 'شناسه نامه الزامی است.' });
+    const { rows } = await pool.sql`
+        UPDATE commitment_letters SET
+            recipient_name = ${letter.recipient_name}, recipient_national_id = ${letter.recipient_national_id},
+            loan_amount = ${letter.loan_amount}, bank_name = ${letter.bank_name}, branch_name = ${letter.branch_name},
+            reference_number = ${letter.reference_number}
+        WHERE id = ${letter.id} RETURNING *;
+    `;
+    return response.status(200).json({ message: 'نامه با موفقیت ویرایش شد.', letter: rows[0] });
 }
 
 async function handleDeleteCommitmentLetter(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
     const { id } = request.query;
-    if (!id || typeof id !== 'string') {
-        return response.status(400).json({ error: 'شناسه نامه برای حذف الزامی است.' });
-    }
+    if (!id || typeof id !== 'string') return response.status(400).json({ error: 'شناسه نامه الزامی است.' });
     const result = await pool.sql`DELETE FROM commitment_letters WHERE id = ${parseInt(id, 10)};`;
-    if (result.rowCount === 0) {
-        return response.status(404).json({ error: 'نامه برای حذف یافت نشد.' });
-    }
+    if (result.rowCount === 0) return response.status(404).json({ error: 'نامه یافت نشد.' });
     return response.status(200).json({ message: 'نامه با موفقیت حذف شد.' });
 }
 
 // =================================================================================
 // DISCIPLINARY RECORDS HANDLERS
 // =================================================================================
-async function handleGetDisciplinaryRecords(response: VercelResponse, pool: VercelPool) {
-  const { rows } = await pool.sql`SELECT * FROM disciplinary_records ORDER BY meeting_date DESC, created_at DESC;`;
-  return response.status(200).json({ records: rows });
+async function handleGetDisciplinaryRecords(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+    const { rows } = await pool.sql`SELECT * FROM disciplinary_records ORDER BY created_at DESC;`;
+    return response.status(200).json({ records: rows });
 }
 
-async function handlePostDisciplinaryRecords(body: any, response: VercelResponse, client: VercelPoolClient) {
-    if (!Array.isArray(body)) return response.status(400).json({ error: 'فرمت داده‌های ارسالی نامعتبر است.' });
-    
-    const validList = body.filter((r: any) => r.personnel_code && r.full_name);
-    if (validList.length === 0) return response.status(400).json({ error: 'هیچ رکورد معتبری برای ورود یافت نشد.' });
-    
-    try {
-        await client.sql`BEGIN`;
-        const columns = ['full_name', 'personnel_code', 'meeting_date', 'letter_description', 'final_decision'];
-        const values: (string | null)[] = [];
-        let valuePlaceholders = [];
-        let paramIndex = 1;
-        for (const record of validList) {
-            values.push(record.full_name, record.personnel_code, record.meeting_date, record.letter_description, record.final_decision);
-            valuePlaceholders.push(`($${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++}, $${paramIndex++})`);
+async function handlePostDisciplinaryRecords(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
+    const recordsData = request.body;
+
+    if (Array.isArray(recordsData)) {
+        const allRecords = recordsData as Omit<DisciplinaryRecord, 'id'>[];
+        const validList = allRecords.filter(r => r.full_name && r.personnel_code);
+        if (validList.length === 0) return response.status(400).json({ error: 'هیچ رکورد معتبری یافت نشد.' });
+        try {
+            await client.sql`BEGIN`;
+            const columns = ['full_name', 'personnel_code', 'meeting_date', 'letter_description', 'final_decision'];
+            const values: (string | null)[] = [];
+            const valuePlaceholders: string[] = [];
+            let paramIndex = 1;
+            for (const record of validList) {
+                const recordPlaceholders: string[] = [];
+                for (const col of columns) { values.push(record[col as keyof typeof record] ?? null); recordPlaceholders.push(`$${paramIndex++}`); }
+                valuePlaceholders.push(`(${recordPlaceholders.join(', ')})`);
+            }
+            const query = `INSERT INTO disciplinary_records (${columns.join(', ')}) VALUES ${valuePlaceholders.join(', ')}`;
+            await (client as any).query(query, values);
+            await client.sql`COMMIT`;
+            return response.status(200).json({ message: `عملیات موفق. ${validList.length} رکورد پردازش شد.` });
+        } catch (error) {
+            await client.sql`ROLLBACK`.catch(() => {});
+            const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+            return response.status(500).json({ error: 'خطا در عملیات پایگاه داده.', details: errorMessage });
         }
-        const query = `INSERT INTO disciplinary_records (${columns.join(', ')}) VALUES ${valuePlaceholders.join(', ')}`;
-        await (client as any).query(query, values);
-        await client.sql`COMMIT`;
-        return response.status(201).json({ message: `عملیات موفق. ${validList.length} رکورد با موفقیت وارد شد.` });
-    } catch (error) {
-        await client.sql`ROLLBACK`.catch(()=>{});
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        return response.status(500).json({ error: 'خطا در عملیات پایگاه داده.', details: errorMessage });
+    } else {
+        const record = recordsData as Omit<DisciplinaryRecord, 'id'>;
+        if (!record || !record.full_name || !record.personnel_code) {
+            return response.status(400).json({ error: 'نام کامل و کد پرسنلی الزامی است.' });
+        }
+        try {
+            const { rows } = await client.sql`
+                INSERT INTO disciplinary_records (full_name, personnel_code, meeting_date, letter_description, final_decision)
+                VALUES (${record.full_name}, ${record.personnel_code}, ${record.meeting_date || null}, ${record.letter_description || null}, ${record.final_decision || null})
+                RETURNING *;
+            `;
+            return response.status(201).json({ message: 'رکورد با موفقیت اضافه شد.', record: rows[0] });
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+            return response.status(500).json({ error: 'خطا در عملیات پایگاه داده.', details: errorMessage });
+        }
     }
 }
 
 async function handlePutDisciplinaryRecord(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
-    const { id, full_name, personnel_code, meeting_date, letter_description, final_decision } = request.body as DisciplinaryRecord;
-    if (!id) return response.status(400).json({ error: 'شناسه رکورد برای ویرایش الزامی است.' });
+    const record = request.body as DisciplinaryRecord;
+    if (!record || !record.id) return response.status(400).json({ error: 'شناسه رکورد الزامی است.' });
     const { rows } = await pool.sql`
         UPDATE disciplinary_records SET
-            full_name = ${full_name},
-            personnel_code = ${personnel_code},
-            meeting_date = ${meeting_date},
-            letter_description = ${letter_description},
-            final_decision = ${final_decision}
-        WHERE id = ${id} RETURNING *;
+            full_name = ${record.full_name}, personnel_code = ${record.personnel_code}, meeting_date = ${record.meeting_date},
+            letter_description = ${record.letter_description}, final_decision = ${record.final_decision}
+        WHERE id = ${record.id} RETURNING *;
     `;
-    if (rows.length === 0) return response.status(404).json({ error: 'رکوردی با این شناسه یافت نشد.' });
     return response.status(200).json({ message: 'رکورد با موفقیت ویرایش شد.', record: rows[0] });
 }
 
 async function handleDeleteDisciplinaryRecord(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
     const { id } = request.query;
-    if (!id || typeof id !== 'string') return response.status(400).json({ error: 'شناسه رکورد برای حذف الزامی است.' });
+    if (!id || typeof id !== 'string') return response.status(400).json({ error: 'شناسه رکورد الزامی است.' });
     const result = await pool.sql`DELETE FROM disciplinary_records WHERE id = ${parseInt(id, 10)};`;
-    if (result.rowCount === 0) return response.status(404).json({ error: 'رکوردی برای حذف یافت نشد.' });
+    if (result.rowCount === 0) return response.status(404).json({ error: 'رکورد یافت نشد.' });
     return response.status(200).json({ message: 'رکورد با موفقیت حذف شد.' });
 }
 
-
 // =================================================================================
-// MAIN HANDLER
+// MAIN API HANDLER
 // =================================================================================
 export default async function handler(request: VercelRequest, response: VercelResponse) {
-  if (!process.env.POSTGRES_URL) {
-    return response.status(500).json({ error: 'متغیر اتصال به پایگاه داده (POSTGRES_URL) تنظیم نشده است.' });
-  }
+  if (!process.env.POSTGRES_URL) return response.status(500).json({ error: 'متغیر اتصال به پایگاه داده (POSTGRES_URL) تنظیم نشده است.' });
   const pool = createPool({ connectionString: process.env.POSTGRES_URL });
-  const type = request.query.type as string || 'personnel';
+  const client = await pool.connect();
 
   try {
-    switch (request.method) {
-      case 'GET':
-        if (type === 'personnel') return await handleGetPersonnel(request, response, pool);
-        if (type === 'dependents') return await handleGetDependents(request, response, pool);
-        if (type === 'commuting_members') return await handleGetCommutingMembers(response, pool);
-        if (type === 'documents') return await handleGetDocuments(request, response, pool);
-        if (type === 'document_data') return await handleGetDocumentData(request, response, pool);
-        if (type === 'commitment_letters') return await handleGetCommitmentLetters(request, response, pool);
-        if (type === 'disciplinary_records') return await handleGetDisciplinaryRecords(response, pool);
-        return response.status(400).json({ error: 'نوع داده نامعتبر است.' });
+    const { type } = request.query;
 
-      case 'POST': {
-        const client = await pool.connect();
-        try {
-          if (type === 'personnel') return await handlePostPersonnel(request.body, response, pool); // Uses its own client logic
-          if (type === 'dependents') return await handlePostDependents(request, response, client);
-          if (type === 'commuting_members') return await handlePostCommutingMembers(request.body, response, client);
-          if (type === 'documents') return await handlePostDocument(request, response, pool);
-          if (type === 'commitment_letters') return await handlePostCommitmentLetter(request, response, pool);
-          if (type === 'disciplinary_records') return await handlePostDisciplinaryRecords(request.body, response, client);
-          return response.status(400).json({ error: 'نوع داده نامعتبر است.' });
-        } finally {
-          client.release();
+    if (type === 'personnel') {
+        switch (request.method) {
+            case 'GET': return await handleGetPersonnel(request, response, pool);
+            case 'POST': return await handlePostPersonnel(request.body, response, pool);
+            case 'PUT': return await handlePutPersonnel(request, response, pool);
+            case 'DELETE': return await handleDeletePersonnel(request, response, pool);
+            default: response.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']); return response.status(405).end();
         }
-      }
-
-      case 'PUT':
-        if (type === 'personnel') return await handlePutPersonnel(request, response, pool);
-        if (type === 'dependents') return await handlePutDependent(request, response, pool);
-        if (type === 'commitment_letters') return await handlePutCommitmentLetter(request, response, pool);
-        if (type === 'disciplinary_records') return await handlePutDisciplinaryRecord(request, response, pool);
-        return response.status(400).json({ error: 'نوع داده نامعتبر است.' });
-      
-      case 'DELETE':
-        if (type === 'personnel') return await handleDeletePersonnel(request, response, pool);
-        if (type === 'documents') return await handleDeleteDocument(request, response, pool);
-        if (type === 'dependents') return await handleDeleteDependent(request, response, pool);
-        if (type === 'commitment_letters') return await handleDeleteCommitmentLetter(request, response, pool);
-        if (type === 'disciplinary_records') return await handleDeleteDisciplinaryRecord(request, response, pool);
-        return response.status(400).json({ error: 'نوع داده برای حذف نامعتبر است.' });
-
-      default:
-        response.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']);
-        return response.status(405).json({ error: `Method ${request.method} Not Allowed` });
+    } else if (type === 'dependents') {
+        switch (request.method) {
+            case 'GET': return await handleGetDependents(request, response, pool);
+            case 'POST': return await handlePostDependents(request, response, client);
+            case 'PUT': return await handlePutDependent(request, response, pool);
+            case 'DELETE': return await handleDeleteDependent(request, response, pool);
+            default: response.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']); return response.status(405).end();
+        }
+    } else if (type === 'commuting_members') {
+         switch (request.method) {
+            case 'GET': return await handleGetCommutingMembers(response, pool);
+            case 'POST': return await handlePostCommutingMembers(request.body, response, client);
+            default: response.setHeader('Allow', ['GET', 'POST']); return response.status(405).end();
+        }
+    } else if (type === 'documents') {
+        switch (request.method) {
+            case 'GET': return await handleGetDocuments(request, response, pool);
+            case 'POST': return await handlePostDocument(request, response, pool);
+            case 'DELETE': return await handleDeleteDocument(request, response, pool);
+            default: response.setHeader('Allow', ['GET', 'POST', 'DELETE']); return response.status(405).end();
+        }
+    } else if (type === 'document_data') {
+        if (request.method === 'GET') return await handleGetDocumentData(request, response, pool);
+        else { response.setHeader('Allow', ['GET']); return response.status(405).end(); }
+    } else if (type === 'commitment_letters') {
+        switch (request.method) {
+            case 'GET': return await handleGetCommitmentLetters(request, response, pool);
+            case 'POST': return await handlePostCommitmentLetter(request, response, pool);
+            case 'PUT': return await handlePutCommitmentLetter(request, response, pool);
+            case 'DELETE': return await handleDeleteCommitmentLetter(request, response, pool);
+            default: response.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']); return response.status(405).end();
+        }
+    } else if (type === 'disciplinary_records') {
+        switch (request.method) {
+            case 'GET': return await handleGetDisciplinaryRecords(request, response, pool);
+            case 'POST': return await handlePostDisciplinaryRecords(request, response, client);
+            case 'PUT': return await handlePutDisciplinaryRecord(request, response, pool);
+            case 'DELETE': return await handleDeleteDisciplinaryRecord(request, response, pool);
+            default: response.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']); return response.status(405).end();
+        }
     }
+
+    return response.status(400).json({ error: `نوع "${type}" نامعتبر است.` });
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
-    if (errorMessage.includes('does not exist')) {
-        return response.status(500).json({ error: 'جدول مورد نظر در پایگاه داده یافت نشد.', details: 'لطفاً از طریق /api/create-users-table از ایجاد جداول اطمینان حاصل کنید.'});
-    }
-    if (errorMessage.includes('duplicate key')) return response.status(409).json({ error: 'مقدار تکراری.', details: 'یک رکورد دیگر با این شناسه یکتا (مانند کد پرسنلی یا کد ملی) وجود دارد.' });
-    if (errorMessage.includes('foreign key constraint')) return response.status(400).json({ error: 'کد پرسنلی نامعتبر.', details: 'یک یا چند کد پرسنلی در فایل شما در لیست پرسنل اصلی وجود ندارد.' });
-    return response.status(500).json({ error: 'خطای داخلی سرور.', details: errorMessage });
+      const errorMessage = error instanceof Error ? error.message : 'An unknown server error occurred';
+      if (errorMessage.includes('does not exist')) {
+        return response.status(500).json({ error: 'یکی از جداول مورد نیاز در پایگاه داده یافت نشد.', details: 'لطفاً از طریق /api/create-users-table از ایجاد جداول اطمینان حاصل کنید.'});
+      }
+      return response.status(500).json({ error: 'خطای داخلی سرور.', details: errorMessage });
+  } finally {
+      client.release();
   }
 }
