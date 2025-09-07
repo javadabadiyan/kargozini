@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import type { Personnel } from '../../types';
-import { SearchIcon, PrinterIcon, RefreshIcon, DocumentReportIcon, TrashIcon } from '../icons/Icons';
+import type { Personnel, CommitmentLetter } from '../../types';
+import { SearchIcon, PrinterIcon, RefreshIcon, DocumentReportIcon, TrashIcon, ChevronDownIcon, ChevronUpIcon, PencilIcon, DocumentIcon } from '../icons/Icons';
+import EditCommitmentLetterModal from '../EditCommitmentLetterModal';
+
 
 const toPersianDigits = (s: string | number | null | undefined): string => {
     if (s === null || s === undefined) return '';
@@ -14,23 +16,12 @@ const toEnglishDigits = (str: string): string => {
 };
 
 const formatCurrency = (value: string | number): string => {
-    if (!value) return '';
+    if (!value) return '۰';
     const num = String(value).replace(/,/g, '');
     if (isNaN(Number(num))) return String(value);
     return num.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 };
 
-interface CommitmentLetter {
-    id: number;
-    recipient_name: string;
-    recipient_national_id: string;
-    guarantor_name: string;
-    guarantor_personnel_code: string;
-    loan_amount: string;
-    bank_name: string;
-    branch_name: string;
-    issue_date: string;
-}
 
 const AccountingCommitmentPage: React.FC = () => {
     const [personnelList, setPersonnelList] = useState<Personnel[]>([]);
@@ -40,20 +31,25 @@ const AccountingCommitmentPage: React.FC = () => {
 
     const [recipientName, setRecipientName] = useState('');
     const [recipientNationalId, setRecipientNationalId] = useState('');
-    const [loanAmount, setLoanAmount] = useState(''); // Raw numeric string
+    const [loanAmount, setLoanAmount] = useState('');
     const [bankName, setBankName] = useState('');
     const [branchName, setBranchName] = useState('');
     const [referenceNumber, setReferenceNumber] = useState('');
-    const [decreeFactors, setDecreeFactors] = useState(''); // Raw numeric string
+    const [decreeFactors, setDecreeFactors] = useState('');
     
     const [totalCommitted, setTotalCommitted] = useState(0);
     const [loadingCommitment, setLoadingCommitment] = useState(false);
     const [status, setStatus] = useState<{ type: 'info' | 'success' | 'error'; message: string } | null>(null);
-
+    
     const [archivedLetters, setArchivedLetters] = useState<CommitmentLetter[]>([]);
     const [archiveLoading, setArchiveLoading] = useState(true);
     const [archiveError, setArchiveError] = useState<string | null>(null);
     const [archiveSearchTerm, setArchiveSearchTerm] = useState('');
+    const [expandedGuarantors, setExpandedGuarantors] = useState<Set<string>>(new Set());
+
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [editingLetter, setEditingLetter] = useState<CommitmentLetter | null>(null);
+    const [isPrintingArchived, setIsPrintingArchived] = useState(false);
 
     const printRef = useRef<HTMLDivElement>(null);
 
@@ -114,6 +110,31 @@ const AccountingCommitmentPage: React.FC = () => {
         fetchCommitment();
     }, [selectedGuarantor]);
 
+    const handlePrint = useCallback(() => {
+        const printContent = printRef.current?.innerHTML;
+        if (printContent) {
+            const printWindow = window.open('', '', 'height=600,width=800');
+            printWindow?.document.write('<html><head><title>چاپ نامه تعهد</title>');
+            printWindow?.document.write('<link rel="preconnect" href="https://fonts.googleapis.com">');
+            printWindow?.document.write('<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>');
+            printWindow?.document.write('<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700&display=swap" rel="stylesheet">');
+            printWindow?.document.write('<style> body { font-family: "Vazirmatn", sans-serif; direction: rtl; line-height: 2.5; padding: 20px; } .signature { margin-top: 100px; text-align: center; } .underline { border-bottom: 1px dotted black; padding: 0 5px; font-weight: bold; } </style>');
+            printWindow?.document.write('</head><body>');
+            printWindow?.document.write(printContent);
+            printWindow?.document.write('</body></html>');
+            printWindow?.document.close();
+            printWindow?.focus();
+            printWindow?.print();
+        }
+    }, []);
+
+    useEffect(() => {
+        if (isPrintingArchived) {
+            handlePrint();
+            setIsPrintingArchived(false);
+        }
+    }, [isPrintingArchived, handlePrint]);
+
     const filteredPersonnel = useMemo(() => {
         const lowercasedTerm = searchTerm.toLowerCase().trim();
         if (!lowercasedTerm) return [];
@@ -149,24 +170,6 @@ const AccountingCommitmentPage: React.FC = () => {
         setSearchTerm('');
         setDecreeFactors('');
         resetForm();
-    };
-
-    const handlePrint = () => {
-        const printContent = printRef.current?.innerHTML;
-        if (printContent) {
-            const printWindow = window.open('', '', 'height=600,width=800');
-            printWindow?.document.write('<html><head><title>چاپ نامه تعهد</title>');
-            printWindow?.document.write('<link rel="preconnect" href="https://fonts.googleapis.com">');
-            printWindow?.document.write('<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>');
-            printWindow?.document.write('<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700&display=swap" rel="stylesheet">');
-            printWindow?.document.write('<style> body { font-family: "Vazirmatn", sans-serif; direction: rtl; line-height: 2.5; padding: 20px; } .signature { margin-top: 100px; text-align: center; } .underline { border-bottom: 1px dotted black; padding: 0 5px; font-weight: bold; } </style>');
-            printWindow?.document.write('</head><body>');
-            printWindow?.document.write(printContent);
-            printWindow?.document.write('</body></html>');
-            printWindow?.document.close();
-            printWindow?.focus();
-            printWindow?.print();
-        }
     };
     
     const handleSaveAndPrint = async (e: React.FormEvent) => {
@@ -204,6 +207,7 @@ const AccountingCommitmentPage: React.FC = () => {
              const newCommitmentData = await newCommitmentResponse.json();
              setTotalCommitted(newCommitmentData.totalCommitted || 0);
              fetchArchivedLetters(archiveSearchTerm);
+             resetForm();
 
         } catch(err) {
              setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در ذخیره نامه' });
@@ -211,7 +215,7 @@ const AccountingCommitmentPage: React.FC = () => {
             setTimeout(() => setStatus(null), 5000);
         }
     };
-
+    
     const handleArchiveSearchSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         fetchArchivedLetters(archiveSearchTerm);
@@ -238,6 +242,71 @@ const AccountingCommitmentPage: React.FC = () => {
             }
         }
     };
+    
+    const handleEditClick = (letter: CommitmentLetter) => {
+        setEditingLetter(letter);
+        setIsEditModalOpen(true);
+    };
+
+    const handleSaveLetter = async (letter: CommitmentLetter) => {
+        setStatus({ type: 'info', message: 'در حال ویرایش نامه...' });
+        try {
+            const response = await fetch('/api/personnel?type=commitment_letters', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(letter)
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error);
+            setStatus({ type: 'success', message: 'نامه با موفقیت ویرایش شد.' });
+            setIsEditModalOpen(false);
+            setEditingLetter(null);
+            fetchArchivedLetters(archiveSearchTerm);
+        } catch (err) {
+            setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در ویرایش نامه' });
+        } finally {
+            setTimeout(() => setStatus(null), 5000);
+        }
+    };
+    
+    const handleShowArchivedLetter = (letter: CommitmentLetter) => {
+        const guarantor = personnelList.find(p => p.personnel_code === letter.guarantor_personnel_code);
+    
+        if (guarantor) {
+            setSelectedGuarantor(guarantor);
+        } else {
+            // If guarantor not found (e.g., deleted), create a temporary object
+            // from the letter's stored data to populate the preview correctly.
+            const archivedGuarantorData: Partial<Personnel> = {
+                personnel_code: letter.guarantor_personnel_code,
+                first_name: letter.guarantor_name.split(' ')[0] || '',
+                last_name: letter.guarantor_name.split(' ').slice(1).join(' ') || '',
+                national_id: letter.guarantor_national_id,
+            };
+            // We cast because the preview only uses these specific fields
+            setSelectedGuarantor(archivedGuarantorData as Personnel);
+        }
+        
+        setRecipientName(letter.recipient_name);
+        setRecipientNationalId(letter.recipient_national_id);
+        setLoanAmount(String(letter.loan_amount));
+        setBankName(letter.bank_name || '');
+        setBranchName(letter.branch_name || '');
+        setReferenceNumber(letter.reference_number || '');
+        
+        // For viewing an archived letter, always use the decree factors saved with the letter,
+        // as that reflects the state at the time the commitment was made.
+        setDecreeFactors(String(letter.sum_of_decree_factors || '0'));
+        
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        setStatus({ type: 'info', message: `اطلاعات نامه شماره ${toPersianDigits(letter.id)} در فرم بالا نمایش داده شد.` });
+        setTimeout(() => setStatus(null), 4000);
+    };
+
+    const handlePrintArchivedLetter = (letter: CommitmentLetter) => {
+        handleShowArchivedLetter(letter);
+        setIsPrintingArchived(true);
+    };
 
     const { creditLimit, remainingCredit, isOverLimit } = useMemo(() => {
         const factors = Number(decreeFactors || '0');
@@ -262,12 +331,47 @@ const AccountingCommitmentPage: React.FC = () => {
         }
     };
 
+    const guarantorSummary = useMemo(() => {
+        if (!archivedLetters || archivedLetters.length === 0) return [];
+        
+        const summary = archivedLetters.reduce((acc, letter) => {
+            const code = letter.guarantor_personnel_code;
+            if (!acc[code]) {
+                acc[code] = {
+                    guarantor_personnel_code: code,
+                    guarantor_name: letter.guarantor_name,
+                    letterCount: 0,
+                    totalAmount: 0,
+                    letters: [],
+                };
+            }
+            acc[code].letterCount += 1;
+            acc[code].totalAmount += Number(letter.loan_amount);
+            acc[code].letters.push(letter);
+            return acc;
+        }, {} as Record<string, { guarantor_personnel_code: string; guarantor_name: string; letterCount: number; totalAmount: number; letters: CommitmentLetter[] }>);
+
+        return Object.values(summary).sort((a, b) => b.totalAmount - a.totalAmount);
+    }, [archivedLetters]);
+    
+    const toggleGuarantorExpansion = (code: string) => {
+        setExpandedGuarantors(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(code)) {
+                newSet.delete(code);
+            } else {
+                newSet.add(code);
+            }
+            return newSet;
+        });
+    };
+
     const statusColor = { info: 'bg-blue-100 text-blue-800', success: 'bg-green-100 text-green-800', error: 'bg-red-100 text-red-800' };
     const inputClass = "w-full px-3 py-2 text-gray-700 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent";
 
     return (
         <div className="bg-white p-6 rounded-lg shadow-lg">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b-2 border-gray-100 pb-4">صدور نامه تعهد کسر از حقوق</h2>
+            <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b-2 border-gray-100 pb-4">صدور و بایگانی نامه تعهد کسر از حقوق</h2>
             {status && <div className={`p-4 mb-4 text-sm rounded-lg ${statusColor[status.type]}`}>{status.message}</div>}
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -354,8 +458,9 @@ const AccountingCommitmentPage: React.FC = () => {
              <div className="mt-8 border-t pt-6">
                 <h3 className="text-xl font-bold text-gray-800 mb-4">۳. پیش نمایش نامه جهت چاپ</h3>
                 <div ref={printRef} className="p-8 border rounded-lg bg-gray-50 text-gray-800 print-container" style={{ direction: 'rtl', lineHeight: '2.5' }}>
-                    <div className="flex justify-end items-start mb-8">
-                        <div>
+                    <div className="flex justify-between items-start mb-8">
+                        <div className="flex-1"></div>
+                        <div className="text-left">
                             <p>تاریخ: ۱۴۰۴/۶/۱۶</p>
                             <p>شماره: ....................</p>
                             <p>پیوست: ندارد</p>
@@ -377,14 +482,18 @@ const AccountingCommitmentPage: React.FC = () => {
             </div>
 
             <div className="mt-8 border-t pt-6">
-                <h3 className="text-xl font-bold text-gray-800 mb-4">۴. بایگانی نامه‌های صادر شده</h3>
+                <h3 className="text-xl font-bold text-gray-800 mb-4">۴. بایگانی و خلاصه تعهدات</h3>
                  <form onSubmit={handleArchiveSearchSubmit} className="mb-6">
+                    <label htmlFor="search-letters" className="block text-sm font-medium text-gray-700 mb-2">
+                        جستجو در بایگانی
+                    </label>
                     <div className="flex">
                         <div className="relative flex-grow">
                             <input
                                 type="text"
+                                id="search-letters"
                                 className="w-full pr-10 pl-4 py-2 border border-gray-300 rounded-r-md focus:ring-blue-500 focus:border-blue-500"
-                                placeholder="جستجو در بایگانی..."
+                                placeholder="نام وام‌گیرنده، ضامن، کد ملی، کد پرسنلی..."
                                 value={archiveSearchTerm}
                                 onChange={e => setArchiveSearchTerm(e.target.value)}
                             />
@@ -393,47 +502,98 @@ const AccountingCommitmentPage: React.FC = () => {
                         <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-l-md hover:bg-blue-700">جستجو</button>
                     </div>
                 </form>
-
+                
                 <div className="overflow-x-auto bg-slate-50 p-4 rounded-lg border border-slate-200">
-                {archiveLoading && <p className="text-center py-4">در حال بارگذاری بایگانی...</p>}
-                {archiveError && <p className="text-center py-4 text-red-500">{archiveError}</p>}
-                {!archiveLoading && !archiveError && archivedLetters.length === 0 && (
-                    <div className="text-center py-10 text-gray-400">
-                        <DocumentReportIcon className="w-16 h-16 mx-auto mb-4" />
-                        <h3 className="text-lg font-semibold">
-                            {archiveSearchTerm ? 'هیچ نامه‌ای مطابق با جستجوی شما یافت نشد.' : 'هیچ نامه‌ای در بایگانی ثبت نشده است.'}
-                        </h3>
-                    </div>
-                )}
-                {!archiveLoading && !archiveError && archivedLetters.length > 0 && (
-                    <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-100">
-                            <tr>
-                                {['وام گیرنده', 'ضامن', 'مبلغ وام (ریال)', 'بانک', 'تاریخ صدور', 'عملیات'].map(h => (
-                                    <th key={h} scope="col" className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">{h}</th>
-                                ))}
-                            </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                           {archivedLetters.map(letter => (
-                               <tr key={letter.id}>
-                                   <td className="px-4 py-3 whitespace-nowrap text-sm"><p className="font-semibold">{letter.recipient_name}</p><p className="text-xs text-gray-500">کد ملی: {toPersianDigits(letter.recipient_national_id)}</p></td>
-                                   <td className="px-4 py-3 whitespace-nowrap text-sm"><p className="font-semibold">{letter.guarantor_name}</p><p className="text-xs text-gray-500">کد پرسنلی: {toPersianDigits(letter.guarantor_personnel_code)}</p></td>
-                                   <td className="px-4 py-3 whitespace-nowrap text-sm font-sans">{toPersianDigits(formatCurrency(letter.loan_amount))}</td>
-                                   <td className="px-4 py-3 whitespace-nowrap text-sm">{letter.bank_name} - {letter.branch_name}</td>
-                                   <td className="px-4 py-3 whitespace-nowrap text-sm">{toPersianDigits(new Date(letter.issue_date).toLocaleDateString('fa-IR'))}</td>
-                                   <td className="px-4 py-3 whitespace-nowrap text-sm text-center">
-                                       <button onClick={() => handleDeleteLetter(letter.id)} className="text-red-600 hover:text-red-800 p-1 rounded-full hover:bg-red-100 transition-colors" aria-label={`حذف نامه ${letter.id}`}>
-                                           <TrashIcon className="w-5 h-5" />
-                                       </button>
-                                   </td>
-                               </tr>
-                           ))}
-                        </tbody>
-                    </table>
-                )}
+                    {archiveLoading && <p className="text-center py-4">در حال بارگذاری بایگانی...</p>}
+                    {archiveError && <p className="text-center py-4 text-red-500">{archiveError}</p>}
+                    {!archiveLoading && !archiveError && guarantorSummary.length === 0 && (
+                        <div className="text-center py-10 text-gray-400">
+                            <DocumentReportIcon className="w-16 h-16 mx-auto mb-4" />
+                            <h3 className="text-lg font-semibold">
+                                {archiveSearchTerm ? 'هیچ نامه‌ای مطابق با جستجوی شما یافت نشد.' : 'هیچ نامه‌ای در بایگانی ثبت نشده است.'}
+                            </h3>
+                        </div>
+                    )}
+                     {!archiveLoading && !archiveError && guarantorSummary.length > 0 && (
+                        <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-100">
+                                <tr>
+                                    {['ضامن', 'کد پرسنلی', 'تعداد تعهدات', 'جمع مبالغ (ریال)', 'جزئیات'].map(h => (
+                                        <th key={h} scope="col" className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">{h}</th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                               {guarantorSummary.map(summaryItem => (
+                                   <React.Fragment key={summaryItem.guarantor_personnel_code}>
+                                       <tr className="cursor-pointer hover:bg-slate-100" onClick={() => toggleGuarantorExpansion(summaryItem.guarantor_personnel_code)}>
+                                            <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold">{summaryItem.guarantor_name}</td>
+                                            <td className="px-4 py-3 whitespace-nowrap text-sm">{toPersianDigits(summaryItem.guarantor_personnel_code)}</td>
+                                            <td className="px-4 py-3 whitespace-nowrap text-sm">{toPersianDigits(summaryItem.letterCount)}</td>
+                                            <td className="px-4 py-3 whitespace-nowrap text-sm font-sans font-bold">{toPersianDigits(formatCurrency(summaryItem.totalAmount))}</td>
+                                            <td className="px-4 py-3 whitespace-nowrap text-sm text-center">
+                                                {expandedGuarantors.has(summaryItem.guarantor_personnel_code) ? <ChevronUpIcon className="w-5 h-5 mx-auto" /> : <ChevronDownIcon className="w-5 h-5 mx-auto" />}
+                                            </td>
+                                       </tr>
+                                       {expandedGuarantors.has(summaryItem.guarantor_personnel_code) && (
+                                           <tr>
+                                               <td colSpan={5} className="p-4 bg-gray-50 border-b-2 border-blue-200">
+                                                   <h4 className="font-bold mb-2">جزئیات تعهدات {summaryItem.guarantor_name}:</h4>
+                                                   <div className="overflow-x-auto border rounded-lg">
+                                                       <table className="min-w-full divide-y divide-gray-200">
+                                                            <thead className="bg-gray-200">
+                                                                <tr>
+                                                                    {['وام گیرنده', 'مبلغ وام (ریال)', 'بانک', 'تاریخ صدور', 'عملیات'].map(h => (
+                                                                        <th key={h} scope="col" className="px-3 py-2 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">{h}</th>
+                                                                    ))}
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="bg-white divide-y divide-gray-200">
+                                                                {summaryItem.letters.map(letter => (
+                                                                    <tr key={letter.id}>
+                                                                        <td className="px-3 py-2 whitespace-nowrap text-sm"><p className="font-semibold">{letter.recipient_name}</p><p className="text-xs text-gray-500">کد ملی: {toPersianDigits(letter.recipient_national_id)}</p></td>
+                                                                        <td className="px-3 py-2 whitespace-nowrap text-sm font-sans">{toPersianDigits(formatCurrency(letter.loan_amount))}</td>
+                                                                        <td className="px-3 py-2 whitespace-nowrap text-sm">{letter.bank_name} - {letter.branch_name}</td>
+                                                                        <td className="px-3 py-2 whitespace-nowrap text-sm">{toPersianDigits(new Date(letter.issue_date).toLocaleDateString('fa-IR'))}</td>
+                                                                        <td className="px-3 py-2 whitespace-nowrap text-sm text-center">
+                                                                            <div className="flex items-center justify-center gap-1">
+                                                                                <button onClick={() => handleShowArchivedLetter(letter)} className="text-gray-600 hover:text-gray-800 p-1 rounded-full hover:bg-gray-100 transition-colors" aria-label={`نمایش نامه ${letter.id}`}>
+                                                                                    <DocumentIcon className="w-5 h-5" />
+                                                                                </button>
+                                                                                <button onClick={() => handlePrintArchivedLetter(letter)} className="text-gray-600 hover:text-gray-800 p-1 rounded-full hover:bg-gray-100 transition-colors" aria-label={`چاپ نامه ${letter.id}`}>
+                                                                                    <PrinterIcon className="w-5 h-5" />
+                                                                                </button>
+                                                                                <button onClick={() => handleEditClick(letter)} className="text-blue-600 hover:text-blue-800 p-1 rounded-full hover:bg-blue-100 transition-colors" aria-label={`ویرایش نامه ${letter.id}`}>
+                                                                                    <PencilIcon className="w-5 h-5" />
+                                                                                </button>
+                                                                                <button onClick={() => handleDeleteLetter(letter.id)} className="text-red-600 hover:text-red-800 p-1 rounded-full hover:bg-red-100 transition-colors ml-1" aria-label={`حذف نامه ${letter.id}`}>
+                                                                                    <TrashIcon className="w-5 h-5" />
+                                                                                </button>
+                                                                            </div>
+                                                                        </td>
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                       </table>
+                                                   </div>
+                                               </td>
+                                           </tr>
+                                       )}
+                                   </React.Fragment>
+                               ))}
+                            </tbody>
+                        </table>
+                    )}
+                </div>
             </div>
-            </div>
+
+            {isEditModalOpen && editingLetter && (
+                <EditCommitmentLetterModal
+                    letter={editingLetter}
+                    onClose={() => setIsEditModalOpen(false)}
+                    onSave={handleSaveLetter}
+                />
+            )}
         </div>
     );
 };

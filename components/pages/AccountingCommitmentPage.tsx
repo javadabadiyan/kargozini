@@ -271,15 +271,31 @@ const AccountingCommitmentPage: React.FC = () => {
     
     const handleShowArchivedLetter = (letter: CommitmentLetter) => {
         const guarantor = personnelList.find(p => p.personnel_code === letter.guarantor_personnel_code);
+    
         if (guarantor) {
             setSelectedGuarantor(guarantor);
+        } else {
+            // If guarantor not found (e.g., deleted), create a temporary object
+            // from the letter's stored data to populate the preview correctly.
+            const archivedGuarantorData: Partial<Personnel> = {
+                personnel_code: letter.guarantor_personnel_code,
+                first_name: letter.guarantor_name.split(' ')[0] || '',
+                last_name: letter.guarantor_name.split(' ').slice(1).join(' ') || '',
+                national_id: letter.guarantor_national_id,
+            };
+            // We cast because the preview only uses these specific fields
+            setSelectedGuarantor(archivedGuarantorData as Personnel);
         }
+        
         setRecipientName(letter.recipient_name);
         setRecipientNationalId(letter.recipient_national_id);
         setLoanAmount(String(letter.loan_amount));
         setBankName(letter.bank_name || '');
         setBranchName(letter.branch_name || '');
         setReferenceNumber(letter.reference_number || '');
+        
+        // For viewing an archived letter, always use the decree factors saved with the letter,
+        // as that reflects the state at the time the commitment was made.
         setDecreeFactors(String(letter.sum_of_decree_factors || '0'));
         
         window.scrollTo({ top: 0, behavior: 'smooth' });
