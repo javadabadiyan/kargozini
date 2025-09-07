@@ -210,6 +210,13 @@ export default async function handler(
     } catch (e: any) {
         messages.push(`هشدار هنگام افزودن ستون sum_of_decree_factors: ${e.message}`);
     }
+    try {
+        await client.sql`ALTER TABLE dependents ADD COLUMN IF NOT EXISTS father_name VARCHAR(100);`;
+        messages.push('ستون "father_name" در جدول "dependents" تایید یا اضافه شد.');
+    } catch (e: any) {
+        messages.push(`هشدار هنگام افزودن ستون father_name: ${e.message}`);
+    }
+
 
     // --- Phase 3: Create triggers, indexes, and default data ---
     // This is also in a transaction for atomicity.
