@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import type { Personnel } from '../../types';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import type { Personnel, CommitmentLetter, DisciplinaryRecord } from '../../types';
 import { holidays1403, PERSIAN_MONTHS } from '../holidays';
-import { UsersIcon, BuildingOffice2Icon, MapPinIcon, HeartIcon, BriefcaseIcon, CalendarDaysIcon, CakeIcon, DocumentReportIcon } from '../icons/Icons';
-import RetirementInfoModal from '../RetirementInfoModal';
+import { UsersIcon, BuildingOffice2Icon, MapPinIcon, HeartIcon, BriefcaseIcon, CalendarDaysIcon, CakeIcon, DocumentReportIcon, ShieldCheckIcon } from '../icons/Icons';
+import DetailsModal from '../DetailsModal';
 
 // Helper to convert numbers to Persian digits
 const toPersianDigits = (s: string | number | null | undefined): string => {
@@ -110,7 +110,7 @@ const StatListCard: React.FC<{
                         </div>
                     );
 
-                    if (onItemClick) {
+                    if (onItemClick && Number(value) > 0) {
                         return (
                             <button 
                                 key={key}
@@ -172,32 +172,49 @@ const HolidayCalendarCard: React.FC<{ holidayInfo: { holidaysByMonth: number[], 
 
 const DashboardPage: React.FC = () => {
     const [personnel, setPersonnel] = useState<Personnel[]>([]);
+    const [commitmentLetters, setCommitmentLetters] = useState<CommitmentLetter[]>([]);
+    const [disciplinaryRecords, setDisciplinaryRecords] = useState<DisciplinaryRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [selectedStatKey, setSelectedStatKey] = useState('total');
     
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [modalData, setModalData] = useState<{ title: string; personnel: any[]; mode: 'age' | 'service' | 'general' }>({ title: '', personnel: [], mode: 'general' });
+    const [modalData, setModalData] = useState<{ title: string; data: any[]; mode: 'age' | 'service' | 'general' | 'commitment' | 'disciplinary' }>({ title: '', data: [], mode: 'general' });
+
 
     useEffect(() => {
-        const fetchPersonnel = async () => {
+        const fetchAllData = async () => {
             try {
                 setLoading(true);
-                const response = await fetch('/api/personnel?type=personnel&pageSize=100000');
-                if (!response.ok) { throw new Error('خطا در دریافت اطلاعات پرسنل'); }
-                const data = await response.json();
-                setPersonnel(data.personnel || []);
+                const [personnelRes, lettersRes, recordsRes] = await Promise.all([
+                    fetch('/api/personnel?type=personnel&pageSize=100000'),
+                    fetch('/api/personnel?type=commitment_letters'),
+                    fetch('/api/personnel?type=disciplinary_records')
+                ]);
+
+                if (!personnelRes.ok || !lettersRes.ok || !recordsRes.ok) {
+                    throw new Error('خطا در دریافت اطلاعات داشبورد');
+                }
+
+                const personnelData = await personnelRes.json();
+                const lettersData = await lettersRes.json();
+                const recordsData = await recordsRes.json();
+                
+                setPersonnel(personnelData.personnel || []);
+                setCommitmentLetters(lettersData.letters || []);
+                setDisciplinaryRecords(recordsData.records || []);
+
             } catch (err) {
-                setError(err instanceof Error ? err.message : 'یک خطای ناشناخته رخ داد');
+                 setError(err instanceof Error ? err.message : 'یک خطای ناشناخته رخ داد');
             } finally {
                 setLoading(false);
             }
         };
-        fetchPersonnel();
+        fetchAllData();
     }, []);
 
     const stats = useMemo(() => {
-        if (!personnel.length) return null;
+        if (loading) return null;
 
         const groupAndCount = (key: keyof Personnel) => {
             return personnel.reduce((acc, p) => {
@@ -269,6 +286,45 @@ const DashboardPage: React.FC = () => {
 
         const averageAge = ages.length > 0 ? Math.round(ages.reduce((a, b) => a + b, 0) / ages.length) : 0;
         const averageService = serviceYearsList.length > 0 ? Math.round(serviceYearsList.reduce((a, b) => a + b, 0) / serviceYearsList.length) : 0;
+        
+        const byCommitmentBank = commitmentLetters.reduce((acc, letter) => {
+            const bank = letter.bank_name || 'نامشخص';
+            acc[bank] = (acc[bank] || 0) + 1;
+            return acc;
+        }, {} as Record<string, number>);
+        
+        const byCommitmentBankData = commitmentLetters.reduce((acc, letter) => {
+            const bank = letter.bank_name || 'نامشخص';
+            if (!acc[bank]) acc[bank] = [];
+            acc[bank].push(letter);
+            return acc;
+        }, {} as Record<string, CommitmentLetter[]>);
+
+        const byCommitmentGuarantor = commitmentLetters.reduce((acc, letter) => {
+            const guarantor = letter.guarantor_name || 'نامشخص';
+            acc[guarantor] = (acc[guarantor] || 0) + 1;
+            return acc;
+        }, {} as Record<string, number>);
+
+        const byCommitmentGuarantorData = commitmentLetters.reduce((acc, letter) => {
+            const guarantor = letter.guarantor_name || 'نامشخص';
+            if (!acc[guarantor]) acc[guarantor] = [];
+            acc[guarantor].push(letter);
+            return acc;
+        }, {} as Record<string, CommitmentLetter[]>);
+
+        const disciplinaryKeywords = ['توبیخ کتبی', 'تشویق', 'اخطار کتبی', 'اخطار شفاهی', 'تذکر شفاهی', 'فسخ قرارداد', 'تعهد کتبی'];
+        const byDisciplinaryAction = disciplinaryKeywords.reduce((acc, key) => ({ ...acc, [key]: 0 }), {} as Record<string, number>);
+        const byDisciplinaryActionData = disciplinaryKeywords.reduce((acc, key) => ({ ...acc, [key]: [] }), {} as Record<string, DisciplinaryRecord[]>);
+        
+        disciplinaryRecords.forEach(record => {
+            disciplinaryKeywords.forEach(key => {
+                if (record.final_decision?.includes(key)) {
+                    byDisciplinaryAction[key]++;
+                    byDisciplinaryActionData[key].push(record);
+                }
+            });
+        });
 
         return {
             total: personnel.length, averageAge, averageService, closeToRetirementList, retiredList,
@@ -280,8 +336,14 @@ const DashboardPage: React.FC = () => {
             byDecreeFactors: toSortedArray(groupAndCount('sum_of_decree_factors')), byDecreeFactorsPersonnel: groupPersonnelByKey('sum_of_decree_factors'),
             byAgeGroup: toSortedArray(ageGroups), byAgeGroupPersonnel,
             byServiceYears: toSortedArray(serviceYearGroups), byServiceYearsPersonnel,
+            byCommitmentBank: toSortedArray(byCommitmentBank),
+            byCommitmentBankData,
+            byCommitmentGuarantor: toSortedArray(byCommitmentGuarantor),
+            byCommitmentGuarantorData,
+            byDisciplinaryAction: Object.entries(byDisciplinaryAction).sort(([, a], [, b]) => b - a),
+            byDisciplinaryActionData,
         };
-    }, [personnel]);
+    }, [personnel, loading, commitmentLetters, disciplinaryRecords]);
 
     const topStats = useMemo(() => {
         if (!stats) return [];
@@ -289,8 +351,8 @@ const DashboardPage: React.FC = () => {
             { key: 'total', label: 'کل پرسنل', value: toPersianDigits(stats.total), icon: UsersIcon, color: 'bg-blue-500', modalData: null },
             { key: 'avgAge', label: 'میانگین سن', value: `${toPersianDigits(stats.averageAge)} سال`, icon: CakeIcon, color: 'bg-green-500', modalData: null },
             { key: 'avgService', label: 'میانگین سابقه', value: `${toPersianDigits(stats.averageService)} سال`, icon: BriefcaseIcon, color: 'bg-indigo-500', modalData: null },
-            { key: 'nearRetirement', label: 'نزدیک به بازنشستگی (۵۵-۵۹)', value: toPersianDigits(stats.closeToRetirementList.length), icon: CalendarDaysIcon, color: 'bg-orange-500', modalData: { title: 'لیست پرسنل نزدیک به بازنشستگی', personnel: stats.closeToRetirementList, mode: 'age' as const } },
-            { key: 'atRetirement', label: 'در سن بازنشستگی (۶۰+)', value: toPersianDigits(stats.retiredList.length), icon: CalendarDaysIcon, color: 'bg-red-500', modalData: { title: 'لیست پرسنل در سن بازنشستگی', personnel: stats.retiredList, mode: 'age' as const } }
+            { key: 'nearRetirement', label: 'نزدیک به بازنشستگی (۵۵-۵۹)', value: toPersianDigits(stats.closeToRetirementList.length), icon: CalendarDaysIcon, color: 'bg-orange-500', modalData: { title: 'لیست پرسنل نزدیک به بازنشستگی', data: stats.closeToRetirementList, mode: 'age' as const } },
+            { key: 'atRetirement', label: 'در سن بازنشستگی (۶۰+)', value: toPersianDigits(stats.retiredList.length), icon: CalendarDaysIcon, color: 'bg-red-500', modalData: { title: 'لیست پرسنل در سن بازنشستگی', data: stats.retiredList, mode: 'age' as const } }
         ];
     }, [stats]);
 
@@ -320,8 +382,8 @@ const DashboardPage: React.FC = () => {
         return { holidaysByMonth, upcomingHolidays };
     }, []);
     
-    const handleStatClick = (title: string, personnelList: any[], mode: 'age' | 'service' | 'general') => {
-        setModalData({ title, personnel: personnelList, mode });
+    const handleStatClick = (title: string, dataList: any[], mode: 'age' | 'service' | 'general' | 'commitment' | 'disciplinary') => {
+        setModalData({ title, data: dataList, mode });
         setIsModalOpen(true);
     };
 
@@ -334,6 +396,9 @@ const DashboardPage: React.FC = () => {
         { key: 'byPosition', label: 'آمار بر اساس سمت' },
         { key: 'byJobGroup', label: 'آمار بر اساس گروه شغلی' },
         { key: 'byMaritalStatus', label: 'آمار بر اساس وضعیت تاهل' },
+        { key: 'byCommitmentBank', label: 'آمار تعهدات بر اساس بانک' },
+        { key: 'byCommitmentGuarantor', label: 'آمار تعهدات بر اساس ضامن' },
+        { key: 'byDisciplinaryAction', label: 'آمار کمیته انضباطی' },
         { key: 'holidays', label: 'تقویم تعطیلات' },
     ];
 
@@ -349,7 +414,7 @@ const DashboardPage: React.FC = () => {
                     </div>
                     <p className="mt-4 text-lg text-gray-500 dark:text-gray-400">{topStatInfo.label}</p>
                     {topStatInfo.modalData ? (
-                        <button onClick={() => handleStatClick(topStatInfo.modalData!.title, topStatInfo.modalData!.personnel, topStatInfo.modalData!.mode)} className="text-6xl font-bold text-gray-800 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 transition-colors focus:outline-none">
+                        <button onClick={() => handleStatClick(topStatInfo.modalData!.title, topStatInfo.modalData!.data, topStatInfo.modalData!.mode)} className="text-6xl font-bold text-gray-800 dark:text-white hover:text-blue-600 dark:hover:text-blue-400 transition-colors focus:outline-none">
                             {topStatInfo.value}
                         </button>
                     ) : (
@@ -367,6 +432,9 @@ const DashboardPage: React.FC = () => {
             case 'byPosition': return <StatListCard title="آمار بر اساس سمت" data={stats.byPosition} icon={BriefcaseIcon} onItemClick={(key) => handleStatClick(`لیست پرسنل با سمت: ${key}`, stats.byPositionPersonnel[key], 'general')} />;
             case 'byJobGroup': return <StatListCard title="آمار بر اساس گروه شغلی" data={stats.byJobGroup} icon={DocumentReportIcon} onItemClick={(key) => handleStatClick(`لیست پرسنل با گروه شغلی: ${key}`, stats.byJobGroupPersonnel[key], 'general')} />;
             case 'byMaritalStatus': return <StatListCard title="آمار بر اساس وضعیت تاهل" data={stats.byMaritalStatus} icon={HeartIcon} onItemClick={(key) => handleStatClick(`لیست پرسنل با وضعیت تاهل: ${key}`, stats.byMaritalStatusPersonnel[key], 'general')} />;
+            case 'byCommitmentBank': return <StatListCard title="آمار تعهدات بر اساس بانک" data={stats.byCommitmentBank} icon={DocumentReportIcon} onItemClick={(key) => handleStatClick(`لیست تعهدات بانک: ${key}`, stats.byCommitmentBankData[key], 'commitment')} />;
+            case 'byCommitmentGuarantor': return <StatListCard title="آمار تعهدات بر اساس ضامن" data={stats.byCommitmentGuarantor} icon={UsersIcon} onItemClick={(key) => handleStatClick(`لیست تعهدات ضامن: ${key}`, stats.byCommitmentGuarantorData[key], 'commitment')} />;
+            case 'byDisciplinaryAction': return <StatListCard title="آمار کمیته انضباطی" data={stats.byDisciplinaryAction} icon={ShieldCheckIcon} onItemClick={(key) => handleStatClick(`لیست افراد با رای: ${key}`, stats.byDisciplinaryActionData[key], 'disciplinary')} />;
             case 'holidays': return <HolidayCalendarCard holidayInfo={holidayInfo} />;
             default: return null;
         }
@@ -399,11 +467,11 @@ const DashboardPage: React.FC = () => {
                 {renderSelectedStat()}
             </div>
 
-            <RetirementInfoModal 
+            <DetailsModal 
                 isOpen={isModalOpen}
                 onClose={() => setIsModalOpen(false)}
                 title={modalData.title}
-                personnel={modalData.personnel}
+                data={modalData.data}
                 mode={modalData.mode}
             />
         </div>
