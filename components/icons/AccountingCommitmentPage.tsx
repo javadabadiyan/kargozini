@@ -51,6 +51,9 @@ const AccountingCommitmentPage: React.FC = () => {
     const [editingLetter, setEditingLetter] = useState<CommitmentLetter | null>(null);
     const [isPrintingArchived, setIsPrintingArchived] = useState(false);
 
+    const [archiveCurrentPage, setArchiveCurrentPage] = useState(1);
+    const ARCHIVE_PAGE_SIZE = 10;
+
     const printRef = useRef<HTMLDivElement>(null);
 
     const fetchArchivedLetters = useCallback(async (searchQuery = '') => {
@@ -118,7 +121,7 @@ const AccountingCommitmentPage: React.FC = () => {
             printWindow?.document.write('<link rel="preconnect" href="https://fonts.googleapis.com">');
             printWindow?.document.write('<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>');
             printWindow?.document.write('<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700&display=swap" rel="stylesheet">');
-            printWindow?.document.write('<style> body { font-family: "Vazirmatn", sans-serif; direction: rtl; line-height: 2.5; padding: 20px; } .signature { margin-top: 100px; text-align: center; } .underline { border-bottom: 1px dotted black; padding: 0 5px; font-weight: bold; } </style>');
+            printWindow?.document.write('<style> body { font-family: "Vazirmatn", sans-serif; direction: rtl; line-height: 2.5; padding: 20px; } .signature { margin-top: 100px; text-align: left; } .underline { border-bottom: 1px dotted black; padding: 0 5px; font-weight: bold; } </style>');
             printWindow?.document.write('</head><body>');
             printWindow?.document.write(printContent);
             printWindow?.document.write('</body></html>');
@@ -218,6 +221,7 @@ const AccountingCommitmentPage: React.FC = () => {
     
     const handleArchiveSearchSubmit = (e: React.FormEvent) => {
         e.preventDefault();
+        setArchiveCurrentPage(1);
         fetchArchivedLetters(archiveSearchTerm);
     };
     
@@ -275,15 +279,12 @@ const AccountingCommitmentPage: React.FC = () => {
         if (guarantor) {
             setSelectedGuarantor(guarantor);
         } else {
-            // If guarantor not found (e.g., deleted), create a temporary object
-            // from the letter's stored data to populate the preview correctly.
             const archivedGuarantorData: Partial<Personnel> = {
                 personnel_code: letter.guarantor_personnel_code,
                 first_name: letter.guarantor_name.split(' ')[0] || '',
                 last_name: letter.guarantor_name.split(' ').slice(1).join(' ') || '',
                 national_id: letter.guarantor_national_id,
             };
-            // We cast because the preview only uses these specific fields
             setSelectedGuarantor(archivedGuarantorData as Personnel);
         }
         
@@ -293,9 +294,6 @@ const AccountingCommitmentPage: React.FC = () => {
         setBankName(letter.bank_name || '');
         setBranchName(letter.branch_name || '');
         setReferenceNumber(letter.reference_number || '');
-        
-        // For viewing an archived letter, always use the decree factors saved with the letter,
-        // as that reflects the state at the time the commitment was made.
         setDecreeFactors(String(letter.sum_of_decree_factors || '0'));
         
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -353,6 +351,11 @@ const AccountingCommitmentPage: React.FC = () => {
 
         return Object.values(summary).sort((a, b) => b.totalAmount - a.totalAmount);
     }, [archivedLetters]);
+
+     const paginatedGuarantorSummary = useMemo(() => {
+        const startIndex = (archiveCurrentPage - 1) * ARCHIVE_PAGE_SIZE;
+        return guarantorSummary.slice(startIndex, startIndex + ARCHIVE_PAGE_SIZE);
+    }, [guarantorSummary, archiveCurrentPage]);
     
     const toggleGuarantorExpansion = (code: string) => {
         setExpandedGuarantors(prev => {
@@ -458,13 +461,10 @@ const AccountingCommitmentPage: React.FC = () => {
              <div className="mt-8 border-t pt-6">
                 <h3 className="text-xl font-bold text-gray-800 mb-4">۳. پیش نمایش نامه جهت چاپ</h3>
                 <div ref={printRef} className="p-8 border rounded-lg bg-gray-50 text-gray-800 print-container" style={{ direction: 'rtl', lineHeight: '2.5' }}>
-                    <div className="flex justify-between items-start mb-8">
-                        <div className="flex-1"></div>
-                        <div className="text-left">
-                            <p>تاریخ: ۱۴۰۴/۶/۱۶</p>
-                            <p>شماره: ....................</p>
-                            <p>پیوست: ندارد</p>
-                        </div>
+                    <div className="text-left mb-8">
+                        <p>تاریخ: ....................</p>
+                        <p>شماره: ....................</p>
+                        <p>پیوست: ندارد</p>
                     </div>
                     
                     <p className="font-bold mb-4">ریاست محترم بانک <span className="underline">{bankName || '....................'}</span> شعبه <span className="underline">{branchName || '....................'}</span></p>
@@ -474,7 +474,7 @@ const AccountingCommitmentPage: React.FC = () => {
                     </p>
                     <p>این گواهی صرفاً جهت اطلاع بانک صادر گردیده و فاقد هرگونه ارزش و اعتبار دیگری می‌باشد.</p>
                     <br />
-                    <div className="signature">
+                    <div className="signature text-left">
                         <p className="font-bold">با تشکر</p>
                         <p className="font-bold">مدیریت سرمایه انسانی</p>
                     </div>
@@ -524,7 +524,7 @@ const AccountingCommitmentPage: React.FC = () => {
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
-                               {guarantorSummary.map(summaryItem => (
+                               {paginatedGuarantorSummary.map(summaryItem => (
                                    <React.Fragment key={summaryItem.guarantor_personnel_code}>
                                        <tr className="cursor-pointer hover:bg-slate-100" onClick={() => toggleGuarantorExpansion(summaryItem.guarantor_personnel_code)}>
                                             <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold">{summaryItem.guarantor_name}</td>
@@ -585,6 +585,33 @@ const AccountingCommitmentPage: React.FC = () => {
                         </table>
                     )}
                 </div>
+                 {(() => {
+                    const totalArchivePages = Math.ceil(guarantorSummary.length / ARCHIVE_PAGE_SIZE);
+                    if (!archiveLoading && !archiveError && totalArchivePages > 1) {
+                        return (
+                            <div className="flex justify-center items-center gap-4 mt-4">
+                                <button
+                                    onClick={() => setArchiveCurrentPage(p => Math.max(p - 1, 1))}
+                                    disabled={archiveCurrentPage === 1}
+                                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50"
+                                >
+                                    قبلی
+                                </button>
+                                <span className="text-sm text-gray-600">
+                                    صفحه {toPersianDigits(archiveCurrentPage)} از {toPersianDigits(totalArchivePages)}
+                                </span>
+                                <button
+                                    onClick={() => setArchiveCurrentPage(p => Math.min(p + 1, totalArchivePages))}
+                                    disabled={archiveCurrentPage === totalArchivePages}
+                                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50"
+                                >
+                                    بعدی
+                                </button>
+                            </div>
+                        );
+                    }
+                    return null;
+                })()}
             </div>
 
             {isEditModalOpen && editingLetter && (
