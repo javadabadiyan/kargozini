@@ -12,13 +12,13 @@ const DEPENDENT_HEADER_MAP: { [key: string]: keyof Omit<Dependent, 'id'> } = {
   'نام خانوادگی': 'last_name',
   'نام پدر': 'father_name',
   'نسبت': 'relation_type',
-  'تاریخ تولد': 'birth_date',
-  'جنسیت': 'gender',
+  'تاريخ تولد': 'birth_date',
+  'جنسيت': 'gender',
   'ماه تولد': 'birth_month',
   'روز تولد': 'birth_day',
   'شماره شناسنامه': 'id_number',
-  'کد ملی بستگان': 'national_id',
-  'کد ملی سرپرست': 'guardian_national_id',
+  'كد ملي بستگان': 'national_id',
+  'كد ملي سرپرست': 'guardian_national_id',
   'محل صدور شناسنامه': 'issue_place',
   'نوع': 'insurance_type',
 };
@@ -43,9 +43,9 @@ const DEFAULT_DEPENDENT: Omit<Dependent, 'id'> = {
 
 const EXPORT_HEADERS = Object.keys(DEPENDENT_HEADER_MAP);
 const TABLE_VIEW_HEADERS = [
-    'کد پرسنلی', 'نام', 'نام خانوادگی', 'نام پدر', 'نسبت', 'تاریخ تولد', 'جنسیت',
-    'ماه تولد', 'روز تولد', 'شماره شناسنامه', 'کد ملی بستگان',
-    'کد ملی سرپرست', 'محل صدور شناسنامه', 'نوع', 'عملیات'
+    'کد پرسنلی', 'نام', 'نام خانوادگی', 'نام پدر', 'نسبت', 'تاريخ تولد', 'جنسيت',
+    'ماه تولد', 'روز تولد', 'شماره شناسنامه', 'كد ملي بستگان',
+    'كد ملي سرپرست', 'محل صدور شناسنامه', 'نوع', 'عملیات'
 ];
 
 const DependentsInfoPage: React.FC = () => {

@@ -234,6 +234,24 @@ export default async function handler(
     } catch (e: any) {
         messages.push(`هشدار هنگام افزودن ستون id_number: ${e.message}`);
     }
+    try {
+        await client.sql`ALTER TABLE dependents ADD COLUMN IF NOT EXISTS guardian_national_id VARCHAR(20);`;
+        messages.push('ستون "guardian_national_id" در جدول "dependents" تایید یا اضافه شد.');
+    } catch (e: any) {
+        messages.push(`هشدار هنگام افزودن ستون guardian_national_id: ${e.message}`);
+    }
+    try {
+        await client.sql`ALTER TABLE dependents ADD COLUMN IF NOT EXISTS issue_place VARCHAR(100);`;
+        messages.push('ستون "issue_place" در جدول "dependents" تایید یا اضافه شد.');
+    } catch (e: any) {
+        messages.push(`هشدار هنگام افزودن ستون issue_place: ${e.message}`);
+    }
+    try {
+        await client.sql`ALTER TABLE dependents ADD COLUMN IF NOT EXISTS insurance_type VARCHAR(100);`;
+        messages.push('ستون "insurance_type" در جدول "dependents" تایید یا اضافه شد.');
+    } catch (e: any) {
+        messages.push(`هشدار هنگام افزودن ستون insurance_type: ${e.message}`);
+    }
 
 
     // --- Phase 3: Create triggers, indexes, and default data ---
