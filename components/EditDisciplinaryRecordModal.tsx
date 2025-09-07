@@ -57,24 +57,24 @@ const EditDisciplinaryRecordModal: React.FC<EditDisciplinaryRecordModalProps> = 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                     <label htmlFor="full_name" className="block text-sm font-medium text-gray-700 mb-1">نام و نام خانوادگی</label>
-                    <input type="text" id="full_name" name="full_name" value={formData.full_name} onChange={handleChange} className={inputClass} required />
+                    <input type="text" id="full_name" name="full_name" value={formData.full_name || ''} onChange={handleChange} className={inputClass} required />
                 </div>
                 <div>
                     <label htmlFor="personnel_code" className="block text-sm font-medium text-gray-700 mb-1">کد پرسنلی</label>
-                    <input type="text" id="personnel_code" name="personnel_code" value={formData.personnel_code} onChange={handleChange} className={inputClass} required />
+                    <input type="text" id="personnel_code" name="personnel_code" value={formData.personnel_code || ''} onChange={handleChange} className={inputClass} required />
                 </div>
             </div>
             <div>
                 <label htmlFor="meeting_date" className="block text-sm font-medium text-gray-700 mb-1">تاریخ جلسه</label>
-                <input type="text" id="meeting_date" name="meeting_date" value={formData.meeting_date} onChange={handleChange} className={inputClass} placeholder="مثال: ۱۴۰۳/۰۵/۱۵" />
+                <input type="text" id="meeting_date" name="meeting_date" value={formData.meeting_date || ''} onChange={handleChange} className={inputClass} placeholder="مثال: ۱۴۰۳/۰۵/۱۵" />
             </div>
             <div>
                 <label htmlFor="letter_description" className="block text-sm font-medium text-gray-700 mb-1">شرح نامه ارسالی</label>
-                <textarea id="letter_description" name="letter_description" value={formData.letter_description} onChange={handleChange} className={textAreaClass}></textarea>
+                <textarea id="letter_description" name="letter_description" value={formData.letter_description || ''} onChange={handleChange} className={textAreaClass}></textarea>
             </div>
              <div>
                 <label htmlFor="final_decision" className="block text-sm font-medium text-gray-700 mb-1">رای نهایی کمیته</label>
-                <textarea id="final_decision" name="final_decision" value={formData.final_decision} onChange={handleChange} className={textAreaClass}></textarea>
+                <textarea id="final_decision" name="final_decision" value={formData.final_decision || ''} onChange={handleChange} className={textAreaClass}></textarea>
             </div>
           </div>
           

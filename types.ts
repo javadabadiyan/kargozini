@@ -167,7 +167,7 @@ export interface DisciplinaryRecord {
   id: number;
   full_name: string;
   personnel_code: string;
-  meeting_date: string;
-  letter_description: string;
-  final_decision: string;
+  meeting_date: string | null;
+  letter_description: string | null;
+  final_decision: string | null;
 }

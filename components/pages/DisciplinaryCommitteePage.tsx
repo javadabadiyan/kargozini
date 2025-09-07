@@ -20,9 +20,9 @@ const DEFAULT_RECORD: DisciplinaryRecord = {
     id: 0,
     full_name: '',
     personnel_code: '',
-    meeting_date: '',
-    letter_description: '',
-    final_decision: '',
+    meeting_date: null,
+    letter_description: null,
+    final_decision: null,
 };
 
 const toPersianDigits = (s: string | number | null | undefined): string => {
@@ -68,10 +68,10 @@ const DisciplinaryCommitteePage: React.FC = () => {
         if (!searchTerm) return records;
         const lowercasedTerm = searchTerm.toLowerCase().trim();
         return records.filter(r =>
-            r.full_name.toLowerCase().includes(lowercasedTerm) ||
-            r.personnel_code.toLowerCase().includes(lowercasedTerm) ||
-            r.letter_description.toLowerCase().includes(lowercasedTerm) ||
-            r.final_decision.toLowerCase().includes(lowercasedTerm)
+            r.full_name?.toLowerCase().includes(lowercasedTerm) ||
+            r.personnel_code?.toLowerCase().includes(lowercasedTerm) ||
+            r.letter_description?.toLowerCase().includes(lowercasedTerm) ||
+            r.final_decision?.toLowerCase().includes(lowercasedTerm)
         );
     }, [records, searchTerm]);
 
