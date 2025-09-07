@@ -12,7 +12,6 @@ import DashboardPage from './pages/DashboardPage';
 import DocumentUploadPage from './pages/DocumentUploadPage';
 import AccountingCommitmentPage from './pages/AccountingCommitmentPage';
 import DisciplinaryCommitteePage from './pages/DisciplinaryCommitteePage';
-import CommitmentLetterArchivePage from './pages/CommitmentLetterArchivePage';
 
 const SendPerformanceReviewPage: React.FC = () => React.createElement(PlaceholderPage, { title: "ارسال ارزیابی عملکرد پرسنل" });
 const ArchivePerformanceReviewPage: React.FC = () => React.createElement(PlaceholderPage, { title: "بایگانی ارزیابی عملکرد پرسنل" });
@@ -34,13 +33,10 @@ export const ALL_MENU_ITEMS: MenuItem[] = [
     id: 'recruitment', label: 'کارگزینی', icon: BriefcaseIcon,
     children: [
       { 
-        id: 'accounting_commitment_parent',
+        id: 'accounting_commitment',
         label: 'نامه تعهد حسابداری', 
         icon: DocumentReportIcon,
-        children: [
-            { id: 'accounting_commitment', label: 'صدور نامه تعهد', icon: CircleIcon, page: AccountingCommitmentPage },
-            { id: 'commitment_letter_archive', label: 'بایگانی و خلاصه تعهدات', icon: CircleIcon, page: CommitmentLetterArchivePage }
-        ]
+        page: AccountingCommitmentPage
       },
       { id: 'disciplinary_committee', label: 'کمیته تشویق و انضباطی', icon: CircleIcon, page: DisciplinaryCommitteePage },
       { 

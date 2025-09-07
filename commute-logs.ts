@@ -21,7 +21,7 @@ async function handleGeneralReport(request: VercelRequest, response: VercelRespo
     if (position && typeof position === 'string') { conditions.push(`cm."position" = $${paramIndex++}`); params.push(position); }
     if (conditions.length > 0) query += ` WHERE ${conditions.join(' AND ')}`;
     query += ` ORDER BY cm.full_name, cl.entry_time DESC;`;
-    // FIX: Cast pool to any to use the untyped `query` method for dynamic queries.
+// FIX: Cast pool to any to use the untyped `query` method for dynamic queries.
     const { rows } = await (pool as any).query(query, params);
     return response.status(200).json({ reports: rows });
 }
@@ -55,7 +55,7 @@ async function handleHourlyReport(request: VercelRequest, response: VercelRespon
     if (position && typeof position === 'string') { conditions.push(`cm."position" = $${paramIndex++}`); params.push(position); }
     if (conditions.length > 0) query += ` WHERE ${conditions.join(' AND ')}`;
     query += ` ORDER BY cm.full_name, COALESCE(hcl.exit_time, hcl.entry_time) DESC;`;
-    // FIX: Cast pool to any to use the untyped `query` method for dynamic queries.
+// FIX: Cast pool to any to use the untyped `query` method for dynamic queries.
     const { rows } = await (pool as any).query(query, params);
     return response.status(200).json({ reports: rows });
 }
@@ -76,7 +76,7 @@ async function handleEditsReport(request: VercelRequest, response: VercelRespons
     if (position && typeof position === 'string') { conditions.push(`cm."position" = $${paramIndex++}`); params.push(position); }
     if (conditions.length > 0) query += ` WHERE ${conditions.join(' AND ')}`;
     query += ` ORDER BY cel.edit_timestamp DESC;`;
-    // FIX: Cast pool to any to use the untyped `query` method for dynamic queries.
+// FIX: Cast pool to any to use the untyped `query` method for dynamic queries.
     const { rows } = await (pool as any).query(query, params);
     return response.status(200).json({ logs: rows });
 }
@@ -170,7 +170,7 @@ async function handlePostDaily(request: VercelRequest, response: VercelResponse,
             // FIX: Always use an ISO string, never the 'NOW()' string literal which fails with parameterization.
             const effectiveTime = timestampOverride ? new Date(timestampOverride).toISOString() : new Date().toISOString();
 
-            // FIX: Use DATE() with timezone conversion for correct day boundary checks and parameterized queries to prevent SQL injection.
+            // FIX: Use DATE() with timezone conversion for correct day boundary checks.
             const { rows: openLogs } = await pool.sql`
                 SELECT id 
                 FROM commute_logs 
