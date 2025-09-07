@@ -411,14 +411,12 @@ const AccountingCommitmentPage: React.FC = () => {
              <div className="mt-8 border-t pt-6">
                 <h3 className="text-xl font-bold text-gray-800 mb-4">۳. پیش نمایش نامه جهت چاپ</h3>
                 <div ref={printRef} className="p-8 border rounded-lg bg-gray-50 text-gray-800 print-container" style={{ direction: 'rtl', lineHeight: '2.5' }}>
-                    <div className="flex justify-between items-start mb-8">
+                    <div className="flex justify-end items-start mb-8">
                         <div>
-                            <p>تاریخ: <span className="font-sans">{toPersianDigits(new Date().toLocaleDateString('fa-IR'))}</span></p>
-                            <p>شماره: <span className="font-sans">{toPersianDigits(referenceNumber) || '....................'}</span></p>
+                            <p>تاریخ: ۱۴۰۴/۶/۱۶</p>
+                            <p>شماره: ....................</p>
                             <p>پیوست: ندارد</p>
                         </div>
-                        <p className="text-center font-bold text-lg">بسمه تعالی</p>
-                        <div></div>
                     </div>
                     
                     <p className="font-bold mb-4">ریاست محترم بانک <span className="underline">{bankName || '....................'}</span> شعبه <span className="underline">{branchName || '....................'}</span></p>
