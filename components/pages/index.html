@@ -10,7 +10,7 @@
     <!-- Google Fonts for Vazirmatn -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700;800&display=swap" rel="stylesheet">
 
     <script>
       // On page load or when changing themes, best to add inline in `head` to avoid FOUC
@@ -59,6 +59,15 @@
       .digit-animate {
         animation: tick 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
       }
+      
+      @keyframes float {
+        0% { transform: translateY(0px) translateX(0px) rotate(0deg); }
+        50% { transform: translateY(-30px) translateX(20px) rotate(180deg); }
+        100% { transform: translateY(0px) translateX(0px) rotate(360deg); }
+      }
+      .bg-shape { animation: float 20s ease-in-out infinite; }
+      .bg-shape2 { animation: float 25s ease-in-out infinite reverse; }
+      .bg-shape3 { animation: float 15s ease-in-out infinite; }
     </style>
   <script type="importmap">
 {
