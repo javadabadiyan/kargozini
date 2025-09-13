@@ -31,41 +31,41 @@ const SidebarMenuItem: React.FC<{
     }
   };
 
-  const baseClasses = 'w-full flex items-center p-3 my-1 rounded-lg transition-colors duration-200 cursor-pointer';
-  const activeClasses = 'bg-blue-600 text-white shadow-lg';
-  const inactiveClasses = 'text-gray-300 hover:bg-slate-700 hover:text-white';
+  const baseClasses = 'w-full flex items-center p-3 my-1 rounded-lg transition-all duration-200 cursor-pointer';
+  const activeClasses = 'bg-gradient-to-r from-blue-600 to-indigo-500 text-white shadow-lg';
+  const inactiveClasses = 'text-slate-300 hover:bg-slate-700 hover:text-white';
 
   if (isParent) {
     return (
       <div>
         <div
           onClick={handleClick}
-          className={`${baseClasses} ${isActive ? 'text-white' : inactiveClasses}`}
+          className={`${baseClasses} ${isActive ? 'text-white font-semibold' : inactiveClasses}`}
         >
           <item.icon className="w-6 h-6 ms-2"/>
           <span className="flex-1 text-right mr-3">{item.label}</span>
           {isOpen ? <ChevronUpIcon className="w-5 h-5"/> : <ChevronDownIcon className="w-5 h-5"/>}
         </div>
         <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? 'max-h-96' : 'max-h-0'}`}>
-          <div className="mr-6 border-r-2 border-slate-600 pr-4">
+          <div className="mr-6 border-r-2 border-slate-700 pr-4">
             {item.children?.filter(child => permissions[child.id] || (child.children && child.children.some(c => permissions[c.id]))).map(child => {
               if (child.children) { // Nested parent item
                 const isChildOpen = openItems[child.id] ?? false;
                 const isChildActive = hasActiveChild([child]);
                  return (
                  <div key={child.id}>
-                    <div onClick={() => toggleItem(child.id)} className={`flex items-center justify-between p-2 my-1 rounded-lg transition-colors duration-200 cursor-pointer text-sm ${isChildActive ? 'text-blue-400 font-semibold' : 'text-gray-400 hover:text-white'}`}>
+                    <div onClick={() => toggleItem(child.id)} className={`flex items-center justify-between p-2 my-1 rounded-lg transition-colors duration-200 cursor-pointer text-sm ${isChildActive ? 'text-sky-400 font-semibold' : 'text-slate-400 hover:text-white'}`}>
                         <div className="flex items-center">
-                          <child.icon className={`w-5 h-5 ms-2 ${isChildActive ? 'text-blue-400' : ''}`} />
+                          <child.icon className={`w-5 h-5 ms-2 ${isChildActive ? 'text-sky-400' : ''}`} />
                           <span className="mr-2">{child.label}</span>
                         </div>
                         {isChildOpen ? <ChevronUpIcon className="w-4 h-4"/> : <ChevronDownIcon className="w-4 h-4"/>}
                     </div>
                      <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isChildOpen ? 'max-h-96' : 'max-h-0'}`}>
-                        <div className="mr-4 border-r-2 border-slate-700 pr-2">
+                        <div className="mr-4 border-r-2 border-slate-700/50 pr-2">
                             {child.children?.filter(grandchild => permissions[grandchild.id]).map(grandchild => (
-                                <div key={grandchild.id} onClick={() => grandchild.page && setActiveItem(grandchild.id, grandchild.page)} className={`flex items-center p-2 my-1 rounded-lg transition-colors duration-200 cursor-pointer text-xs ${activeItem === grandchild.id ? 'text-blue-500 font-bold' : 'text-gray-400 hover:text-white'}`}>
-                                    <grandchild.icon className={`w-4 h-4 ms-2 ${activeItem === grandchild.id ? 'text-blue-500' : ''}`} />
+                                <div key={grandchild.id} onClick={() => grandchild.page && setActiveItem(grandchild.id, grandchild.page)} className={`flex items-center p-2 my-1 rounded-lg transition-colors duration-200 cursor-pointer text-xs ${activeItem === grandchild.id ? 'text-sky-400 font-bold' : 'text-slate-400 hover:text-white'}`}>
+                                    <grandchild.icon className={`w-4 h-4 ms-2 ${activeItem === grandchild.id ? 'text-sky-400' : ''}`} />
                                     <span className="mr-2">{grandchild.label}</span>
                                 </div>
                             ))}
@@ -77,8 +77,8 @@ const SidebarMenuItem: React.FC<{
               // Leaf child item
               return (
                 <div key={child.id} onClick={() => child.page && setActiveItem(child.id, child.page)} 
-                  className={`flex items-center p-2 my-1 rounded-lg transition-colors duration-200 cursor-pointer text-sm ${activeItem === child.id ? 'text-blue-400 font-semibold' : 'text-gray-400 hover:text-white'}`}>
-                  <child.icon className={`w-5 h-5 ms-2 ${activeItem === child.id ? 'text-blue-400' : ''}`} />
+                  className={`flex items-center p-2 my-1 rounded-lg transition-colors duration-200 cursor-pointer text-sm ${activeItem === child.id ? 'text-sky-400 font-semibold' : 'text-slate-400 hover:text-white'}`}>
+                  <child.icon className={`w-5 h-5 ms-2 ${activeItem === child.id ? 'text-sky-400' : ''}`} />
                   <span className="mr-2">{child.label}</span>
                 </div>
               );
@@ -110,44 +110,49 @@ const AnimatedDigit: React.FC<{ digit: string; hasChanged: boolean }> = memo(({ 
 });
 
 const Clock: React.FC = () => {
-  const [time, setTime] = useState(new Date());
-  const previousTimeRef = useRef('');
+    const [time, setTime] = useState(new Date());
+    const previousTimeRef = useRef('');
 
-  useEffect(() => {
-    const timerId = setInterval(() => {
-      previousTimeRef.current = new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-      setTime(new Date());
-    }, 1000);
-    return () => clearInterval(timerId);
-  }, []);
+    const toPersianDigits = (s: string) => s.replace(/[0-9]/g, (w) => '۰۱۲۳۴۵۶۷۸۹'[parseInt(w, 10)]);
 
-  const toPersianDigits = (s: string) => s.replace(/[0-9]/g, (w) => '۰۱۲۳۴۵۶۷۸۹'[parseInt(w, 10)]);
+    const timeFormatter = useMemo(() => new Intl.DateTimeFormat('fa-IR', {
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        hour12: false, timeZone: 'Asia/Tehran', numberingSystem: 'latn'
+    }), []);
 
-  const rawFormattedTime = time.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-  const formattedTime = toPersianDigits(rawFormattedTime);
-  const previousFormattedTime = toPersianDigits(previousTimeRef.current);
-  
-  const rawFormattedDate = new Intl.DateTimeFormat('fa-IR', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    weekday: 'long',
-  }).format(time).replace('،', '');
-  const formattedDate = toPersianDigits(rawFormattedDate);
+    const dateFormatter = useMemo(() => new Intl.DateTimeFormat('fa-IR', {
+        year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
+        timeZone: 'Asia/Tehran', numberingSystem: 'latn'
+    }), []);
 
-  return (
-    <div className="p-6 border-t border-slate-700 text-center">
-      <div className="text-4xl font-bold tracking-wider" dir="ltr">
-        {formattedTime.split('').map((char, index) => {
-            const hasChanged = formattedTime[index] !== previousFormattedTime[index];
-            return char === ':' ? 
-                <span key={index} className="px-1">:</span> : 
-                <AnimatedDigit key={`${index}-${char}`} digit={char} hasChanged={hasChanged} />;
-        })}
-      </div>
-      <p className="text-sm text-gray-400 mt-2">{formattedDate}</p>
-    </div>
-  );
+    useEffect(() => {
+        const timerId = setInterval(() => {
+            previousTimeRef.current = timeFormatter.format(new Date());
+            setTime(new Date());
+        }, 1000);
+        return () => clearInterval(timerId);
+    }, [timeFormatter]);
+
+    const rawFormattedTime = timeFormatter.format(time);
+    const formattedTime = toPersianDigits(rawFormattedTime);
+    const previousFormattedTime = toPersianDigits(previousTimeRef.current);
+    
+    const rawFormattedDate = dateFormatter.format(time).replace(/،/g, '');
+    const formattedDate = toPersianDigits(rawFormattedDate);
+
+    return (
+        <div className="p-6 border-t border-slate-700 text-center text-white">
+            <div className="text-4xl font-bold tracking-wider" dir="ltr">
+                {formattedTime.split('').map((char, index) => {
+                    const hasChanged = formattedTime[index] !== previousFormattedTime[index];
+                    return char === ':' ?
+                        <span key={index} className="px-1 opacity-50">:</span> :
+                        <AnimatedDigit key={`${index}-${char}`} digit={char} hasChanged={hasChanged} />;
+                })}
+            </div>
+            <p className="text-sm text-slate-400 mt-2">{formattedDate}</p>
+        </div>
+    );
 };
 
 
@@ -199,7 +204,7 @@ export const Sidebar: React.FC<{
   };
 
   return (
-    <aside className={`w-72 bg-slate-800 text-white flex flex-col shadow-2xl fixed lg:static inset-y-0 right-0 z-30 transform transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : 'translate-x-full'} lg:translate-x-0`}>
+    <aside className={`w-72 bg-slate-900 text-white flex flex-col shadow-2xl fixed lg:static inset-y-0 right-0 z-30 transform transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : 'translate-x-full'} lg:translate-x-0`}>
       <div className="flex items-center justify-between p-6 border-b border-slate-700">
         <div className="flex items-center gap-3">
           {appLogo && <img src={appLogo} alt="لوگو" className="w-9 h-9 rounded-md object-cover" />}

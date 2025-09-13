@@ -280,9 +280,9 @@ const DependentsInfoPage: React.FC = () => {
   };
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow-lg">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 border-b-2 border-gray-100 pb-4">
-        <h2 className="text-2xl font-bold text-gray-800">اطلاعات بستگان</h2>
+    <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-lg p-6 rounded-xl shadow-xl">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 border-b-2 border-slate-200/50 dark:border-slate-700/50 pb-4">
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-slate-100">اطلاعات بستگان</h2>
         <div className="flex items-center gap-2 flex-wrap">
               <button onClick={handleOpenAddModal} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">افزودن دستی</button>
               <button onClick={handleDownloadSample} className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 border border-gray-300 text-sm rounded-lg hover:bg-gray-200 transition-colors">
@@ -305,7 +305,7 @@ const DependentsInfoPage: React.FC = () => {
       )}
 
       <form onSubmit={handleSearchSubmit} className="mb-6">
-        <label htmlFor="search-dependents" className="block text-sm font-medium text-gray-700 mb-2">
+        <label htmlFor="search-dependents" className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">
             جستجوی بستگان
         </label>
         <div className="flex">
@@ -313,7 +313,7 @@ const DependentsInfoPage: React.FC = () => {
               <input 
                 type="text" 
                 id="search-dependents" 
-                className="w-full pr-10 pl-4 py-2 border border-gray-300 rounded-r-md focus:ring-blue-500 focus:border-blue-500"
+                className="w-full pr-10 pl-4 py-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700/50 rounded-r-md focus:ring-blue-500 focus:border-blue-500"
                 placeholder="نام، کد ملی، کد پرسنلی..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
@@ -326,12 +326,12 @@ const DependentsInfoPage: React.FC = () => {
         </div>
       </form>
 
-      <div className="overflow-x-auto bg-slate-50 p-4 rounded-lg border border-slate-200">
-        <h4 className="text-lg font-semibold text-gray-700 mb-4">لیست بستگان</h4>
+      <div className="overflow-x-auto bg-slate-50/50 dark:bg-slate-900/20 p-4 rounded-lg border border-slate-200 dark:border-slate-700">
+        <h4 className="text-lg font-semibold text-gray-700 dark:text-slate-200 mb-4">لیست بستگان</h4>
         {loading && <p className="text-center py-4">در حال بارگذاری اطلاعات...</p>}
         {error && <p className="text-center py-4 text-red-500">{error}</p>}
         {!loading && !error && dependents.length === 0 && (
-            <div className="text-center py-10 text-gray-400">
+            <div className="text-center py-10 text-gray-400 dark:text-slate-500">
                 <UsersIcon className="w-16 h-16 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold">
                     {searchTerm ? 'هیچ وابسته‌ای مطابق با جستجوی شما یافت نشد.' : 'هیچ وابسته‌ای در سیستم ثبت نشده است.'}
@@ -340,32 +340,32 @@ const DependentsInfoPage: React.FC = () => {
             </div>
         )}
         {!loading && !error && dependents.length > 0 && (
-            <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-100">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700">
+                <thead className="bg-gray-100 dark:bg-slate-700/50">
                     <tr>
                         {TABLE_VIEW_HEADERS.map(header => (
-                            <th key={header} scope="col" className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">{header}</th>
+                            <th key={header} scope="col" className="px-4 py-3 text-right text-xs font-bold text-gray-600 dark:text-slate-300 uppercase tracking-wider">{header}</th>
                         ))}
                     </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-white dark:bg-slate-800/50 divide-y divide-gray-200 dark:divide-slate-700">
                     {dependents.map(d => (
-                        <tr key={d.id}>
+                        <tr key={d.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
                             {TABLE_VIEW_HEADERS.filter(h => h !== 'عملیات').map(header => (
-                                <td key={header} className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">{toPersianDigits(String(d[DEPENDENT_HEADER_MAP[header as keyof typeof DEPENDENT_HEADER_MAP]] ?? ''))}</td>
+                                <td key={header} className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-slate-300">{toPersianDigits(String(d[DEPENDENT_HEADER_MAP[header as keyof typeof DEPENDENT_HEADER_MAP]] ?? ''))}</td>
                             ))}
                             <td className="px-4 py-3 whitespace-nowrap text-sm text-center">
                               <div className="flex items-center justify-center gap-2">
                                   <button 
                                       onClick={() => handleEditClick(d)}
-                                      className="text-blue-600 hover:text-blue-800 p-1 rounded-full hover:bg-blue-100 transition-colors"
+                                      className="text-blue-600 hover:text-blue-800 p-1 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
                                       aria-label={`ویرایش ${d.first_name} ${d.last_name}`}
                                   >
                                       <PencilIcon className="w-5 h-5" />
                                   </button>
                                   <button 
                                       onClick={() => handleDeleteDependent(d.id)}
-                                      className="text-red-600 hover:text-red-800 p-1 rounded-full hover:bg-red-100 transition-colors"
+                                      className="text-red-600 hover:text-red-800 p-1 rounded-full hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"
                                       aria-label={`حذف ${d.first_name} ${d.last_name}`}
                                   >
                                       <TrashIcon className="w-5 h-5" />

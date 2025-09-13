@@ -7,9 +7,9 @@ interface LoginPageProps {
 
 const AnimatedBackground: React.FC = () => (
   <div className="absolute inset-0 z-0 overflow-hidden">
-    <div className="absolute -top-20 -left-20 w-72 h-72 bg-blue-500/20 rounded-full filter blur-3xl opacity-50 bg-shape" />
-    <div className="absolute top-40 -right-20 w-96 h-96 bg-indigo-500/20 rounded-full filter blur-3xl opacity-40 bg-shape2" />
-    <div className="absolute bottom-0 -left-10 w-80 h-80 bg-sky-500/20 rounded-full filter blur-3xl opacity-60 bg-shape3" />
+    <div className="absolute -top-20 -left-20 w-72 h-72 bg-blue-500/10 rounded-full filter blur-3xl opacity-60 bg-shape" />
+    <div className="absolute top-40 -right-20 w-96 h-96 bg-indigo-500/10 rounded-full filter blur-3xl opacity-50 bg-shape2" />
+    <div className="absolute bottom-0 -left-10 w-80 h-80 bg-sky-500/10 rounded-full filter blur-3xl opacity-70 bg-shape3" />
   </div>
 );
 
@@ -31,15 +31,15 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   };
 
   return (
-    <div className="relative flex min-h-screen w-full items-center justify-center bg-slate-50 dark:bg-slate-900 overflow-hidden">
+    <div className="relative flex min-h-screen w-full items-center justify-center overflow-hidden">
       <AnimatedBackground />
 
       <main className="relative z-10 w-full max-w-6xl px-4">
-        <div className="grid grid-cols-1 items-center gap-8 md:grid-cols-2">
+        <div className="grid grid-cols-1 items-center gap-12 md:grid-cols-2">
           
           <div className="hidden md:block text-right space-y-6">
              <div className="flex items-center justify-end gap-3">
-               <h1 className="text-5xl font-extrabold text-slate-800 dark:text-white">
+               <h1 className="text-5xl font-extrabold bg-gradient-to-r from-blue-600 to-indigo-500 bg-clip-text text-transparent dark:from-sky-400 dark:to-blue-500">
                  سیستم جامع کارگزینی
                </h1>
                 <svg className="w-16 h-16 text-blue-600 dark:text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -51,10 +51,10 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
             </p>
           </div>
 
-          <div className="w-full max-w-md p-8 space-y-8 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 mx-auto">
+          <div className="w-full max-w-md p-8 space-y-8 bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 mx-auto">
             <div className="text-center">
                <div className="flex items-center justify-center gap-3 mb-4 md:hidden">
-                 <h1 className="text-3xl font-bold text-slate-800 dark:text-white">
+                 <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-500 bg-clip-text text-transparent dark:from-sky-400 dark:to-blue-500">
                    سیستم جامع کارگزینی
                  </h1>
                   <svg className="w-10 h-10 text-blue-600 dark:text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">

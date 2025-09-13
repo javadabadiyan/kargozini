@@ -400,9 +400,9 @@ const PersonnelListPage: React.FC = () => {
   };
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow-lg">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 border-b-2 border-gray-100 pb-4">
-        <h2 className="text-2xl font-bold text-gray-800">لیست کامل پرسنل</h2>
+    <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-lg p-6 rounded-xl shadow-xl">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 border-b-2 border-slate-200/50 dark:border-slate-700/50 pb-4">
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-slate-100">لیست کامل پرسنل</h2>
 
         <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full md:w-auto">
           <div className="relative w-full sm:w-64">
@@ -411,7 +411,7 @@ const PersonnelListPage: React.FC = () => {
                   placeholder="جستجو (نام، کد پرسنلی، کد ملی...)"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pr-10 pl-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full pr-10 pl-4 py-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700/50 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                   aria-label="جستجوی پرسنل"
               />
               <SearchIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -444,37 +444,37 @@ const PersonnelListPage: React.FC = () => {
       )}
 
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200 border">
-          <thead className="bg-gray-100">
+        <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700 border dark:border-slate-700">
+          <thead className="bg-gray-100 dark:bg-slate-700/50">
             <tr>
               {TABLE_HEADERS.map(header => (
-                <th key={header} scope="col" className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider whitespace-nowrap">{header}</th>
+                <th key={header} scope="col" className="px-4 py-3 text-right text-xs font-bold text-gray-600 dark:text-slate-300 uppercase tracking-wider whitespace-nowrap">{header}</th>
               ))}
             </tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="bg-white dark:bg-slate-800/50 divide-y divide-gray-200 dark:divide-slate-700">
             {loading && <tr><td colSpan={TABLE_HEADERS.length} className="text-center p-4">در حال بارگذاری...</td></tr>}
             {error && <tr><td colSpan={TABLE_HEADERS.length} className="text-center p-4 text-red-500">{error}</td></tr>}
             {!loading && !error && personnelList.length > 0 && personnelList.map((p) => (
-              <tr key={p.id} className="hover:bg-slate-50">
+              <tr key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
                 {TABLE_HEADERS_KEYS.map(header => {
                     const key = HEADER_MAP[header as keyof typeof HEADER_MAP];
                     return (
-                        <td key={key} className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">{toPersianDigits(String(p[key] ?? ''))}</td>
+                        <td key={key} className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-slate-300">{toPersianDigits(String(p[key] ?? ''))}</td>
                     );
                 })}
                 <td className="px-4 py-3 whitespace-nowrap text-sm text-center">
                     <div className="flex items-center justify-center gap-2">
                       <button 
                         onClick={() => handleEditClick(p)}
-                        className="text-blue-600 hover:text-blue-800 p-1 rounded-full hover:bg-blue-100 transition-colors"
+                        className="text-blue-600 hover:text-blue-800 p-1 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors"
                         aria-label={`ویرایش ${p.first_name} ${p.last_name}`}
                       >
                         <PencilIcon className="w-5 h-5" />
                       </button>
                        <button 
                         onClick={() => handleDeleteClick(p.id)}
-                        className="text-red-600 hover:text-red-800 p-1 rounded-full hover:bg-red-100 transition-colors"
+                        className="text-red-600 hover:text-red-800 p-1 rounded-full hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"
                         aria-label={`حذف ${p.first_name} ${p.last_name}`}
                       >
                         <TrashIcon className="w-5 h-5" />
@@ -485,7 +485,7 @@ const PersonnelListPage: React.FC = () => {
             ))}
             {!loading && !error && personnelList.length === 0 && (
               <tr>
-                <td colSpan={TABLE_HEADERS.length} className="text-center p-4 text-gray-500">
+                <td colSpan={TABLE_HEADERS.length} className="text-center p-4 text-gray-500 dark:text-slate-400">
                   {searchTerm
                     ? "هیچ پرسنلی با مشخصات وارد شده یافت نشد."
                     : "هیچ پرسنلی یافت نشد. می‌توانید یک پرسنل جدید اضافه کنید."}

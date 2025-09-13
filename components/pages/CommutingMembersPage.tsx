@@ -161,9 +161,9 @@ const CommutingMembersPage: React.FC = () => {
   };
 
   return (
-    <div className="bg-white p-6 rounded-lg shadow-lg">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 border-b-2 border-gray-100 pb-4">
-        <h2 className="text-2xl font-bold text-gray-800">کارمندان عضو تردد</h2>
+    <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-lg p-6 rounded-xl shadow-xl">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 border-b-2 border-slate-200/50 dark:border-slate-700/50 pb-4">
+        <h2 className="text-2xl font-bold text-gray-800 dark:text-slate-100">کارمندان عضو تردد</h2>
         <div className="flex items-center gap-2 flex-wrap">
             <button onClick={() => setIsAddModalOpen(true)} className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">افزودن دستی</button>
             <button onClick={handleDownloadSample} className="px-4 py-2 bg-gray-100 text-gray-700 border border-gray-300 text-sm rounded-lg hover:bg-gray-200">دانلود نمونه</button>
@@ -178,17 +178,17 @@ const CommutingMembersPage: React.FC = () => {
       )}
 
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200 border">
-          <thead className="bg-gray-100">
-            <tr>{TABLE_HEADERS.map(h => <th key={h} className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">{h}</th>)}</tr>
+        <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700 border dark:border-slate-700">
+          <thead className="bg-gray-100 dark:bg-slate-700/50">
+            <tr>{TABLE_HEADERS.map(h => <th key={h} className="px-4 py-3 text-right text-xs font-bold text-gray-600 dark:text-slate-300 uppercase tracking-wider">{h}</th>)}</tr>
           </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
+          <tbody className="bg-white dark:bg-slate-800/50 divide-y divide-gray-200 dark:divide-slate-700">
             {loading && <tr><td colSpan={TABLE_HEADERS.length} className="text-center p-4">در حال بارگذاری...</td></tr>}
             {error && <tr><td colSpan={TABLE_HEADERS.length} className="text-center p-4 text-red-500">{error}</td></tr>}
             {!loading && !error && members.map((m) => (
-              <tr key={m.id} className="hover:bg-slate-50">
+              <tr key={m.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
                 {TABLE_HEADERS.map(header => (
-                  <td key={header} className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
+                  <td key={header} className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-slate-300">
                     {toPersianDigits(m[HEADER_MAP[header as keyof typeof HEADER_MAP]])}
                   </td>
                 ))}

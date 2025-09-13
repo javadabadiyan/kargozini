@@ -250,15 +250,15 @@ const HourlyCommuteModal: React.FC<HourlyCommuteModalProps> = ({ log, guardName,
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
-        <div className="flex justify-between items-center p-4 border-b">
-          <h3 className="text-xl font-semibold text-gray-800">ثبت تردد بین ساعتی برای: {log.full_name}</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">&times;</button>
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-center p-4 border-b dark:border-slate-700">
+          <h3 className="text-xl font-semibold text-gray-800 dark:text-slate-100">ثبت تردد بین ساعتی برای: {log.full_name}</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-white">&times;</button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          <form onSubmit={handleSubmit} className="p-4 border rounded-lg bg-slate-50 space-y-4">
-            <h4 className="font-bold text-lg text-gray-700">{editingLog ? 'ویرایش تردد' : openExitLog ? 'تکمیل تردد خروج' : 'افزودن تردد جدید'}</h4>
+          <form onSubmit={handleSubmit} className="p-4 border dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-900/50 space-y-4">
+            <h4 className="font-bold text-lg text-gray-700 dark:text-slate-200">{editingLog ? 'ویرایش تردد' : openExitLog ? 'تکمیل تردد خروج' : 'افزودن تردد جدید'}</h4>
             
             {openExitLog && !editingLog && (
                 <div className="p-3 text-sm rounded-lg bg-yellow-100 text-yellow-800 text-center">
@@ -268,11 +268,11 @@ const HourlyCommuteModal: React.FC<HourlyCommuteModalProps> = ({ log, guardName,
             
             {!editingLog && !openExitLog && (
                 <div>
-                    <div className="grid grid-cols-2 gap-1 p-1 bg-slate-200 rounded-lg">
-                        <button type="button" onClick={() => handleActionTypeChange('exit')} className={`px-4 py-2 text-sm font-semibold rounded-md transition-colors ${actionType === 'exit' ? 'bg-white text-blue-600 shadow' : 'text-gray-600'}`}>
+                    <div className="grid grid-cols-2 gap-1 p-1 bg-slate-200 dark:bg-slate-700 rounded-lg">
+                        <button type="button" onClick={() => handleActionTypeChange('exit')} className={`px-4 py-2 text-sm font-semibold rounded-md transition-colors ${actionType === 'exit' ? 'bg-white dark:bg-slate-600 text-blue-600 dark:text-white shadow' : 'text-gray-600 dark:text-slate-300'}`}>
                             ثبت خروج
                         </button>
-                        <button type="button" onClick={() => handleActionTypeChange('entry')} className={`px-4 py-2 text-sm font-semibold rounded-md transition-colors ${actionType === 'entry' ? 'bg-white text-blue-600 shadow' : 'text-gray-600'}`}>
+                        <button type="button" onClick={() => handleActionTypeChange('entry')} className={`px-4 py-2 text-sm font-semibold rounded-md transition-colors ${actionType === 'entry' ? 'bg-white dark:bg-slate-600 text-blue-600 dark:text-white shadow' : 'text-gray-600 dark:text-slate-300'}`}>
                             ثبت ورود
                         </button>
                     </div>
@@ -282,32 +282,32 @@ const HourlyCommuteModal: React.FC<HourlyCommuteModalProps> = ({ log, guardName,
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className={!editingLog && (actionType === 'entry' || !!openExitLog) ? 'opacity-50' : ''}>
                     <div className="flex justify-between items-center mb-1">
-                        <label className="block text-sm font-medium text-gray-700">ساعت خروج</label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">ساعت خروج</label>
                         <button type="button" onClick={() => setExitTime(updateTimeToNow())} className="p-1 text-blue-600 hover:bg-blue-100 rounded-full" title="بروزرسانی ساعت خروج" disabled={!editingLog && (actionType === 'entry' || !!openExitLog)}>
                            <RefreshIcon className="w-4 h-4" />
                         </button>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
-                        <select disabled={!editingLog && (actionType === 'entry' || !!openExitLog)} value={exitTime.hour} onChange={e => setExitTime(p => ({...p, hour: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md font-sans"><option value="">ساعت</option>{HOURS.map(h => <option key={h} value={h}>{toPersianDigits(String(h).padStart(2,'0'))}</option>)}</select>
-                        <select disabled={!editingLog && (actionType === 'entry' || !!openExitLog)} value={exitTime.minute} onChange={e => setExitTime(p => ({...p, minute: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md font-sans"><option value="">دقیقه</option>{MINUTES.map(m => <option key={m} value={m}>{toPersianDigits(String(m).padStart(2,'0'))}</option>)}</select>
+                        <select disabled={!editingLog && (actionType === 'entry' || !!openExitLog)} value={exitTime.hour} onChange={e => setExitTime(p => ({...p, hour: e.target.value}))} className="w-full p-2 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-md font-sans"><option value="">ساعت</option>{HOURS.map(h => <option key={h} value={h}>{toPersianDigits(String(h).padStart(2,'0'))}</option>)}</select>
+                        <select disabled={!editingLog && (actionType === 'entry' || !!openExitLog)} value={exitTime.minute} onChange={e => setExitTime(p => ({...p, minute: e.target.value}))} className="w-full p-2 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-md font-sans"><option value="">دقیقه</option>{MINUTES.map(m => <option key={m} value={m}>{toPersianDigits(String(m).padStart(2,'0'))}</option>)}</select>
                     </div>
                 </div>
                 <div className={!editingLog && actionType === 'exit' && !openExitLog ? 'opacity-50' : ''}>
                      <div className="flex justify-between items-center mb-1">
-                        <label className="block text-sm font-medium text-gray-700">ساعت ورود</label>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-slate-300">ساعت ورود</label>
                          <button type="button" onClick={() => setEntryTime(updateTimeToNow())} className="p-1 text-blue-600 hover:bg-blue-100 rounded-full" title="بروزرسانی ساعت ورود" disabled={!editingLog && actionType === 'exit' && !openExitLog}>
                            <RefreshIcon className="w-4 h-4" />
                         </button>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
-                        <select disabled={!editingLog && actionType === 'exit' && !openExitLog} value={entryTime.hour} onChange={e => setEntryTime(p => ({...p, hour: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md font-sans"><option value="">ساعت</option>{HOURS.map(h => <option key={h} value={h}>{toPersianDigits(String(h).padStart(2,'0'))}</option>)}</select>
-                        <select disabled={!editingLog && actionType === 'exit' && !openExitLog} value={entryTime.minute} onChange={e => setEntryTime(p => ({...p, minute: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md font-sans"><option value="">دقیقه</option>{MINUTES.map(m => <option key={m} value={m}>{toPersianDigits(String(m).padStart(2,'0'))}</option>)}</select>
+                        <select disabled={!editingLog && actionType === 'exit' && !openExitLog} value={entryTime.hour} onChange={e => setEntryTime(p => ({...p, hour: e.target.value}))} className="w-full p-2 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-md font-sans"><option value="">ساعت</option>{HOURS.map(h => <option key={h} value={h}>{toPersianDigits(String(h).padStart(2,'0'))}</option>)}</select>
+                        <select disabled={!editingLog && actionType === 'exit' && !openExitLog} value={entryTime.minute} onChange={e => setEntryTime(p => ({...p, minute: e.target.value}))} className="w-full p-2 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-md font-sans"><option value="">دقیقه</option>{MINUTES.map(m => <option key={m} value={m}>{toPersianDigits(String(m).padStart(2,'0'))}</option>)}</select>
                     </div>
                 </div>
             </div>
             <div className={!editingLog && (actionType === 'entry' || !!openExitLog) ? 'hidden' : ''}>
-              <label htmlFor="reason" className="block text-sm font-medium text-gray-700 mb-1">شرح (مثال: ماموریت، مرخصی ساعتی)</label>
-              <input id="reason" value={reason} onChange={e => setReason(e.target.value)} className="w-full p-2 border border-gray-300 rounded-md" placeholder="اختیاری"/>
+              <label htmlFor="reason" className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">شرح (مثال: ماموریت، مرخصی ساعتی)</label>
+              <input id="reason" value={reason} onChange={e => setReason(e.target.value)} className="w-full p-2 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-md" placeholder="اختیاری"/>
             </div>
             <div className="flex items-center justify-end gap-2">
                 {editingLog && <button type="button" onClick={resetForm} className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">لغو ویرایش</button>}
@@ -318,19 +318,19 @@ const HourlyCommuteModal: React.FC<HourlyCommuteModalProps> = ({ log, guardName,
           {status && <div className={`p-3 text-sm rounded-lg ${statusColor[status.type]}`}>{status.message}</div>}
 
           <div>
-            <h4 className="font-bold text-lg text-gray-700 mb-2">ترددهای ثبت شده</h4>
-            <div className="overflow-x-auto border rounded-lg">
-                <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-100">
+            <h4 className="font-bold text-lg text-gray-700 dark:text-slate-200 mb-2">ترددهای ثبت شده</h4>
+            <div className="overflow-x-auto border dark:border-slate-700 rounded-lg">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700">
+                    <thead className="bg-gray-100 dark:bg-slate-700">
                         <tr>
-                            {['خروج', 'ورود', 'مدت', 'شرح', 'عملیات'].map(h => <th key={h} className="px-3 py-2 text-right text-xs font-bold text-gray-600 uppercase">{h}</th>)}
+                            {['خروج', 'ورود', 'مدت', 'شرح', 'عملیات'].map(h => <th key={h} className="px-3 py-2 text-right text-xs font-bold text-gray-600 dark:text-slate-300 uppercase">{h}</th>)}
                         </tr>
                     </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
+                    <tbody className="bg-white dark:bg-slate-800/50 divide-y divide-gray-200 dark:divide-slate-700">
                         {loading ? <tr><td colSpan={5} className="text-center p-4">در حال بارگذاری...</td></tr> :
                          hourlyLogs.length === 0 ? <tr><td colSpan={5} className="text-center p-4 text-gray-500">هیچ تردد ساعتی برای این فرد ثبت نشده.</td></tr> :
                          hourlyLogs.map(hLog => (
-                            <tr key={hLog.id} className="hover:bg-slate-50">
+                            <tr key={hLog.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
                                 <td className="px-3 py-2 whitespace-nowrap text-sm">{formatTime(hLog.exit_time)}</td>
                                 <td className="px-3 py-2 whitespace-nowrap text-sm">{formatTime(hLog.entry_time)}</td>
                                 <td className="px-3 py-2 whitespace-nowrap text-sm">{calculateDuration(hLog.exit_time, hLog.entry_time)}</td>

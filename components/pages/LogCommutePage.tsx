@@ -400,15 +400,15 @@ const LogCommutePage: React.FC = () => {
     <>
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Right Column: Form */}
-        <div className="lg:col-span-5 bg-white p-6 rounded-lg shadow-lg space-y-6">
-          <h2 className="text-xl font-bold text-gray-800">ثبت تردد</h2>
+        <div className="lg:col-span-5 bg-white/70 dark:bg-slate-800/70 backdrop-blur-lg p-6 rounded-xl shadow-xl space-y-6">
+          <h2 className="text-xl font-bold text-gray-800 dark:text-slate-100">ثبت تردد</h2>
           {status && <div className={`p-3 text-sm rounded-lg ${statusColor[status.type]}`}>{status.message}</div>}
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">شیفت کاری</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">شیفت کاری</label>
               <div className="grid grid-cols-1 gap-2">
                 {GUARDS.map(guard => (
-                  <label key={guard} className={`flex items-center p-3 rounded-lg border cursor-pointer transition-colors ${selectedGuard === guard ? 'bg-blue-100 border-blue-500' : 'bg-slate-50'}`}>
+                  <label key={guard} className={`flex items-center p-3 rounded-lg border cursor-pointer transition-colors ${selectedGuard === guard ? 'bg-blue-100 border-blue-500' : 'bg-slate-50 dark:bg-slate-700/50 dark:border-slate-700'}`}>
                     <input type="radio" name="guard" value={guard} checked={selectedGuard === guard} onChange={e => setSelectedGuard(e.target.value)} className="w-4 h-4 text-blue-600 focus:ring-blue-500"/>
                     <span className="mr-3 text-sm">{guard}</span>
                   </label>
@@ -417,20 +417,20 @@ const LogCommutePage: React.FC = () => {
             </div>
 
              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">نوع عملیات</label>
-                <div className="grid grid-cols-2 gap-1 p-1 bg-slate-200 rounded-lg">
-                    <button type="button" onClick={() => setActionType('entry')} className={`px-4 py-2 text-sm font-semibold rounded-md transition-colors ${actionType === 'entry' ? 'bg-white text-blue-600 shadow' : 'text-gray-600'}`}>
+                <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">نوع عملیات</label>
+                <div className="grid grid-cols-2 gap-1 p-1 bg-slate-200 dark:bg-slate-700 rounded-lg">
+                    <button type="button" onClick={() => setActionType('entry')} className={`px-4 py-2 text-sm font-semibold rounded-md transition-colors ${actionType === 'entry' ? 'bg-white dark:bg-slate-600 text-blue-600 dark:text-white shadow' : 'text-gray-600 dark:text-slate-300'}`}>
                         ثبت ورود
                     </button>
-                    <button type="button" onClick={() => setActionType('exit')} className={`px-4 py-2 text-sm font-semibold rounded-md transition-colors ${actionType === 'exit' ? 'bg-white text-blue-600 shadow' : 'text-gray-600'}`}>
+                    <button type="button" onClick={() => setActionType('exit')} className={`px-4 py-2 text-sm font-semibold rounded-md transition-colors ${actionType === 'exit' ? 'bg-white dark:bg-slate-600 text-blue-600 dark:text-white shadow' : 'text-gray-600 dark:text-slate-300'}`}>
                         ثبت خروج
                     </button>
                 </div>
             </div>
             
-             <div className="border rounded-lg p-4 space-y-3 bg-slate-50">
+             <div className="border rounded-lg p-4 space-y-3 bg-slate-50 dark:bg-slate-900/20 dark:border-slate-700">
                 <div className="flex justify-between items-center">
-                    <h3 className="font-semibold">ثبت تاریخ و زمان</h3>
+                    <h3 className="font-semibold dark:text-slate-200">ثبت تاریخ و زمان</h3>
                     <button
                         type="button"
                         onClick={updateTimeToNow}
@@ -441,23 +441,23 @@ const LogCommutePage: React.FC = () => {
                     </button>
                 </div>
                <div className="grid grid-cols-3 gap-2">
-                <select value={logDate.day} onChange={e => setLogDate(p => ({...p, day: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md font-sans"><option value="" disabled>روز</option>{DAYS.map(d => <option key={d} value={d}>{toPersianDigits(d)}</option>)}</select>
-                <select value={logDate.month} onChange={e => setLogDate(p => ({...p, month: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md font-sans"><option value="" disabled>ماه</option>{PERSIAN_MONTHS.map((m, i) => <option key={m} value={i+1}>{m}</option>)}</select>
-                <select value={logDate.year} onChange={e => setLogDate(p => ({...p, year: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md font-sans"><option value="" disabled>سال</option>{YEARS.map(y => <option key={y} value={y}>{toPersianDigits(y)}</option>)}</select>
+                <select value={logDate.day} onChange={e => setLogDate(p => ({...p, day: e.target.value}))} className="w-full p-2 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-md font-sans"><option value="" disabled>روز</option>{DAYS.map(d => <option key={d} value={d}>{toPersianDigits(d)}</option>)}</select>
+                <select value={logDate.month} onChange={e => setLogDate(p => ({...p, month: e.target.value}))} className="w-full p-2 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-md font-sans"><option value="" disabled>ماه</option>{PERSIAN_MONTHS.map((m, i) => <option key={m} value={i+1}>{m}</option>)}</select>
+                <select value={logDate.year} onChange={e => setLogDate(p => ({...p, year: e.target.value}))} className="w-full p-2 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-md font-sans"><option value="" disabled>سال</option>{YEARS.map(y => <option key={y} value={y}>{toPersianDigits(y)}</option>)}</select>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className={actionType === 'exit' ? 'opacity-50' : ''}>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">ساعت ورود</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ساعت ورود</label>
                       <div className="grid grid-cols-2 gap-2">
-                          <select value={entryTime.hour} onChange={e => setEntryTime(p => ({...p, hour: e.target.value}))} disabled={actionType === 'exit'} className="w-full p-2 border border-gray-300 rounded-md font-sans"><option value="">ساعت</option>{HOURS.map(h => <option key={h} value={h}>{toPersianDigits(String(h).padStart(2,'0'))}</option>)}</select>
-                          <select value={entryTime.minute} onChange={e => setEntryTime(p => ({...p, minute: e.target.value}))} disabled={actionType === 'exit'} className="w-full p-2 border border-gray-300 rounded-md font-sans"><option value="">دقیقه</option>{MINUTES.map(m => <option key={m} value={m}>{toPersianDigits(String(m).padStart(2,'0'))}</option>)}</select>
+                          <select value={entryTime.hour} onChange={e => setEntryTime(p => ({...p, hour: e.target.value}))} disabled={actionType === 'exit'} className="w-full p-2 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-md font-sans"><option value="">ساعت</option>{HOURS.map(h => <option key={h} value={h}>{toPersianDigits(String(h).padStart(2,'0'))}</option>)}</select>
+                          <select value={entryTime.minute} onChange={e => setEntryTime(p => ({...p, minute: e.target.value}))} disabled={actionType === 'exit'} className="w-full p-2 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-md font-sans"><option value="">دقیقه</option>{MINUTES.map(m => <option key={m} value={m}>{toPersianDigits(String(m).padStart(2,'0'))}</option>)}</select>
                       </div>
                   </div>
                   <div className={actionType === 'entry' ? 'opacity-50' : ''}>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">ساعت خروج</label>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">ساعت خروج</label>
                       <div className="grid grid-cols-2 gap-2">
-                          <select value={exitTime.hour} onChange={e => setExitTime(p => ({...p, hour: e.target.value}))} disabled={actionType === 'entry'} className="w-full p-2 border border-gray-300 rounded-md font-sans"><option value="">ساعت</option>{HOURS.map(h => <option key={h} value={h}>{toPersianDigits(String(h).padStart(2,'0'))}</option>)}</select>
-                          <select value={exitTime.minute} onChange={e => setExitTime(p => ({...p, minute: e.target.value}))} disabled={actionType === 'entry'} className="w-full p-2 border border-gray-300 rounded-md font-sans"><option value="">دقیقه</option>{MINUTES.map(m => <option key={m} value={m}>{toPersianDigits(String(m).padStart(2,'0'))}</option>)}</select>
+                          <select value={exitTime.hour} onChange={e => setExitTime(p => ({...p, hour: e.target.value}))} disabled={actionType === 'entry'} className="w-full p-2 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-md font-sans"><option value="">ساعت</option>{HOURS.map(h => <option key={h} value={h}>{toPersianDigits(String(h).padStart(2,'0'))}</option>)}</select>
+                          <select value={exitTime.minute} onChange={e => setExitTime(p => ({...p, minute: e.target.value}))} disabled={actionType === 'entry'} className="w-full p-2 border border-gray-300 dark:border-slate-600 dark:bg-slate-700 rounded-md font-sans"><option value="">دقیقه</option>{MINUTES.map(m => <option key={m} value={m}>{toPersianDigits(String(m).padStart(2,'0'))}</option>)}</select>
                       </div>
                   </div>
               </div>
@@ -467,32 +467,32 @@ const LogCommutePage: React.FC = () => {
                 {actionType === 'entry' ? 'ثبت ورود' : 'ثبت خروج'} برای {toPersianDigits(selectedPersonnel.size)} نفر
             </button>
             
-            <div className="border rounded-lg">
-                <div className="p-4 border-b">
-                     <h3 className="font-semibold">انتخاب پرسنل ({toPersianDigits(selectedPersonnel.size)} نفر)</h3>
-                     <input type="text" placeholder="جستجوی پرسنل..." value={personnelSearch} onChange={e => setPersonnelSearch(e.target.value)} className="w-full mt-2 p-2 border rounded-md"/>
+            <div className="border dark:border-slate-700 rounded-lg">
+                <div className="p-4 border-b dark:border-slate-700">
+                     <h3 className="font-semibold dark:text-slate-200">انتخاب پرسنل ({toPersianDigits(selectedPersonnel.size)} نفر)</h3>
+                     <input type="text" placeholder="جستجوی پرسنل..." value={personnelSearch} onChange={e => setPersonnelSearch(e.target.value)} className="w-full mt-2 p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600"/>
                 </div>
                 <div className="max-h-80 overflow-y-auto p-2">
                     {groupedMembers.map(([unit, members]) => {
                         const allInUnitSelected = members.every(m => selectedPersonnel.has(m.personnel_code));
                         return (
                             <div key={unit} className="mb-2">
-                                <div className="w-full flex justify-between items-center p-2 bg-gray-100 rounded-md">
+                                <div className="w-full flex justify-between items-center p-2 bg-gray-100 dark:bg-slate-700/50 rounded-md">
                                     <label className="flex items-center gap-2 cursor-pointer">
                                         <input type="checkbox" checked={allInUnitSelected} onChange={() => handleUnitSelectionToggle(members)} className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"/>
                                         <span className="font-semibold text-sm">{unit}</span>
                                     </label>
-                                    <button type="button" onClick={() => toggleUnitOpen(unit)} className="p-1 rounded-full hover:bg-gray-200">
+                                    <button type="button" onClick={() => toggleUnitOpen(unit)} className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-slate-600">
                                         <ChevronDownIcon className={`w-5 h-5 text-gray-500 transition-transform duration-200 ${openUnits.has(unit) ? '' : '-rotate-90'}`} />
                                     </button>
                                 </div>
                                 <div className={`pr-4 mt-1 space-y-1 overflow-hidden transition-all ease-in-out duration-300 ${openUnits.has(unit) ? 'max-h-96' : 'max-h-0'}`}>
                                     {members.map(member => (
-                                        <label key={member.personnel_code} className="flex items-center p-2 rounded-md hover:bg-slate-50 cursor-pointer">
+                                        <label key={member.personnel_code} className="flex items-center p-2 rounded-md hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer">
                                             <input type="checkbox" checked={selectedPersonnel.has(member.personnel_code)} onChange={() => handlePersonnelToggle(member.personnel_code)} className="ml-2 w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"/>
                                             <div className="flex flex-col">
                                                 <span className="text-sm">{member.full_name}</span>
-                                                <span className="text-xs text-gray-500 font-sans tracking-wider">کد: {toPersianDigits(member.personnel_code)}</span>
+                                                <span className="text-xs text-gray-500 dark:text-slate-400 font-sans tracking-wider">کد: {toPersianDigits(member.personnel_code)}</span>
                                             </div>
                                         </label>
                                     ))}
@@ -509,17 +509,17 @@ const LogCommutePage: React.FC = () => {
         </div>
         
         {/* Left Column: Logs */}
-        <div className="lg:col-span-7 bg-white p-6 rounded-lg shadow-lg">
+        <div className="lg:col-span-7 bg-white/70 dark:bg-slate-800/70 backdrop-blur-lg p-6 rounded-xl shadow-xl">
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-4">
-             <h2 className="text-xl font-bold text-gray-800">ترددهای ثبت شده در تاریخ</h2>
+             <h2 className="text-xl font-bold text-gray-800 dark:text-slate-100">ترددهای ثبت شده در تاریخ</h2>
              <div className="grid grid-cols-3 gap-2">
-                <select value={viewDate.day} onChange={e => setViewDate(p => ({...p, day: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md bg-slate-50 font-sans">
+                <select value={viewDate.day} onChange={e => setViewDate(p => ({...p, day: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md bg-slate-50 dark:bg-slate-700 dark:border-slate-600 font-sans">
                     {DAYS.map(d => <option key={d} value={d}>{toPersianDigits(d)}</option>)}
                 </select>
-                <select value={viewDate.month} onChange={e => setViewDate(p => ({...p, month: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md bg-slate-50 font-sans">
+                <select value={viewDate.month} onChange={e => setViewDate(p => ({...p, month: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md bg-slate-50 dark:bg-slate-700 dark:border-slate-600 font-sans">
                     {PERSIAN_MONTHS.map((m, i) => <option key={m} value={i+1}>{m}</option>)}
                 </select>
-                <select value={viewDate.year} onChange={e => setViewDate(p => ({...p, year: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md bg-slate-50 font-sans">
+                <select value={viewDate.year} onChange={e => setViewDate(p => ({...p, year: e.target.value}))} className="w-full p-2 border border-gray-300 rounded-md bg-slate-50 dark:bg-slate-700 dark:border-slate-600 font-sans">
                     {YEARS.map(y => <option key={y} value={y}>{toPersianDigits(y)}</option>)}
                 </select>
              </div>
@@ -531,7 +531,7 @@ const LogCommutePage: React.FC = () => {
                   placeholder="جستجو در لیست روزانه (نام یا کد پرسنلی)..."
                   value={logSearchTerm}
                   onChange={e => setLogSearchTerm(e.target.value)}
-                  className="w-full pr-10 pl-4 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full pr-10 pl-4 py-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700/50 rounded-lg focus:ring-blue-500 focus:border-blue-500"
                 />
                 <SearchIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             </div>
@@ -541,26 +541,26 @@ const LogCommutePage: React.FC = () => {
                 <label htmlFor="excel-import-logs" className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 cursor-pointer transition-colors">ورود از اکسل</label>
             </div>
           </div>
-          <div className="overflow-x-auto border rounded-lg">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+          <div className="overflow-x-auto border dark:border-slate-700 rounded-lg">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700">
+              <thead className="bg-gray-50 dark:bg-slate-700/50">
                 <tr>
-                  <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">پرسنل</th>
-                  <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">شیفت کاری</th>
-                  <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">ورود</th>
-                  <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase">خروج</th>
-                  <th className="px-4 py-3 text-center text-xs font-bold text-gray-600 uppercase">عملیات</th>
+                  <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 dark:text-slate-300 uppercase">پرسنل</th>
+                  <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 dark:text-slate-300 uppercase">شیفت کاری</th>
+                  <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 dark:text-slate-300 uppercase">ورود</th>
+                  <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 dark:text-slate-300 uppercase">خروج</th>
+                  <th className="px-4 py-3 text-center text-xs font-bold text-gray-600 dark:text-slate-300 uppercase">عملیات</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-white dark:bg-slate-800/50 divide-y divide-gray-200 dark:divide-slate-700">
                 {loadingLogs ? <tr><td colSpan={5} className="text-center p-4">در حال بارگذاری...</td></tr> :
                  filteredLogs.length === 0 ? <tr><td colSpan={5} className="text-center p-4 text-gray-500">{logSearchTerm ? 'موردی با این مشخصات یافت نشد.' : 'هیچ ترددی برای این روز ثبت نشده است.'}</td></tr> :
                  filteredLogs.map(log => (
-                    <tr key={log.id} className="hover:bg-slate-50">
-                      <td className="px-4 py-3 whitespace-nowrap"><div className="text-sm font-medium text-gray-900">{log.full_name}</div><div className="text-xs text-gray-500">کد: {toPersianDigits(log.personnel_code)}</div></td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{log.guard_name}</td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 tabular-nums">{formatTime(log.entry_time)}</td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 tabular-nums">{formatTime(log.exit_time)}</td>
+                    <tr key={log.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                      <td className="px-4 py-3 whitespace-nowrap"><div className="text-sm font-medium text-gray-900 dark:text-slate-200">{log.full_name}</div><div className="text-xs text-gray-500 dark:text-slate-400">کد: {toPersianDigits(log.personnel_code)}</div></td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-slate-300">{log.guard_name}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-slate-300 tabular-nums">{formatTime(log.entry_time)}</td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-slate-300 tabular-nums">{formatTime(log.exit_time)}</td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm">
                         <div className="flex items-center justify-center gap-1">
                            <button onClick={() => handleHourlyClick(log)} className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md" title="تردد ساعتی"><ClockIcon className="w-5 h-5" /></button>

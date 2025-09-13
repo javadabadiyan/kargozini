@@ -52,7 +52,7 @@ const App: React.FC = () => {
   }, []);
 
   return (
-    <div className="bg-slate-100 dark:bg-slate-900 min-h-screen">
+    <div className="min-h-screen text-slate-800 dark:text-slate-200">
       {currentUser ? (
         <DashboardLayout onLogout={handleLogout} user={currentUser} />
       ) : (
