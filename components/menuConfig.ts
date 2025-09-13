@@ -1,6 +1,6 @@
 import React from 'react';
 import type { MenuItem } from '../types';
-import { HomeIcon, UsersIcon, CircleIcon, DocumentTextIcon, BriefcaseIcon, ShieldCheckIcon, DocumentReportIcon, CogIcon, DocumentPlusIcon } from './icons/Icons';
+import { HomeIcon, UsersIcon, CircleIcon, DocumentTextIcon, BriefcaseIcon, ShieldCheckIcon, DocumentReportIcon, CogIcon, DocumentPlusIcon, ClipboardDocumentListIcon } from './icons/Icons';
 import PersonnelListPage from './pages/PersonnelListPage';
 import DependentsInfoPage from './pages/DependentsInfoPage';
 import PlaceholderPage from './pages/PlaceholderPage';
@@ -12,10 +12,10 @@ import DashboardPage from './pages/DashboardPage';
 import DocumentUploadPage from './pages/DocumentUploadPage';
 import AccountingCommitmentPage from './pages/AccountingCommitmentPage';
 import DisciplinaryCommitteePage from './pages/DisciplinaryCommitteePage';
+import JobGroupPage from './pages/JobGroupPage';
 
 const SendPerformanceReviewPage: React.FC = () => React.createElement(PlaceholderPage, { title: "ارسال ارزیابی عملکرد پرسنل" });
 const ArchivePerformanceReviewPage: React.FC = () => React.createElement(PlaceholderPage, { title: "بایگانی ارزیابی عملکرد پرسنل" });
-const JobGroupPage: React.FC = () => React.createElement(PlaceholderPage, { title: "گروه شغلی پرسنل" });
 const EnterBonusPage: React.FC = () => React.createElement(PlaceholderPage, { title: "وارد کردن کارانه" });
 const BonusAnalyzerPage: React.FC = () => React.createElement(PlaceholderPage, { title: "تحلیلگر هوشمند کارانه" });
 
@@ -48,7 +48,7 @@ export const ALL_MENU_ITEMS: MenuItem[] = [
             { id: 'archive_performance_review', label: 'بایگانی ارزیابی عملکرد پرسنل', icon: CircleIcon, page: ArchivePerformanceReviewPage }
         ]
       },
-      { id: 'job_group', label: 'گروه شغلی پرسنل', icon: CircleIcon, page: JobGroupPage },
+      { id: 'job_group', label: 'گروه شغلی پرسنل', icon: ClipboardDocumentListIcon, page: JobGroupPage },
       {
         id: 'bonus_management', label: 'مدیریت کارانه', icon: DocumentReportIcon,
         children: [

@@ -193,6 +193,23 @@ export default async function handler(
     // --- Phase 2: Add optional/backward-compatibility columns individually ---
     // This makes the setup process more resilient to pre-existing conditions.
     try {
+        await client.sql`ALTER TABLE personnel ADD COLUMN IF NOT EXISTS hire_month VARCHAR(20);`;
+        messages.push('ستون "hire_month" در جدول "personnel" تایید یا اضافه شد.');
+        await client.sql`ALTER TABLE personnel ADD COLUMN IF NOT EXISTS total_insurance_history VARCHAR(100);`;
+        messages.push('ستون "total_insurance_history" در جدول "personnel" تایید یا اضافه شد.');
+        await client.sql`ALTER TABLE personnel ADD COLUMN IF NOT EXISTS mining_history VARCHAR(100);`;
+        messages.push('ستون "mining_history" در جدول "personnel" تایید یا اضافه شد.');
+        await client.sql`ALTER TABLE personnel ADD COLUMN IF NOT EXISTS non_mining_history VARCHAR(100);`;
+        messages.push('ستون "non_mining_history" در جدول "personnel" تایید یا اضافه شد.');
+        await client.sql`ALTER TABLE personnel ADD COLUMN IF NOT EXISTS group_distance_from_1404 VARCHAR(100);`;
+        messages.push('ستون "group_distance_from_1404" در جدول "personnel" تایید یا اضافه شد.');
+        await client.sql`ALTER TABLE personnel ADD COLUMN IF NOT EXISTS next_group_distance VARCHAR(100);`;
+        messages.push('ستون "next_group_distance" در جدول "personnel" تایید یا اضافه شد.');
+    } catch (e: any) {
+         messages.push(`هشدار هنگام افزودن ستون‌های گروه شغلی: ${e.message}`);
+    }
+    
+    try {
         await client.sql`ALTER TABLE personnel ADD COLUMN IF NOT EXISTS birth_year VARCHAR(10);`;
         messages.push('ستون "birth_year" در جدول "personnel" تایید یا اضافه شد.');
     } catch (e: any) {

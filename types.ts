@@ -45,6 +45,13 @@ export interface Personnel {
   job_group: string | null;
   sum_of_decree_factors: string | null;
   status: string;
+  // New fields for Job Group Info
+  hire_month?: string | null;
+  total_insurance_history?: string | null;
+  mining_history?: string | null;
+  non_mining_history?: string | null;
+  group_distance_from_1404?: string | null;
+  next_group_distance?: string | null;
 }
 
 export interface Dependent {

@@ -184,6 +184,125 @@ async function handleDeletePersonnel(request: VercelRequest, response: VercelRes
   return response.status(400).json({ error: 'برای حذف، شناسه پرسنل یا پارامتر حذف کلی الزامی است.' });
 }
 
+// =================================================================================
+// JOB GROUP INFO HANDLERS (using personnel table)
+// =================================================================================
+
+const JOB_GROUP_COLUMNS = [
+  'id', 'personnel_code', 'first_name', 'last_name', 'national_id', 'education_level',
+  'hire_date', 'hire_month', 'total_insurance_history', 'mining_history', 'non_mining_history',
+  'job_group', 'group_distance_from_1404', 'next_group_distance', 'job_title', 'position'
+];
+const JOB_GROUP_UPDATE_COLUMNS = JOB_GROUP_COLUMNS.filter(c => !['id', 'personnel_code']);
+
+async function handleGetJobGroupInfo(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+  const page = parseInt(request.query.page as string) || 1;
+  const pageSize = parseInt(request.query.pageSize as string) || 20;
+  const searchTerm = (request.query.searchTerm as string) || '';
+  const offset = (page - 1) * pageSize;
+  const searchQuery = `%${searchTerm}%`;
+
+  const columnNames = JOB_GROUP_COLUMNS.map(c => c === 'position' ? `"${c}"` : c).join(', ');
+
+  let countResult;
+  let dataResult;
+
+  if (searchTerm) {
+    countResult = await pool.sql`
+      SELECT COUNT(*) FROM personnel
+      WHERE first_name ILIKE ${searchQuery} OR last_name ILIKE ${searchQuery} OR personnel_code ILIKE ${searchQuery} OR national_id ILIKE ${searchQuery};
+    `;
+    dataResult = await (pool as any).query(`
+      SELECT ${columnNames} FROM personnel
+      WHERE first_name ILIKE $1 OR last_name ILIKE $1 OR personnel_code ILIKE $1 OR national_id ILIKE $1
+      ORDER BY last_name, first_name
+      LIMIT $2 OFFSET $3;
+    `, [searchQuery, pageSize, offset]);
+  } else {
+    countResult = await pool.sql`SELECT COUNT(*) FROM personnel;`;
+    dataResult = await (pool as any).query(`
+      SELECT ${columnNames} FROM personnel
+      ORDER BY last_name, first_name
+      LIMIT $1 OFFSET $2;
+    `, [pageSize, offset]);
+  }
+  
+  const totalCount = parseInt(countResult.rows[0].count, 10);
+  return response.status(200).json({ records: dataResult.rows, totalCount });
+}
+
+async function handlePostJobGroupInfo(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
+  const bodyData = request.body;
+  
+  try {
+      if (Array.isArray(bodyData)) { // Bulk insert from Excel
+          const allRecords: Personnel[] = bodyData;
+          const validRecords = allRecords.filter(r => r.personnel_code && r.first_name && r.last_name);
+          if (validRecords.length === 0) {
+              return response.status(400).json({ error: 'هیچ رکورد معتبری یافت نشد.' });
+          }
+          await client.sql`BEGIN`;
+          const allColumns = [...new Set([...Object.keys(validRecords[0]), ...JOB_GROUP_COLUMNS])].filter(c => c !== 'id');
+          const columnNames = allColumns.map(c => c === 'position' ? `"${c}"` : c).join(', ');
+          const updateSet = allColumns.filter(c => c !== 'personnel_code').map(c => `${c === 'position' ? `"${c}"` : c} = EXCLUDED.${c === 'position' ? `"${c}"` : c}`).join(', ');
+
+          const values: (string | null)[] = [];
+          const valuePlaceholders: string[] = [];
+          let paramIndex = 1;
+
+          for (const record of validRecords) {
+              const recordPlaceholders: string[] = [];
+              for (const col of allColumns) {
+                  values.push(record[col as keyof Personnel] ?? null);
+                  recordPlaceholders.push(`$${paramIndex++}`);
+              }
+              valuePlaceholders.push(`(${recordPlaceholders.join(', ')})`);
+          }
+          const query = `INSERT INTO personnel (${columnNames}) VALUES ${valuePlaceholders.join(', ')} ON CONFLICT (personnel_code) DO UPDATE SET ${updateSet};`;
+          await (client as any).query(query, values);
+          await client.sql`COMMIT`;
+          return response.status(200).json({ message: `عملیات موفق. ${validRecords.length} رکورد پردازش شد.` });
+
+      } else { // Single insert
+          const p: Personnel = bodyData;
+          if (!p.personnel_code || !p.first_name || !p.last_name) return response.status(400).json({ error: 'کد پرسنلی، نام و نام خانوادگی الزامی است.' });
+          
+          const columns = JOB_GROUP_COLUMNS.filter(c => c !== 'id');
+          const values = columns.map(col => p[col as keyof Personnel] ?? null);
+          const valuePlaceholders = columns.map((_, i) => `$${i + 1}`).join(', ');
+          const columnNames = columns.map(c => c === 'position' ? `"${c}"` : c).join(', ');
+          
+          const { rows } = await (client as any).query(
+              `INSERT INTO personnel (${columnNames}) VALUES (${valuePlaceholders}) RETURNING *;`,
+              values
+          );
+          return response.status(201).json({ message: 'رکورد با موفقیت اضافه شد.', record: rows[0] });
+      }
+  } catch (error) {
+      await client.sql`ROLLBACK`.catch(() => {});
+      const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+      if (errorMessage.includes('personnel_personnel_code_key')) return response.status(409).json({ error: 'کد پرسنلی تکراری است.' });
+      return response.status(500).json({ error: 'خطا در عملیات پایگاه داده.', details: errorMessage });
+  }
+}
+
+async function handlePutJobGroupInfo(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+  const p = request.body as Personnel;
+  if (!p || !p.id) return response.status(400).json({ error: 'شناسه رکورد نامعتبر است.' });
+  
+  const updateFields = JOB_GROUP_UPDATE_COLUMNS.map((col, i) => `${col === 'position' ? `"${col}"` : col} = $${i + 1}`);
+  // FIX: Explicitly type `updateValues` to accept numbers for the ID.
+  const updateValues: (string | number | null)[] = JOB_GROUP_UPDATE_COLUMNS.map(col => p[col as keyof Personnel] ?? null);
+  updateValues.push(p.id); // Add id for WHERE clause
+
+  const query = `UPDATE personnel SET ${updateFields.join(', ')} WHERE id = $${updateValues.length} RETURNING *;`;
+  
+  const { rows } = await (pool as any).query(query, updateValues);
+
+  if (rows.length === 0) return response.status(404).json({ error: 'رکورد یافت نشد.'});
+  return response.status(200).json({ message: 'اطلاعات به‌روزرسانی شد.', record: rows[0] });
+}
+
 
 // =================================================================================
 // DEPENDENTS HANDLERS
@@ -661,6 +780,14 @@ export default async function handler(request: VercelRequest, response: VercelRe
             case 'POST': return await handlePostPersonnel(request.body, response, pool);
             case 'PUT': return await handlePutPersonnel(request, response, pool);
             case 'DELETE': return await handleDeletePersonnel(request, response, pool);
+            default: response.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']); return response.status(405).end();
+        }
+    } else if (type === 'job_group_info') {
+        switch (request.method) {
+            case 'GET': return await handleGetJobGroupInfo(request, response, pool);
+            case 'POST': return await handlePostJobGroupInfo(request, response, client);
+            case 'PUT': return await handlePutJobGroupInfo(request, response, pool);
+            case 'DELETE': return await handleDeletePersonnel(request, response, pool); // Uses the same logic as deleting a personnel
             default: response.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']); return response.status(405).end();
         }
     } else if (type === 'dependents') {
