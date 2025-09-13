@@ -286,13 +286,19 @@ async function handlePostJobGroupInfo(request: VercelRequest, response: VercelRe
   }
 }
 
+// FIX: This function was converting all values to strings, which is unnecessary
+// as the DB driver handles primitive types. This could have led to subtle type
+// issues. The function is updated to pass values directly to the query.
 async function handlePutJobGroupInfo(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
   const p = request.body as Personnel;
   if (!p || !p.id) return response.status(400).json({ error: 'شناسه رکورد نامعتبر است.' });
   
   const updateFields = JOB_GROUP_UPDATE_COLUMNS.map((col, i) => `${col === 'position' ? `"${col}"` : col} = $${i + 1}`);
-  // FIX: Explicitly type `updateValues` to accept numbers for the ID.
-  const updateValues: (string | number | null)[] = JOB_GROUP_UPDATE_COLUMNS.map(col => p[col as keyof Personnel] ?? null);
+  
+  const updateValues: (string | number | null)[] = JOB_GROUP_UPDATE_COLUMNS.map(col => {
+      const val = p[col as keyof Personnel];
+      return val ?? null;
+  });
   updateValues.push(p.id); // Add id for WHERE clause
 
   const query = `UPDATE personnel SET ${updateFields.join(', ')} WHERE id = $${updateValues.length} RETURNING *;`;

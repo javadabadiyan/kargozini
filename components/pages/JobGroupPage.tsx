@@ -78,11 +78,11 @@ const JobGroupPage: React.FC = () => {
             else fetchRecords(1, searchTerm);
         }, 500);
         return () => clearTimeout(handler);
-    }, [searchTerm, fetchRecords]);
+    }, [searchTerm]);
 
     useEffect(() => {
         fetchRecords(currentPage, searchTerm);
-    }, [currentPage, fetchRecords, searchTerm]);
+    }, [currentPage]);
 
     const handleOpenAddModal = () => {
         setEditingRecord(DEFAULT_RECORD);
@@ -99,7 +99,6 @@ const JobGroupPage: React.FC = () => {
         setEditingRecord(null);
     };
 
-    // FIX: Update handleSave to support both single record and bulk (array) record updates from file import.
     const handleSave = async (recordData: Partial<Personnel> | Partial<Personnel>[]) => {
         const isArray = Array.isArray(recordData);
         const isNew = isArray || !(recordData as Partial<Personnel>).id;
@@ -160,23 +159,46 @@ const JobGroupPage: React.FC = () => {
             try {
                 const workbook = XLSX.read(new Uint8Array(event.target?.result as ArrayBuffer), { type: 'array' });
                 const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { raw: false, dateNF: 'yyyy/mm/dd' });
-                const mappedData = json.map((row: any) => {
+
+                const mappedData = json.map((originalRow: any) => {
+                    const normalizedRow: { [key: string]: any } = {};
+                    for (const key in originalRow) {
+                        if (Object.prototype.hasOwnProperty.call(originalRow, key)) {
+                            // More robust normalization to handle invisible characters and character variations
+                            const normalizedKey = key
+                                .replace(/[\u200B-\u200D\u200E\u200F\uFEFF]/g, '') // Remove zero-width spaces etc.
+                                .trim()
+                                .replace(/ي/g, 'ی') // Arabic Yeh to Persian Yeh
+                                .replace(/ك/g, 'ک'); // Arabic Kaf to Persian Kaf
+                            normalizedRow[normalizedKey] = originalRow[key];
+                        }
+                    }
+
                     const newRow: Partial<Personnel> = {};
                     for (const header in HEADER_MAP) {
-                        if (row.hasOwnProperty(header)) {
+                        if (normalizedRow.hasOwnProperty(header)) {
                             const dbKey = HEADER_MAP[header as keyof typeof HEADER_MAP];
-                            // FIX: Use `as any` to bypass complex type inference issue.
-                            (newRow as any)[dbKey] = String(row[header] ?? '');
+                            let value = normalizedRow[header];
+                            if (typeof value === 'string') {
+                                value = value.replace(/[\u0000-\u001F\u200B-\u200D\u200E\u200F\uFEFF]/g, '').trim();
+                            }
+                            (newRow as any)[dbKey] = (value === null || value === undefined) ? null : String(value);
                         }
                     }
                     return newRow;
                 });
-                await handleSave(mappedData);
+
+                const validData = mappedData.filter(p => p.personnel_code && p.first_name && p.last_name);
+                if (validData.length === 0) {
+                     throw new Error("هیچ رکورد معتبری در فایل اکسل یافت نشد. لطفاً از وجود ستون‌های 'کدپرسنلی'، 'نام' و 'نام خانوادگی' و مطابقت آنها با فایل نمونه اطمینان حاصل کنید.");
+                }
+
+                await handleSave(validData);
             } catch (err) {
                 setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در پردازش فایل' });
             } finally {
                 if (fileInputRef.current) fileInputRef.current.value = "";
-                setTimeout(() => setStatus(null), 5000);
+                setTimeout(() => setStatus(null), 8000);
             }
         };
         reader.readAsArrayBuffer(file);
@@ -187,7 +209,7 @@ const JobGroupPage: React.FC = () => {
             const row: { [key: string]: any } = {};
             for(const header of TABLE_HEADERS){
                 const key = HEADER_MAP[header as keyof typeof HEADER_MAP];
-                row[header] = toPersianDigits(r[key]);
+                row[header] = toPersianDigits(String(r[key] ?? ''));
             }
             return row;
         });
@@ -233,7 +255,6 @@ const JobGroupPage: React.FC = () => {
                         )}
                         {!loading && !error && records.map(record => (
                             <tr key={record.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
-                                {/* FIX: Convert record property to string before passing to toPersianDigits to satisfy its type requirement. */}
                                 {TABLE_HEADERS.map(header => <td key={header} className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-slate-300">{toPersianDigits(String(record[HEADER_MAP[header as keyof typeof HEADER_MAP]] ?? ''))}</td>)}
                                 <td className="px-4 py-3 whitespace-nowrap text-sm text-center">
                                     <div className="flex items-center justify-center gap-2">
@@ -250,7 +271,6 @@ const JobGroupPage: React.FC = () => {
             {!loading && !error && totalPages > 1 && (
                 <div className="flex justify-center items-center gap-4 mt-6">
                     <button onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1} className="px-4 py-2 text-sm text-gray-700 bg-white border rounded-lg hover:bg-gray-100 disabled:opacity-50">قبلی</button>
-                    {/* FIX: Convert numbers to strings before passing to toPersianDigits. */}
                     <span className="text-sm">صفحه {toPersianDigits(String(currentPage))} از {toPersianDigits(String(totalPages))}</span>
                     <button onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages} className="px-4 py-2 text-sm text-gray-700 bg-white border rounded-lg hover:bg-gray-100 disabled:opacity-50">بعدی</button>
                 </div>
