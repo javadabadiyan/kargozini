@@ -115,14 +115,14 @@ const Clock: React.FC = () => {
 
     const toPersianDigits = (s: string) => s.replace(/[0-9]/g, (w) => '۰۱۲۳۴۵۶۷۸۹'[parseInt(w, 10)]);
 
-    const timeFormatter = useMemo(() => new Intl.DateTimeFormat('fa-IR', {
+    const timeFormatter = useMemo(() => new Intl.DateTimeFormat('fa-IR-u-nu-latn', {
         hour: '2-digit', minute: '2-digit', second: '2-digit',
-        hour12: false, timeZone: 'Asia/Tehran', numberingSystem: 'latn'
+        hour12: false, timeZone: 'Asia/Tehran'
     }), []);
 
-    const dateFormatter = useMemo(() => new Intl.DateTimeFormat('fa-IR', {
+    const dateFormatter = useMemo(() => new Intl.DateTimeFormat('fa-IR-u-nu-latn', {
         year: 'numeric', month: 'long', day: 'numeric', weekday: 'long',
-        timeZone: 'Asia/Tehran', numberingSystem: 'latn'
+        timeZone: 'Asia/Tehran'
     }), []);
 
     useEffect(() => {
@@ -137,7 +137,12 @@ const Clock: React.FC = () => {
     const formattedTime = toPersianDigits(rawFormattedTime);
     const previousFormattedTime = toPersianDigits(previousTimeRef.current);
     
-    const rawFormattedDate = dateFormatter.format(time).replace(/،/g, '');
+    const parts = dateFormatter.formatToParts(time);
+    const weekday = parts.find(p => p.type === 'weekday')?.value || '';
+    const day = parts.find(p => p.type === 'day')?.value || '';
+    const month = parts.find(p => p.type === 'month')?.value || '';
+    const year = parts.find(p => p.type === 'year')?.value || '';
+    const rawFormattedDate = `${weekday} ${day} ${month} ${year}`;
     const formattedDate = toPersianDigits(rawFormattedDate);
 
     return (

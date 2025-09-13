@@ -53,7 +53,7 @@ const EditDependentModal: React.FC<EditDependentModalProps> = ({ dependent, onCl
 
   return (
     <div 
-      className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center"
+      className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4"
       aria-labelledby="modal-title"
       role="dialog"
       aria-modal="true"

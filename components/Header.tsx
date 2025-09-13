@@ -9,7 +9,7 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({ onLogout, onMenuClick, username }) => {
   return (
-    <header className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-lg shadow-sm p-4 flex justify-between items-center sticky top-0 z-10 border-b border-slate-200 dark:border-slate-700">
+    <header className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-lg shadow-sm p-4 flex justify-between items-center sticky top-0 z-10 border-b border-slate-200/50 dark:border-slate-700/50">
       <div className="flex items-center">
         <button 
           onClick={onMenuClick} 

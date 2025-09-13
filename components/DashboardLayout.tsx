@@ -40,7 +40,7 @@ const findFirstPage = (permissions: UserPermissions): { page: React.ComponentTyp
 
 const NoAccessPage: React.FC = () => (
     <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-lg p-6 rounded-xl shadow-xl flex items-center justify-center h-full">
-      <div className="text-center text-gray-500 dark:text-gray-400">
+      <div className="text-center text-slate-600 dark:text-slate-400">
         <h2 className="text-2xl font-bold mb-4">عدم دسترسی</h2>
         <p>شما به هیچ صفحه‌ای دسترسی ندارید. لطفاً با مدیر سیستم تماس بگیرید.</p>
       </div>
