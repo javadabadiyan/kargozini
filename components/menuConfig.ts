@@ -13,9 +13,9 @@ import DocumentUploadPage from './pages/DocumentUploadPage';
 import AccountingCommitmentPage from './pages/AccountingCommitmentPage';
 import DisciplinaryCommitteePage from './pages/DisciplinaryCommitteePage';
 import JobGroupPage from './pages/JobGroupPage';
+import SendPerformanceReviewPage from './pages/SendPerformanceReviewPage';
+import ArchivePerformanceReviewPage from './pages/ArchivePerformanceReviewPage';
 
-const SendPerformanceReviewPage: React.FC = () => React.createElement(PlaceholderPage, { title: "ارسال ارزیابی عملکرد پرسنل" });
-const ArchivePerformanceReviewPage: React.FC = () => React.createElement(PlaceholderPage, { title: "بایگانی ارزیابی عملکرد پرسنل" });
 const EnterBonusPage: React.FC = () => React.createElement(PlaceholderPage, { title: "وارد کردن کارانه" });
 const BonusAnalyzerPage: React.FC = () => React.createElement(PlaceholderPage, { title: "تحلیلگر هوشمند کارانه" });
 

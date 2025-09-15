@@ -178,3 +178,26 @@ export interface DisciplinaryRecord {
   letter_description: string | null;
   final_decision: string | null;
 }
+
+export interface PerformanceReview {
+  id: number;
+  personnel_code: string;
+  full_name?: string; // From a join, not in the table
+  review_period_start: string;
+  review_period_end: string;
+  scores_functional: { [key: string]: number };
+  scores_behavioral: { [key: string]: number };
+  scores_ethical: { [key: string]: number };
+  total_score_functional: number;
+  total_score_behavioral: number;
+  total_score_ethical: number;
+  overall_score: number;
+  reviewer_comment: string;
+  strengths: string;
+  weaknesses_and_improvements: string;
+  supervisor_suggestions: string;
+  review_date: string; // ISO string
+  reviewer_name_and_signature: string;
+  supervisor_signature: string;
+  manager_signature: string;
+}

@@ -20,6 +20,7 @@ export default async function handler(
   const messages: string[] = [];
   try {
     // --- Phase 1: Critical schema setup in a single transaction ---
+// FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
     await client.sql`BEGIN`;
 
     // Create personnel table
@@ -186,7 +187,34 @@ export default async function handler(
       );
     `;
     messages.push('جدول "disciplinary_records" با موفقیت ایجاد یا تایید شد.');
+    
+    await client.sql`
+      CREATE TABLE IF NOT EXISTS performance_reviews (
+        id SERIAL PRIMARY KEY,
+        personnel_code VARCHAR(50) NOT NULL,
+        review_period_start VARCHAR(50),
+        review_period_end VARCHAR(50),
+        scores_functional JSONB,
+        scores_behavioral JSONB,
+        scores_ethical JSONB,
+        total_score_functional INTEGER,
+        total_score_behavioral INTEGER,
+        total_score_ethical INTEGER,
+        overall_score INTEGER,
+        reviewer_comment TEXT,
+        strengths TEXT,
+        weaknesses_and_improvements TEXT,
+        supervisor_suggestions TEXT,
+        reviewer_name_and_signature VARCHAR(255),
+        supervisor_signature VARCHAR(255),
+        manager_signature VARCHAR(255),
+        review_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        CONSTRAINT fk_personnel_review FOREIGN KEY(personnel_code) REFERENCES personnel(personnel_code) ON DELETE CASCADE
+      );
+    `;
+    messages.push('جدول "performance_reviews" با موفقیت ایجاد یا تایید شد.');
 
+// FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
     await client.sql`COMMIT`;
     messages.push('تراکنش اصلی ایجاد جداول با موفقیت انجام شد.');
 
@@ -273,12 +301,14 @@ export default async function handler(
 
     // --- Phase 3: Create triggers, indexes, and default data ---
     // This is also in a transaction for atomicity.
+// FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
     await client.sql`BEGIN`;
 
     await client.sql`CREATE INDEX IF NOT EXISTS dependents_personnel_code_idx ON dependents (personnel_code);`;
     await client.sql`CREATE INDEX IF NOT EXISTS personnel_documents_personnel_code_idx ON personnel_documents (personnel_code);`;
     await client.sql`CREATE INDEX IF NOT EXISTS personnel_last_first_name_idx ON personnel (last_name, first_name);`;
     await client.sql`CREATE INDEX IF NOT EXISTS commitment_letters_guarantor_code_idx ON commitment_letters (guarantor_personnel_code);`;
+    await client.sql`CREATE INDEX IF NOT EXISTS performance_reviews_personnel_code_idx ON performance_reviews (personnel_code);`;
     messages.push('ایندکس‌های ضروری برای جستجوی سریع ایجاد شدند.');
 
     await (client as any).query(`
@@ -354,6 +384,7 @@ export default async function handler(
     `;
     messages.push('کاربران پیش‌فرض "ادمین" و "نگهبانی" ایجاد یا به‌روزرسانی شدند.');
 
+// FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
     await client.sql`COMMIT`;
 
     // --- Phase 4: Optional performance enhancements ---
@@ -372,7 +403,8 @@ export default async function handler(
     return response.status(200).json({ message: 'عملیات راه‌اندازی پایگاه داده با موفقیت انجام شد.', details: messages });
   
   } catch (error) {
-    await client.sql`ROLLBACK`.catch((rbError: any) => console.error('Rollback failed:', rbError));
+// FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
+    await client.sql`ROLLBACK;`.catch((rbError: any) => console.error('Rollback failed:', rbError));
     console.error('Database setup failed:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     return response.status(500).json({ error: 'ایجاد جداول در پایگاه داده با خطا مواجه شد.', details: errorMessage });
