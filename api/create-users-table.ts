@@ -20,7 +20,7 @@ export default async function handler(
   const messages: string[] = [];
   try {
     // --- Phase 1: Critical schema setup in a single transaction ---
-// FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
+    // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
     await client.sql`BEGIN`;
 
     // Create personnel table
@@ -214,7 +214,7 @@ export default async function handler(
     `;
     messages.push('جدول "performance_reviews" با موفقیت ایجاد یا تایید شد.');
 
-// FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
+    // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
     await client.sql`COMMIT`;
     messages.push('تراکنش اصلی ایجاد جداول با موفقیت انجام شد.');
 
@@ -301,7 +301,7 @@ export default async function handler(
 
     // --- Phase 3: Create triggers, indexes, and default data ---
     // This is also in a transaction for atomicity.
-// FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
+    // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
     await client.sql`BEGIN`;
 
     await client.sql`CREATE INDEX IF NOT EXISTS dependents_personnel_code_idx ON dependents (personnel_code);`;
@@ -384,7 +384,7 @@ export default async function handler(
     `;
     messages.push('کاربران پیش‌فرض "ادمین" و "نگهبانی" ایجاد یا به‌روزرسانی شدند.');
 
-// FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
+    // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
     await client.sql`COMMIT`;
 
     // --- Phase 4: Optional performance enhancements ---
@@ -403,7 +403,7 @@ export default async function handler(
     return response.status(200).json({ message: 'عملیات راه‌اندازی پایگاه داده با موفقیت انجام شد.', details: messages });
   
   } catch (error) {
-// FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
+    // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
     await client.sql`ROLLBACK;`.catch((rbError: any) => console.error('Rollback failed:', rbError));
     console.error('Database setup failed:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';

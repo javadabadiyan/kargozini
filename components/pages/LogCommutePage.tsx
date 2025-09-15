@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import type { CommutingMember, CommuteLog } from '../../types';
-import { PencilIcon, TrashIcon, ClockIcon, ChevronDownIcon, SearchIcon, RefreshIcon } from '../icons/Icons';
+import { PencilIcon, TrashIcon, ClockIcon, ChevronDownIcon, SearchIcon, RefreshIcon, DownloadIcon } from '../icons/Icons';
 import EditCommuteLogModal from '../EditCommuteLogModal';
 import HourlyCommuteModal from '../HourlyCommuteModal';
 
@@ -310,6 +310,35 @@ const LogCommutePage: React.FC = () => {
         }
     };
 
+    const handleExportLogs = () => {
+        if (filteredLogs.length === 0) {
+            setStatus({ type: 'info', message: 'هیچ داده‌ای برای خروجی گرفتن وجود ندارد.' });
+            setTimeout(() => setStatus(null), 3000);
+            return;
+        }
+    
+        const dataToExport = filteredLogs.map(log => {
+            const entryDate = log.entry_time ? new Date(log.entry_time) : null;
+            const exitDate = log.exit_time ? new Date(log.exit_time) : null;
+    
+            return {
+                'نام کامل': log.full_name,
+                'کد پرسنلی': toPersianDigits(log.personnel_code),
+                'شیفت کاری': log.guard_name,
+                'تاریخ': entryDate ? toPersianDigits(entryDate.toLocaleDateString('fa-IR', { timeZone: 'Asia/Tehran' })) : '',
+                'ساعت ورود': entryDate ? toPersianDigits(entryDate.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tehran' })) : '',
+                'ساعت خروج': exitDate ? toPersianDigits(exitDate.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Tehran' })) : '---',
+            };
+        });
+    
+        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'ترددهای روزانه');
+        
+        const dateString = `${viewDate.year}-${viewDate.month}-${viewDate.day}`;
+        XLSX.writeFile(workbook, `Daily_Logs_${dateString}.xlsx`);
+    };
+
     const handleDownloadSample = () => {
         const headers = ['نام', 'کد', 'واحد', 'سمت', 'تاریخ', 'ورود', 'خروج', 'شیفت', 'تاخیر', 'تعجیل', 'مدت ماموریت'];
         const ws = XLSX.utils.aoa_to_sheet([headers]);
@@ -539,6 +568,10 @@ const LogCommutePage: React.FC = () => {
                 <button onClick={handleDownloadSample} className="px-4 py-2 bg-gray-100 text-gray-700 border border-gray-300 text-sm rounded-lg hover:bg-gray-200 transition-colors">دانلود نمونه</button>
                 <input type="file" accept=".xlsx, .xls" ref={fileInputRef} onChange={handleFileImport} className="hidden" id="excel-import-logs" />
                 <label htmlFor="excel-import-logs" className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 cursor-pointer transition-colors">ورود از اکسل</label>
+                <button onClick={handleExportLogs} className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors text-sm font-medium">
+                    <DownloadIcon className="w-4 h-4" />
+                    خروجی اکسل
+                </button>
             </div>
           </div>
           <div className="overflow-x-auto border dark:border-slate-700 rounded-lg">
