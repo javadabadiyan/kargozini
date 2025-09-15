@@ -106,36 +106,98 @@ const SettingsPage: React.FC = () => {
             const response = await fetch('/api/backup');
             if (!response.ok) throw new Error((await response.json()).details || 'خطا در دریافت داده‌ها');
             const data = await response.json();
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `backup-${new Date().toISOString().split('T')[0]}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
+
+            const wb = XLSX.utils.book_new();
+
+            for (const tableName in data) {
+                if (Object.prototype.hasOwnProperty.call(data, tableName) && Array.isArray(data[tableName]) && data[tableName].length > 0) {
+                    const dataForSheet = data[tableName].map((row: any) => {
+                        const newRow = {...row};
+                        for(const key in newRow) {
+                            if(typeof newRow[key] === 'object' && newRow[key] !== null) {
+                                newRow[key] = JSON.stringify(newRow[key]);
+                            }
+                        }
+                        return newRow;
+                    });
+                    const ws = XLSX.utils.json_to_sheet(dataForSheet);
+                    XLSX.utils.book_append_sheet(wb, ws, tableName);
+                }
+            }
+
+            XLSX.writeFile(wb, `backup-جامع-${new Date().toISOString().split('T')[0]}.xlsx`);
+
             setStatus({ type: 'success', message: 'فایل پشتیبان کامل با موفقیت دانلود شد.' });
         } catch (err) {
             setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در ایجاد پشتیبان' });
-        } finally { setTimeout(() => setStatus(null), 5000); }
+        } finally {
+            setTimeout(() => setStatus(null), 5000);
+        }
     };
     
     const handleImportAllData = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
+
         const reader = new FileReader();
         reader.onload = async (event) => {
             setStatus({ type: 'info', message: 'در حال پردازش و بازیابی اطلاعات...' });
             try {
-                const content = event.target?.result;
-                const response = await fetch('/api/backup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: content });
-                const data = await response.json();
-                if (!response.ok) throw new Error(data.details || data.error);
+                const fileData = event.target?.result;
+                const workbook = XLSX.read(fileData, { type: 'array' });
+                
+                const restoreData: { [key: string]: any[] } = {};
+                
+                workbook.SheetNames.forEach(sheetName => {
+                    const worksheet = workbook.Sheets[sheetName];
+                    const jsonData = XLSX.utils.sheet_to_json(worksheet, {raw: false});
+                    
+                    const processedJsonData = jsonData.map((row: any) => {
+                         const newRow = {...row};
+                         for (const key in newRow) {
+                             if (typeof newRow[key] === 'string') {
+                                 const value = newRow[key].trim();
+                                 if ((value.startsWith('{') && value.endsWith('}')) || (value.startsWith('[') && value.endsWith(']'))) {
+                                     try { newRow[key] = JSON.parse(value); } catch (e) { /* Not JSON, leave as string */ }
+                                 }
+                             }
+                         }
+                         return newRow;
+                    });
+
+                    restoreData[sheetName] = processedJsonData;
+                });
+
+                if (Object.keys(restoreData).length === 0) {
+                    throw new Error('فایل اکسل خالی است یا فرمت معتبری ندارد.');
+                }
+                
+                if (!window.confirm(`شما در حال بازیابی اطلاعات از فایل اکسل هستید. این عمل تمام داده‌های فعلی را پاک کرده و جایگزین می‌کند. آیا اطمینان دارید؟\n\nجداول شناسایی شده: ${Object.keys(restoreData).join(', ')}`)) {
+                     setStatus({ type: 'info', message: 'عملیات بازیابی لغو شد.' });
+                     if(backupInputRef.current) backupInputRef.current.value = "";
+                     setTimeout(() => setStatus(null), 3000);
+                     return;
+                }
+                
+                const response = await fetch('/api/backup', { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify(restoreData) 
+                });
+                
+                const responseData = await response.json();
+                if (!response.ok) throw new Error(responseData.details || responseData.error);
+
                 setStatus({ type: 'success', message: 'اطلاعات با موفقیت بازیابی شد. لطفاً برای مشاهده تغییرات از سیستم خارج و دوباره وارد شوید.' });
+
             } catch (err) {
-                setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در بازیابی اطلاعات' });
-            } finally { if(backupInputRef.current) backupInputRef.current.value = ""; setTimeout(() => setStatus(null), 5000); }
+                setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در بازیابی اطلاعات از فایل اکسل. لطفاً از صحت فایل اطمینان حاصل کنید.' });
+            } finally { 
+                if(backupInputRef.current) backupInputRef.current.value = ""; 
+                setTimeout(() => setStatus(null), 8000); 
+            }
         };
-        reader.readAsText(file);
+        reader.readAsArrayBuffer(file);
     };
 
     const handleDeleteAllData = async () => {
@@ -387,13 +449,13 @@ const SettingsPage: React.FC = () => {
                 <h2 className="text-xl font-bold text-gray-700 dark:text-gray-200 border-b dark:border-slate-700 pb-3 mb-4">پشتیبان‌گیری و بازیابی جامع</h2>
                 <div className="flex flex-col md:flex-row items-center justify-between gap-4 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
                     <p className="text-sm text-gray-600 dark:text-gray-300 max-w-lg">
-                        از کل اطلاعات سیستم (شامل پرسنل، ترددها، کاربران و تنظیمات) یک فایل پشتیبان با فرمت JSON تهیه کنید یا اطلاعات را از یک فایل پشتیبان بازیابی نمایید.
+                        از کل اطلاعات سیستم (شامل پرسنل، ترددها، کاربران و تنظیمات) یک فایل پشتیبان با فرمت Excel (.xlsx) تهیه کنید یا اطلاعات را از یک فایل پشتیبان بازیابی نمایید.
                     </p>
                     <div className="flex items-center gap-2">
                         <button onClick={handleExportAllData} className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700">
                            <DownloadIcon className="w-5 h-5"/> تهیه پشتیبان
                         </button>
-                        <input type="file" ref={backupInputRef} onChange={handleImportAllData} accept=".json" className="hidden" id="backup-import"/>
+                        <input type="file" ref={backupInputRef} onChange={handleImportAllData} accept=".xlsx, .xls" className="hidden" id="backup-import"/>
                         <label htmlFor="backup-import" className="flex items-center gap-2 px-4 py-2 text-sm bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 cursor-pointer">
                            <UploadIcon className="w-5 h-5"/> بازیابی از فایل
                         </label>

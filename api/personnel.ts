@@ -82,7 +82,6 @@ async function handlePostPersonnel(body: any, response: VercelResponse, pool: Ve
             for (let i = 0; i < validPersonnelList.length; i += BATCH_SIZE) {
                 const batch = validPersonnelList.slice(i, i + BATCH_SIZE);
                 if (batch.length === 0) continue;
-                // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
                 await client.sql`BEGIN`;
                 const values: (string | null)[] = [];
                 const valuePlaceholders: string[] = [];
@@ -94,7 +93,6 @@ async function handlePostPersonnel(body: any, response: VercelResponse, pool: Ve
                 }
                 const query = `INSERT INTO personnel (${columnNames}) VALUES ${valuePlaceholders.join(', ')} ON CONFLICT (personnel_code) DO UPDATE SET ${updateSet};`;
                 await (client as any).query(query, values);
-                // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
                 await client.sql`COMMIT`;
                 totalProcessed += batch.length;
             }
@@ -109,7 +107,6 @@ async function handlePostPersonnel(body: any, response: VercelResponse, pool: Ve
             return response.status(201).json({ message: 'پرسنل جدید با موفقیت اضافه شد.', personnel: rows[0] });
         }
     } catch (error) {
-        // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
         await client.sql`ROLLBACK;`.catch(() => {});
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
         console.error("Error in handlePostPersonnel:", error);
@@ -244,7 +241,6 @@ async function handlePostJobGroupInfo(request: VercelRequest, response: VercelRe
           if (validRecords.length === 0) {
               return response.status(400).json({ error: 'هیچ رکورد معتبری یافت نشد.' });
           }
-          // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
           await client.sql`BEGIN`;
           const allColumns = [...new Set([...Object.keys(validRecords[0]), ...JOB_GROUP_COLUMNS])].filter(c => c !== 'id');
           const columnNames = allColumns.map(c => c === 'position' ? `"${c}"` : c).join(', ');
@@ -264,7 +260,6 @@ async function handlePostJobGroupInfo(request: VercelRequest, response: VercelRe
           }
           const query = `INSERT INTO personnel (${columnNames}) VALUES ${valuePlaceholders.join(', ')} ON CONFLICT (personnel_code) DO UPDATE SET ${updateSet};`;
           await (client as any).query(query, values);
-          // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
           await client.sql`COMMIT`;
           return response.status(200).json({ message: `عملیات موفق. ${validRecords.length} رکورد پردازش شد.` });
 
@@ -284,7 +279,6 @@ async function handlePostJobGroupInfo(request: VercelRequest, response: VercelRe
           return response.status(201).json({ message: 'رکورد با موفقیت اضافه شد.', record: rows[0] });
       }
   } catch (error) {
-      // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
       await client.sql`ROLLBACK;`.catch(() => {});
       const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
       if (errorMessage.includes('personnel_personnel_code_key')) return response.status(409).json({ error: 'کد پرسنلی تکراری است.' });
@@ -292,16 +286,14 @@ async function handlePostJobGroupInfo(request: VercelRequest, response: VercelRe
   }
 }
 
-// FIX: This function was converting all values to strings, which is unnecessary
-// as the DB driver handles primitive types. This could have led to subtle type
-// issues. The function is updated to pass values directly to the query.
 async function handlePutJobGroupInfo(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
   const p = request.body as Personnel;
   if (!p || !p.id) return response.status(400).json({ error: 'شناسه رکورد نامعتبر است.' });
   
   const updateFields = JOB_GROUP_UPDATE_COLUMNS.map((col, i) => `${col === 'position' ? `"${col}"` : col} = $${i + 1}`);
   
-  const updateValues: (string | number | null)[] = JOB_GROUP_UPDATE_COLUMNS.map(col => {
+// FIX: Using any[] to allow mixed types (string, number, null) for query parameters, resolving a TypeScript error.
+  const updateValues: any[] = JOB_GROUP_UPDATE_COLUMNS.map(col => {
       const val = p[col as keyof Personnel];
       return val ?? null;
   });
@@ -309,8 +301,7 @@ async function handlePutJobGroupInfo(request: VercelRequest, response: VercelRes
 
   const query = `UPDATE personnel SET ${updateFields.join(', ')} WHERE id = $${updateValues.length} RETURNING *;`;
   
-  // FIX: Cast `updateValues` to `any[]` to resolve TypeScript error. The underlying pg driver correctly handles number and null types in the values array.
-  const { rows } = await (pool as any).query(query, updateValues as any[]);
+  const { rows } = await (pool as any).query(query, updateValues);
 
   if (rows.length === 0) return response.status(404).json({ error: 'رکورد یافت نشد.'});
   return response.status(200).json({ message: 'اطلاعات به‌روزرسانی شد.', record: rows[0] });
@@ -418,7 +409,6 @@ async function handlePostDependents(request: VercelRequest, response: VercelResp
         return response.status(400).json({ error: 'هیچ رکورد معتبری برای ورود یافت نشد. لطفاً از وجود ستون‌های کد پرسنلی، نام، نام خانوادگی و کد ملی بستگان اطمینان حاصل کنید.' });
     }
   
-    // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
     await client.sql`BEGIN`;
     const BATCH_SIZE = 250;
     let totalProcessed = 0;
@@ -453,12 +443,10 @@ async function handlePostDependents(request: VercelRequest, response: VercelResp
         totalProcessed += batch.length;
     }
 
-    // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
     await client.sql`COMMIT`;
     return response.status(200).json({ message: `عملیات موفق. ${totalProcessed} رکورد پردازش شد.` });
 
   } catch (error) {
-    // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
     await client.sql`ROLLBACK;`.catch(() => {});
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     console.error("Error in handlePostDependents:", error);
@@ -549,7 +537,6 @@ async function handlePostCommutingMembers(body: any, response: VercelResponse, c
         if (validList.length === 0) return response.status(400).json({ error: 'هیچ رکورد معتبری یافت نشد.' });
         
         try {
-            // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
             await client.sql`BEGIN`;
             const columns = ['personnel_code', 'full_name', 'department', 'position'];
             const columnNames = columns.map(c => c === 'position' ? `"${c}"` : c).join(', ');
@@ -564,11 +551,9 @@ async function handlePostCommutingMembers(body: any, response: VercelResponse, c
             }
             const query = `INSERT INTO commuting_members (${columnNames}) VALUES ${valuePlaceholders.join(', ')} ON CONFLICT (personnel_code) DO UPDATE SET ${updateSet};`;
             await (client as any).query(query, values);
-            // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
             await client.sql`COMMIT`;
             return response.status(200).json({ message: `عملیات موفق. ${validList.length} رکورد پردازش شد.` });
         } catch (error) {
-            // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
             await client.sql`ROLLBACK;`.catch(() => {});
             const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
             if (errorMessage.includes('duplicate key')) return response.status(409).json({ error: 'کد پرسنلی تکراری است.' });
@@ -724,7 +709,6 @@ async function handlePostDisciplinaryRecords(request: VercelRequest, response: V
         const validList = allRecords.filter(r => r.full_name && r.personnel_code);
         if (validList.length === 0) return response.status(400).json({ error: 'هیچ رکورد معتبری یافت نشد.' });
         try {
-            // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
             await client.sql`BEGIN`;
             const columns = ['full_name', 'personnel_code', 'meeting_date', 'letter_description', 'final_decision'];
             const values: (string | null)[] = [];
@@ -737,11 +721,9 @@ async function handlePostDisciplinaryRecords(request: VercelRequest, response: V
             }
             const query = `INSERT INTO disciplinary_records (${columns.join(', ')}) VALUES ${valuePlaceholders.join(', ')}`;
             await (client as any).query(query, values);
-            // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
             await client.sql`COMMIT`;
             return response.status(200).json({ message: `عملیات موفق. ${validList.length} رکورد پردازش شد.` });
         } catch (error) {
-            // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
             await client.sql`ROLLBACK;`.catch(() => {});
             const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
             return response.status(500).json({ error: 'خطا در عملیات پایگاه داده.', details: errorMessage });
