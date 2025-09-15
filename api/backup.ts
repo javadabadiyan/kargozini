@@ -53,6 +53,7 @@ async function handleGet(response: VercelResponse, client: VercelPoolClient) {
     try {
         const backupData: { [key: string]: any[] } = {};
         for (const table of TABLES_IN_ORDER) {
+            // FIX: Replace non-existent `client.escapeIdentifier` and incorrect `client.sql` usage with `client.query` for dynamic table names.
             const { rows } = await (client as any).query(`SELECT * FROM ${quote(table)}`);
             backupData[table] = rows;
         }
@@ -73,9 +74,11 @@ async function handlePost(request: VercelRequest, response: VercelResponse, clie
     }
 
     try {
+        // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
         await client.sql`BEGIN`;
         // Truncate in reverse order of creation to respect foreign keys
         for (const table of [...TABLES_IN_ORDER].reverse()) {
+            // FIX: Replace non-existent `client.escapeIdentifier` and incorrect `client.sql` usage with `client.query` for dynamic table names.
             await (client as any).query(`TRUNCATE TABLE ${quote(table)} RESTART IDENTITY CASCADE`);
         }
         
@@ -116,9 +119,11 @@ async function handlePost(request: VercelRequest, response: VercelResponse, clie
             }
         }
 
+        // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
         await client.sql`COMMIT`;
         return response.status(200).json({ message: 'اطلاعات با موفقیت بازیابی شد.' });
     } catch (error) {
+        // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
         await client.sql`ROLLBACK;`.catch(rbError => console.error('Rollback failed:', rbError));
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         return response.status(500).json({ error: 'Failed to restore from backup.', details: errorMessage });
@@ -127,13 +132,17 @@ async function handlePost(request: VercelRequest, response: VercelResponse, clie
 
 async function handleDelete(response: VercelResponse, client: VercelPoolClient) {
     try {
+        // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
         await client.sql`BEGIN`;
         for (const table of [...TABLES_IN_ORDER].reverse()) {
+            // FIX: Replace non-existent `client.escapeIdentifier` and incorrect `client.sql` usage with `client.query` for dynamic table names.
              await (client as any).query(`TRUNCATE TABLE ${quote(table)} RESTART IDENTITY CASCADE`);
         }
+        // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
         await client.sql`COMMIT`;
         return response.status(200).json({ message: 'تمام اطلاعات با موفقیت پاک شد.' });
     } catch(error) {
+        // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
         await client.sql`ROLLBACK;`.catch(rbError => console.error('Rollback failed:', rbError));
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         return response.status(500).json({ error: 'Failed to delete all data.', details: errorMessage });
