@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import type { CommutingMember, CommuteLog } from '../../types';
-import { PencilIcon, TrashIcon, ClockIcon, ChevronDownIcon, SearchIcon, RefreshIcon } from '../icons/Icons';
+import { PencilIcon, TrashIcon, ClockIcon, ChevronDownIcon, SearchIcon, RefreshIcon, UploadIcon, DownloadIcon } from '../icons/Icons';
 import EditCommuteLogModal from '../EditCommuteLogModal';
 import HourlyCommuteModal from '../HourlyCommuteModal';
 
@@ -83,7 +83,11 @@ const LogCommutePage: React.FC = () => {
     const [isHourlyModalOpen, setIsHourlyModalOpen] = useState(false);
     const [selectedLogForHourly, setSelectedLogForHourly] = useState<CommuteLog | null>(null);
     const [openUnits, setOpenUnits] = useState<Set<string>>(new Set());
-    const fileInputRef = useRef<HTMLInputElement>(null);
+    const excelImportRef = useRef<HTMLInputElement>(null);
+    const backupRestoreRef = useRef<HTMLInputElement>(null);
+    
+    const currentUser = useMemo(() => JSON.parse(sessionStorage.getItem('currentUser') || '{}'), []);
+    const isAdmin = currentUser?.permissions?.user_management;
 
     const getTodayPersian = useCallback(() => {
         const today = new Date();
@@ -228,8 +232,7 @@ const LogCommutePage: React.FC = () => {
     const getTimestampOverride = (time: { hour: string, minute: string }) => {
         if (!logDate.year || !logDate.month || !logDate.day || !time.hour || !time.minute) return null;
         const [gYear, gMonth, gDay] = jalaliToGregorian(parseInt(logDate.year), parseInt(logDate.month), parseInt(logDate.day));
-        const date = new Date(Date.UTC(gYear, gMonth - 1, gDay, parseInt(time.hour), parseInt(time.minute)));
-        date.setMinutes(date.getMinutes() - 210); // Adjust for Iran's timezone offset
+        const date = new Date(gYear, gMonth - 1, gDay, parseInt(time.hour), parseInt(time.minute));
         return date.toISOString();
     };
 
@@ -318,7 +321,7 @@ const LogCommutePage: React.FC = () => {
         XLSX.writeFile(wb, 'Sample_Commute_Logs_Detailed.xlsx');
     };
 
-    const handleFileImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const handleExcelImport = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
 
@@ -382,11 +385,57 @@ const LogCommutePage: React.FC = () => {
             } catch (err) {
                 setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در پردازش فایل' });
             } finally {
-                if(fileInputRef.current) fileInputRef.current.value = "";
+                if(excelImportRef.current) excelImportRef.current.value = "";
                 setTimeout(() => setStatus(null), 5000);
             }
         };
         reader.readAsArrayBuffer(file);
+    };
+
+     const handleBackup = async () => {
+        setStatus({ type: 'info', message: 'در حال آماده سازی فایل پشتیبان تردد...'});
+        try {
+            const response = await fetch(`/api/backup?entity=commute`);
+            if (!response.ok) throw new Error((await response.json()).details || 'خطا در دریافت داده‌ها');
+            const data = await response.json();
+            
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `commute_backup-${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            setStatus({ type: 'success', message: 'فایل پشتیبان با موفقیت دانلود شد.' });
+        } catch (err) {
+            setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در ایجاد پشتیبان'});
+        } finally {
+            setTimeout(() => setStatus(null), 5000);
+        }
+    };
+    
+    const handleRestore = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            setStatus({ type: 'info', message: 'در حال پردازش و بازیابی اطلاعات تردد...'});
+            try {
+                const content = event.target?.result;
+                const response = await fetch('/api/backup?entity=commute', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: content });
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.details || data.error);
+                setStatus({ type: 'success', message: data.message });
+                fetchLogs();
+            } catch (err) {
+                setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در بازیابی اطلاعات' });
+            } finally {
+                if(backupRestoreRef.current) backupRestoreRef.current.value = "";
+                setTimeout(() => setStatus(null), 5000);
+            }
+        };
+        reader.readAsText(file);
     };
 
     const formatTime = (isoString: string | null) => {
@@ -535,10 +584,21 @@ const LogCommutePage: React.FC = () => {
                 />
                 <SearchIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
                 <button onClick={handleDownloadSample} className="px-4 py-2 bg-gray-100 text-gray-700 border border-gray-300 text-sm rounded-lg hover:bg-gray-200 transition-colors">دانلود نمونه</button>
-                <input type="file" accept=".xlsx, .xls" ref={fileInputRef} onChange={handleFileImport} className="hidden" id="excel-import-logs" />
+                <input type="file" accept=".xlsx, .xls" ref={excelImportRef} onChange={handleExcelImport} className="hidden" id="excel-import-logs" />
                 <label htmlFor="excel-import-logs" className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 cursor-pointer transition-colors">ورود از اکسل</label>
+                {isAdmin && (
+                  <>
+                    <button onClick={handleBackup} className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700">
+                       <DownloadIcon className="w-5 h-5"/> تهیه پشتیبان تردد
+                    </button>
+                    <input type="file" ref={backupRestoreRef} onChange={handleRestore} className="hidden" id="backup-restore" accept=".json" />
+                    <label htmlFor="backup-restore" className="flex items-center gap-2 px-4 py-2 text-sm bg-yellow-500 text-white font-semibold rounded-lg hover:bg-yellow-600 cursor-pointer">
+                       <UploadIcon className="w-5 h-5"/> بازیابی پشتیبان تردد
+                    </label>
+                  </>
+                )}
             </div>
           </div>
           <div className="overflow-x-auto border dark:border-slate-700 rounded-lg">
