@@ -128,7 +128,8 @@ const CommitmentLetterArchivePage: React.FC = () => {
             return acc;
         }, {} as Record<string, { guarantor_personnel_code: string; guarantor_name: string; letterCount: number; totalAmount: number; letters: CommitmentLetter[] }>);
 
-        return Object.values(summary).sort((a, b) => b.totalAmount - a.totalAmount);
+        // FIX: Explicitly cast sort callback arguments to any to fix 'property does not exist on type unknown' error.
+        return Object.values(summary).sort((a: any, b: any) => b.totalAmount - a.totalAmount);
     }, [letters]);
     
     const toggleGuarantorExpansion = (code: string) => {

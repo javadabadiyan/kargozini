@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo, useRef, memo } from 'react';
 import { LockClosedIcon, UserIcon, LoginIcon } from './icons/Icons';
 
 interface LoginPageProps {
@@ -12,6 +12,60 @@ const AnimatedBackground: React.FC = () => (
     <div className="absolute bottom-0 -left-10 w-80 h-80 bg-sky-500/10 rounded-full filter blur-3xl opacity-70 bg-shape3" />
   </div>
 );
+
+const AnimatedDigit: React.FC<{ digit: string; hasChanged: boolean }> = memo(({ digit, hasChanged }) => {
+  return (
+    <span className={`inline-block ${hasChanged ? 'digit-animate' : ''}`}>
+      {digit}
+    </span>
+  );
+});
+
+const Clock: React.FC<{isMobile?: boolean}> = ({ isMobile = false }) => {
+    const [timeString, setTimeString] = useState('');
+    const previousTimeRef = useRef('');
+
+    const toPersianDigits = (s: string) => s.replace(/[0-9]/g, (w) => '۰۱۲۳۴۵۶۷۸۹'[parseInt(w, 10)]);
+
+    const timeFormatter = useMemo(() => new Intl.DateTimeFormat('fa-IR-u-nu-latn', {
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        hour12: false, timeZone: 'Asia/Tehran'
+    }), []);
+
+    useEffect(() => {
+        // Set initial time
+        setTimeString(timeFormatter.format(new Date()));
+
+        const timerId = setInterval(() => {
+            setTimeString(timeFormatter.format(new Date()));
+        }, 1000);
+        
+        return () => clearInterval(timerId);
+    }, [timeFormatter]);
+    
+    useEffect(() => {
+      previousTimeRef.current = timeString;
+    });
+
+    const formattedTime = toPersianDigits(timeString);
+    const previousFormattedTime = toPersianDigits(previousTimeRef.current);
+    
+    const textSize = isMobile ? 'text-5xl' : 'text-6xl';
+
+    return (
+        <div className={`mb-4 flex ${isMobile ? 'justify-center' : 'justify-end'} text-slate-700 dark:text-slate-200`}>
+            <div className={`${textSize} font-bold tracking-widest font-orbitron`} dir="ltr" style={{ textShadow: '0 0 10px rgba(71, 145, 255, 0.4)' }}>
+                {formattedTime.split('').map((char, index) => {
+                    const hasChanged = formattedTime[index] !== previousFormattedTime[index];
+                    return char === ':' ?
+                        <span key={index} className="px-1 opacity-50 animate-pulse">:</span> :
+                        <AnimatedDigit key={`${index}-${char}`} digit={char} hasChanged={hasChanged} />;
+                })}
+            </div>
+        </div>
+    );
+};
+
 
 const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const [username, setUsername] = useState<string>('');
@@ -38,6 +92,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
         <div className="grid grid-cols-1 items-center gap-12 md:grid-cols-2">
           
           <div className="hidden md:block text-right space-y-6">
+             <Clock />
              <div className="flex items-center justify-end gap-3">
                <h1 className="text-5xl font-extrabold bg-gradient-to-r from-blue-600 to-indigo-500 bg-clip-text text-transparent dark:from-sky-400 dark:to-blue-500">
                  سیستم جامع کارگزینی
@@ -53,6 +108,9 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
 
           <div className="w-full max-w-md p-8 space-y-8 bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 mx-auto">
             <div className="text-center">
+               <div className="md:hidden">
+                 <Clock isMobile={true}/>
+               </div>
                <div className="flex items-center justify-center gap-3 mb-4 md:hidden">
                  <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-500 bg-clip-text text-transparent dark:from-sky-400 dark:to-blue-500">
                    سیستم جامع کارگزینی
