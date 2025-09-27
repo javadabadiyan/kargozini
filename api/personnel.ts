@@ -83,7 +83,7 @@ async function handlePostPersonnel(body: any, response: VercelResponse, pool: Ve
                 const batch = validPersonnelList.slice(i, i + BATCH_SIZE);
                 if (batch.length === 0) continue;
                 // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
-                await client.sql`BEGIN`;
+                await client.sql`BEGIN;`;
                 const values: (string | null)[] = [];
                 const valuePlaceholders: string[] = [];
                 let paramIndex = 1;
@@ -95,7 +95,7 @@ async function handlePostPersonnel(body: any, response: VercelResponse, pool: Ve
                 const query = `INSERT INTO personnel (${columnNames}) VALUES ${valuePlaceholders.join(', ')} ON CONFLICT (personnel_code) DO UPDATE SET ${updateSet};`;
                 await (client as any).query(query, values);
                 // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
-                await client.sql`COMMIT`;
+                await client.sql`COMMIT;`;
                 totalProcessed += batch.length;
             }
             return response.status(200).json({ message: `عملیات موفق. ${totalProcessed} رکورد پردازش شد.` });
@@ -110,7 +110,7 @@ async function handlePostPersonnel(body: any, response: VercelResponse, pool: Ve
         }
     } catch (error) {
         // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
-        await client.sql`ROLLBACK`.catch(() => {});
+        await client.sql`ROLLBACK;`;
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
         console.error("Error in handlePostPersonnel:", error);
 
@@ -245,7 +245,7 @@ async function handlePostJobGroupInfo(request: VercelRequest, response: VercelRe
               return response.status(400).json({ error: 'هیچ رکورد معتبری یافت نشد.' });
           }
           // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
-          await client.sql`BEGIN`;
+          await client.sql`BEGIN;`;
           const allColumns = [...new Set([...Object.keys(validRecords[0]), ...JOB_GROUP_COLUMNS])].filter(c => c !== 'id');
           const columnNames = allColumns.map(c => c === 'position' ? `"${c}"` : c).join(', ');
           const updateSet = allColumns.filter(c => c !== 'personnel_code').map(c => `${c === 'position' ? `"${c}"` : c} = EXCLUDED.${c === 'position' ? `"${c}"` : c}`).join(', ');
@@ -265,7 +265,7 @@ async function handlePostJobGroupInfo(request: VercelRequest, response: VercelRe
           const query = `INSERT INTO personnel (${columnNames}) VALUES ${valuePlaceholders.join(', ')} ON CONFLICT (personnel_code) DO UPDATE SET ${updateSet};`;
           await (client as any).query(query, values);
           // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
-          await client.sql`COMMIT`;
+          await client.sql`COMMIT;`;
           return response.status(200).json({ message: `عملیات موفق. ${validRecords.length} رکورد پردازش شد.` });
 
       } else { // Single insert
@@ -285,16 +285,16 @@ async function handlePostJobGroupInfo(request: VercelRequest, response: VercelRe
       }
   } catch (error) {
       // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
-      await client.sql`ROLLBACK`.catch(() => {});
+      await client.sql`ROLLBACK;`;
       const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
       if (errorMessage.includes('personnel_personnel_code_key')) return response.status(409).json({ error: 'کد پرسنلی تکراری است.' });
       return response.status(500).json({ error: 'خطا در عملیات پایگاه داده.', details: errorMessage });
   }
 }
 
-// FIX: This function was converting all values to strings, which is unnecessary
-// as the DB driver handles primitive types. This could have led to subtle type
-// issues. The function is updated to pass values directly to the query.
+// FIX: This function was casting all values to string[], which is incorrect for a mixed-type
+// parameter array (string | number | null)[]. The cast has been removed to fix the type error.
+// The database driver handles primitive types correctly without casting.
 async function handlePutJobGroupInfo(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
   const p = request.body as Personnel;
   if (!p || !p.id) return response.status(400).json({ error: 'شناسه رکورد نامعتبر است.' });
@@ -309,8 +309,8 @@ async function handlePutJobGroupInfo(request: VercelRequest, response: VercelRes
 
   const query = `UPDATE personnel SET ${updateFields.join(', ')} WHERE id = $${updateValues.length} RETURNING *;`;
   
-  // FIX: Removed unnecessary cast on `updateValues`. The cast on `pool` to `any`
-  // is sufficient for the database driver to handle mixed-type parameter arrays.
+  // FIX: Removed incorrect `as string[]` cast. The database driver can handle
+  // the (string | number | null)[] type for parameter arrays.
   const { rows } = await (pool as any).query(query, updateValues);
 
   if (rows.length === 0) return response.status(404).json({ error: 'رکورد یافت نشد.'});
@@ -420,7 +420,7 @@ async function handlePostDependents(request: VercelRequest, response: VercelResp
     }
   
     // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
-    await client.sql`BEGIN`;
+    await client.sql`BEGIN;`;
     const BATCH_SIZE = 250;
     let totalProcessed = 0;
 
@@ -455,12 +455,12 @@ async function handlePostDependents(request: VercelRequest, response: VercelResp
     }
 
     // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
-    await client.sql`COMMIT`;
+    await client.sql`COMMIT;`;
     return response.status(200).json({ message: `عملیات موفق. ${totalProcessed} رکورد پردازش شد.` });
 
   } catch (error) {
     // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
-    await client.sql`ROLLBACK`.catch(() => {});
+    await client.sql`ROLLBACK;`;
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     console.error("Error in handlePostDependents:", error);
 
@@ -551,7 +551,7 @@ async function handlePostCommutingMembers(body: any, response: VercelResponse, c
         
         try {
             // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
-            await client.sql`BEGIN`;
+            await client.sql`BEGIN;`;
             const columns = ['personnel_code', 'full_name', 'department', 'position'];
             const columnNames = columns.map(c => c === 'position' ? `"${c}"` : c).join(', ');
             const updateSet = columns.filter(c => c !== 'personnel_code').map(c => `${c === 'position' ? `"${c}"` : c} = EXCLUDED.${c === 'position' ? `"${c}"` : c}`).join(', ');
@@ -566,11 +566,11 @@ async function handlePostCommutingMembers(body: any, response: VercelResponse, c
             const query = `INSERT INTO commuting_members (${columnNames}) VALUES ${valuePlaceholders.join(', ')} ON CONFLICT (personnel_code) DO UPDATE SET ${updateSet};`;
             await (client as any).query(query, values);
             // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
-            await client.sql`COMMIT`;
+            await client.sql`COMMIT;`;
             return response.status(200).json({ message: `عملیات موفق. ${validList.length} رکورد پردازش شد.` });
         } catch (error) {
             // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
-            await client.sql`ROLLBACK`.catch(() => {});
+            await client.sql`ROLLBACK;`;
             const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
             if (errorMessage.includes('duplicate key')) return response.status(409).json({ error: 'کد پرسنلی تکراری است.' });
             return response.status(500).json({ error: 'خطا در عملیات پایگاه داده.', details: errorMessage });
@@ -726,7 +726,7 @@ async function handlePostDisciplinaryRecords(request: VercelRequest, response: V
         if (validList.length === 0) return response.status(400).json({ error: 'هیچ رکورد معتبری یافت نشد.' });
         try {
             // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
-            await client.sql`BEGIN`;
+            await client.sql`BEGIN;`;
             const columns = ['full_name', 'personnel_code', 'meeting_date', 'letter_description', 'final_decision'];
             const values: (string | null)[] = [];
             const valuePlaceholders: string[] = [];
@@ -739,11 +739,11 @@ async function handlePostDisciplinaryRecords(request: VercelRequest, response: V
             const query = `INSERT INTO disciplinary_records (${columns.join(', ')}) VALUES ${valuePlaceholders.join(', ')}`;
             await (client as any).query(query, values);
             // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
-            await client.sql`COMMIT`;
+            await client.sql`COMMIT;`;
             return response.status(200).json({ message: `عملیات موفق. ${validList.length} رکورد پردازش شد.` });
         } catch (error) {
             // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
-            await client.sql`ROLLBACK`.catch(() => {});
+            await client.sql`ROLLBACK;`;
             const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
             return response.status(500).json({ error: 'خطا در عملیات پایگاه داده.', details: errorMessage });
         }
@@ -790,27 +790,43 @@ async function handleDeleteDisciplinaryRecord(request: VercelRequest, response: 
 // PERFORMANCE REVIEW HANDLERS
 // =================================================================================
 async function handleGetPerformanceReviews(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
-    const { personnel_code } = request.query;
-    let query;
+    const { personnel_code, department, supervisor, year } = request.query;
+
+    let query = `
+        SELECT pr.*, p.first_name, p.last_name
+        FROM performance_reviews pr
+        LEFT JOIN personnel p ON pr.personnel_code = p.personnel_code
+    `;
+    const conditions: string[] = [];
+    const params: (string | number)[] = [];
+    let paramIndex = 1;
+
     if (personnel_code && typeof personnel_code === 'string') {
-        query = pool.sql`
-            SELECT pr.*, p.first_name, p.last_name
-            FROM performance_reviews pr
-            JOIN personnel p ON pr.personnel_code = p.personnel_code
-            WHERE pr.personnel_code = ${personnel_code}
-            ORDER BY pr.review_date DESC;
-        `;
-    } else {
-        query = pool.sql`
-            SELECT pr.*, p.first_name, p.last_name
-            FROM performance_reviews pr
-            JOIN personnel p ON pr.personnel_code = p.personnel_code
-            ORDER BY pr.review_date DESC;
-        `;
+        conditions.push(`pr.personnel_code = $${paramIndex++}`);
+        params.push(personnel_code);
     }
-    const { rows } = await query;
-    // Map full_name for easier frontend use
-    const reviews = rows.map(r => ({ ...r, full_name: `${r.first_name} ${r.last_name}`}));
+    if (department && typeof department === 'string' && department) {
+        conditions.push(`pr.department = $${paramIndex++}`);
+        params.push(department);
+    }
+    if (supervisor && typeof supervisor === 'string' && supervisor) {
+        conditions.push(`pr.reviewer_name_and_signature = $${paramIndex++}`);
+        params.push(supervisor);
+    }
+    if (year && typeof year === 'string' && year) {
+        conditions.push(`pr.review_period_start LIKE $${paramIndex++}`);
+        params.push(`${year}%`);
+    }
+    
+    if (conditions.length > 0) {
+        query += ` WHERE ${conditions.join(' AND ')}`;
+    }
+
+    query += ` ORDER BY pr.review_date DESC;`;
+    
+    const { rows } = await (pool as any).query(query, params);
+    
+    const reviews = rows.map(r => ({ ...r, full_name: `${r.first_name || ''} ${r.last_name || ''}`.trim() }));
     return response.status(200).json({ reviews });
 }
 
@@ -837,6 +853,23 @@ async function handlePostPerformanceReview(request: VercelRequest, response: Ver
         ) RETURNING *;
     `;
     return response.status(201).json({ message: 'ارزیابی با موفقیت ثبت شد.', review: rows[0] });
+}
+
+async function handleDeletePerformanceReview(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+    const { id } = request.query;
+    if (!id || typeof id !== 'string') {
+        return response.status(400).json({ error: 'A review ID is required for deletion.' });
+    }
+    try {
+        const result = await pool.sql`DELETE FROM performance_reviews WHERE id = ${parseInt(id, 10)};`;
+        if (result.rowCount === 0) {
+            return response.status(404).json({ error: 'Review not found.' });
+        }
+        return response.status(200).json({ message: 'Review deleted successfully.' });
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return response.status(500).json({ error: 'Failed to delete review.', details: errorMessage });
+    }
 }
 
 // =================================================================================
@@ -910,7 +943,8 @@ export default async function handler(request: VercelRequest, response: VercelRe
         switch (request.method) {
             case 'GET': return await handleGetPerformanceReviews(request, response, pool);
             case 'POST': return await handlePostPerformanceReview(request, response, pool);
-            default: response.setHeader('Allow', ['GET', 'POST']); return response.status(405).end();
+            case 'DELETE': return await handleDeletePerformanceReview(request, response, pool);
+            default: response.setHeader('Allow', ['GET', 'POST', 'DELETE']); return response.status(405).end();
         }
     }
 

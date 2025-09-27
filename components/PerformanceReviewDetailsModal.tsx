@@ -97,6 +97,10 @@ const PerformanceReviewDetailsModal: React.FC<PerformanceReviewDetailsModalProps
                                 <td className="p-2 font-bold">نام:</td><td className="p-2">{review.full_name}</td>
                                 <td className="p-2 font-bold">کد پرسنلی:</td><td className="p-2">{toPersianDigits(review.personnel_code)}</td>
                             </tr>
+                             <tr>
+                                <td className="p-2 font-bold">واحد:</td><td className="p-2">{review.department || '-'}</td>
+                                <td className="p-2 font-bold">تکمیل کننده:</td><td className="p-2">{review.submitted_by_user || '-'}</td>
+                            </tr>
                             <tr>
                                 <td className="p-2 font-bold">دوره ارزیابی:</td><td className="p-2" colSpan={3}>از {toPersianDigits(review.review_period_start)} تا {toPersianDigits(review.review_period_end)}</td>
                             </tr>

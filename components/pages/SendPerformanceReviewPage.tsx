@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import type { PerformanceReview } from '../../types';
+import type { PerformanceReview, Personnel } from '../../types';
 import { DocumentReportIcon } from '../icons/Icons';
 import { performanceReviewConfig } from '../performanceReviewConfig';
 
@@ -40,10 +40,35 @@ const SendPerformanceReviewPage: React.FC = () => {
     const [formData, setFormData] = useState<Omit<PerformanceReview, 'id' | 'personnel_code' | 'review_date' | 'review_period_start' | 'review_period_end' | 'total_score_functional' | 'total_score_behavioral' | 'total_score_ethical' | 'overall_score'>>(initialFormData);
     const [personnelInfo, setPersonnelInfo] = useState(initialPersonnelInfo);
     const [evaluationYear, setEvaluationYear] = useState('');
+    
+    const [personnelList, setPersonnelList] = useState<Personnel[]>([]);
+    const [personnelLoading, setPersonnelLoading] = useState(true);
+    const currentUser = useMemo(() => JSON.parse(sessionStorage.getItem('currentUser') || '{}'), []);
 
     useEffect(() => {
         setEvaluationYear(getCurrentPersianYear());
+        
+        const fetchPersonnel = async () => {
+            setPersonnelLoading(true);
+            try {
+                const response = await fetch('/api/personnel?type=personnel&pageSize=100000');
+                if (!response.ok) throw new Error('Failed to fetch personnel list');
+                const data = await response.json();
+                setPersonnelList(data.personnel || []);
+            } catch (err) {
+                 setStatus({ type: 'error', message: err instanceof Error ? err.message : 'Could not load personnel list' });
+            } finally {
+                setPersonnelLoading(false);
+            }
+        };
+        fetchPersonnel();
     }, []);
+
+    const departments = useMemo(() => {
+        const uniqueDepartments = [...new Set(personnelList.map(p => p.department).filter(Boolean))];
+        // FIX: Added explicit types to sort callback arguments to resolve 'localeCompare does not exist on type unknown' error.
+        return uniqueDepartments.sort((a: string, b: string) => a.localeCompare(b, 'fa'));
+    }, [personnelList]);
 
 
     const handleScoreChange = (category: 'functional' | 'behavioral' | 'ethical', key: string, value: number) => {
@@ -61,13 +86,13 @@ const SendPerformanceReviewPage: React.FC = () => {
         setFormData(prev => ({...prev, [name]: value}));
     };
     
-    const handlePersonnelInfoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handlePersonnelInfoChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         setPersonnelInfo(prev => ({ ...prev, [name]: value }));
     };
 
     const totals = useMemo(() => {
-        // FIX: Operator '+' cannot be applied to types 'unknown' and 'unknown'.
+        // FIX: Added explicit types to reduce callback arguments to resolve "Operator '+' cannot be applied to types 'unknown' and 'unknown'".
         const total_score_functional = Object.values(formData.scores_functional).reduce((sum: number, val: number) => sum + val, 0);
         const total_score_behavioral = Object.values(formData.scores_behavioral).reduce((sum: number, val: number) => sum + val, 0);
         const total_score_ethical = Object.values(formData.scores_ethical).reduce((sum: number, val: number) => sum + val, 0);
@@ -93,6 +118,8 @@ const SendPerformanceReviewPage: React.FC = () => {
             ...formData,
             ...totals,
             personnel_code: personnelInfo.personnelCode,
+            department: personnelInfo.department,
+            submitted_by_user: currentUser.full_name || currentUser.username,
             review_period_start: `${evaluationYear}/۰۱/۰۱`,
             review_period_end: `${evaluationYear}/۱۲/۲۹`,
         };
@@ -188,7 +215,7 @@ const SendPerformanceReviewPage: React.FC = () => {
             <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="border rounded-lg p-4 bg-slate-50 dark:bg-slate-700/50">
                     <h3 className="text-lg font-bold mb-4">۱. اطلاعات پرسنل و دوره</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                         <div>
                             <label className="font-semibold block mb-1 text-sm text-slate-700 dark:text-slate-200">نام و نام خانوادگی:</label>
                             <input name="fullName" value={personnelInfo.fullName} onChange={handlePersonnelInfoChange} className="w-full p-2 border rounded-md bg-white dark:bg-slate-600" required />
@@ -199,11 +226,18 @@ const SendPerformanceReviewPage: React.FC = () => {
                         </div>
                         <div>
                             <label className="font-semibold block mb-1 text-sm text-slate-700 dark:text-slate-200">واحد:</label>
-                            <input name="department" value={personnelInfo.department} onChange={handlePersonnelInfoChange} className="w-full p-2 border rounded-md bg-white dark:bg-slate-600" />
+                            <select name="department" value={personnelInfo.department} onChange={handlePersonnelInfoChange} className="w-full p-2 border rounded-md bg-white dark:bg-slate-600" disabled={personnelLoading}>
+                                <option value="">انتخاب واحد</option>
+                                {departments.map(d => <option key={d} value={d}>{d}</option>)}
+                            </select>
                         </div>
                          <div>
                             <label className="font-semibold block mb-1 text-sm text-slate-700 dark:text-slate-200">سال ارزیابی:</label>
-                            <input name="evaluationYear" value={evaluationYear} onChange={(e) => setEvaluationYear(e.target.value)} className="w-full p-2 border rounded-md bg-white dark:bg-slate-600" required />
+                            <input name="evaluationYear" value={toPersianDigits(evaluationYear)} onChange={(e) => setEvaluationYear(e.target.value)} className="w-full p-2 border rounded-md bg-white dark:bg-slate-600" required />
+                        </div>
+                        <div>
+                            <label className="font-semibold block mb-1 text-sm text-slate-700 dark:text-slate-200">تکمیل کننده فرم:</label>
+                            <input value={currentUser.full_name || currentUser.username} className="w-full p-2 border rounded-md bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300" readOnly />
                         </div>
                     </div>
                 </div>
