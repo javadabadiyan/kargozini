@@ -31,6 +31,47 @@ const PERMISSION_KEYS: { key: keyof UserPermissions, label: string }[] = [
     { key: 'user_management', label: 'مدیریت کاربران (در تنظیمات)' },
 ];
 
+const PERMISSION_ROLES: { [key: string]: { label: string; permissions: UserPermissions } } = {
+  admin: {
+    label: 'دسترسی کامل (ادمین)',
+    permissions: PERMISSION_KEYS.reduce((acc, perm) => {
+      acc[perm.key] = true;
+      return acc;
+    }, {} as UserPermissions),
+  },
+  supervisor: {
+    label: 'سرپرست',
+    permissions: PERMISSION_KEYS.reduce((acc, perm) => {
+      const supervisorPermissions: (keyof UserPermissions)[] = [
+          'dashboard', 'personnel', 'personnel_list', 'dependents_info', 'document_upload',
+          'recruitment', 'accounting_commitment', 'disciplinary_committee', 'performance_review',
+          'send_performance_review', 'archive_performance_review', 'job_group', 'commute_report'
+      ];
+      acc[perm.key] = supervisorPermissions.includes(perm.key);
+      return acc;
+    }, {} as UserPermissions),
+  },
+  guard: {
+    label: 'نگهبان',
+    permissions: PERMISSION_KEYS.reduce((acc, perm) => {
+      const guardPermissions: (keyof UserPermissions)[] = [
+          'security', 'commuting_members', 'log_commute', 'commute_report'
+      ];
+      acc[perm.key] = guardPermissions.includes(perm.key);
+      return acc;
+    }, {} as UserPermissions),
+  },
+  normal: {
+    label: 'کاربر عادی',
+    permissions: PERMISSION_KEYS.reduce((acc, perm) => {
+      const normalPermissions: (keyof UserPermissions)[] = ['dashboard', 'personnel', 'personnel_list'];
+      acc[perm.key] = normalPermissions.includes(perm.key);
+      return acc;
+    }, {} as UserPermissions),
+  }
+};
+
+
 const UserEditModal: React.FC<UserEditModalProps> = ({ user, onClose, onSave }) => {
   const [formData, setFormData] = useState<Partial<AppUser>>({});
   const [isSaving, setIsSaving] = useState(false);
@@ -54,6 +95,16 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, onClose, onSave }) 
             [key]: !prev.permissions?.[key]
         }
     }));
+  };
+
+  const handleRoleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const roleKey = e.target.value;
+    if (roleKey && PERMISSION_ROLES[roleKey]) {
+        setFormData(prev => ({
+            ...prev,
+            permissions: PERMISSION_ROLES[roleKey].permissions,
+        }));
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -102,6 +153,15 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, onClose, onSave }) 
                     رمز عبور {isNew ? '' : '(برای عدم تغییر، خالی بگذارید)'}
                   </label>
                   <input type="password" id="password" name="password" value={formData.password || ''} onChange={handleChange} className={inputClass} required={isNew} />
+                </div>
+                 <div className="sm:col-span-2">
+                    <label htmlFor="role-select-modal" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">اعمال دسترسی گروهی (اختیاری)</label>
+                    <select id="role-select-modal" onChange={handleRoleChange} className={inputClass} defaultValue="">
+                        <option value="">-- انتخاب گروه دسترسی --</option>
+                        {Object.entries(PERMISSION_ROLES).map(([key, role]) => (
+                            <option key={key} value={key}>{role.label}</option>
+                        ))}
+                    </select>
                 </div>
             </div>
             <div>

@@ -29,6 +29,47 @@ const PERMISSION_KEYS: { key: keyof UserPermissions, label: string }[] = [
     { key: 'user_management', label: 'مدیریت کاربران (در تنظیمات)' },
 ];
 
+const PERMISSION_ROLES: { [key: string]: { label: string; permissions: UserPermissions } } = {
+  admin: {
+    label: 'دسترسی کامل (ادمین)',
+    permissions: PERMISSION_KEYS.reduce((acc, perm) => {
+      acc[perm.key] = true;
+      return acc;
+    }, {} as UserPermissions),
+  },
+  supervisor: {
+    label: 'سرپرست',
+    permissions: PERMISSION_KEYS.reduce((acc, perm) => {
+      const supervisorPermissions: (keyof UserPermissions)[] = [
+          'dashboard', 'personnel', 'personnel_list', 'dependents_info', 'document_upload',
+          'recruitment', 'accounting_commitment', 'disciplinary_committee', 'performance_review',
+          'send_performance_review', 'archive_performance_review', 'job_group', 'commute_report'
+      ];
+      acc[perm.key] = supervisorPermissions.includes(perm.key);
+      return acc;
+    }, {} as UserPermissions),
+  },
+  guard: {
+    label: 'نگهبان',
+    permissions: PERMISSION_KEYS.reduce((acc, perm) => {
+      const guardPermissions: (keyof UserPermissions)[] = [
+          'security', 'commuting_members', 'log_commute', 'commute_report'
+      ];
+      acc[perm.key] = guardPermissions.includes(perm.key);
+      return acc;
+    }, {} as UserPermissions),
+  },
+  normal: {
+    label: 'کاربر عادی',
+    permissions: PERMISSION_KEYS.reduce((acc, perm) => {
+      const normalPermissions: (keyof UserPermissions)[] = ['dashboard', 'personnel', 'personnel_list'];
+      acc[perm.key] = normalPermissions.includes(perm.key);
+      return acc;
+    }, {} as UserPermissions),
+  }
+};
+
+
 const SettingsPage: React.FC = () => {
     const currentUser = JSON.parse(sessionStorage.getItem('currentUser') || '{}');
     const userPermissions: UserPermissions = currentUser.permissions || {};
@@ -202,8 +243,7 @@ const SettingsPage: React.FC = () => {
         const sampleRow = ['newuser', 'password123', ...PERMISSION_KEYS.map(() => 'FALSE')];
         const ws = XLSX.utils.aoa_to_sheet([headers, sampleRow]);
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, wb.SheetNames.length ? wb.SheetNames[0] : 'Users', 'Users');
-        XLSX.utils.sheet_add_aoa(wb.Sheets['Users'], [headers, sampleRow]);
+        XLSX.utils.book_append_sheet(wb, ws, 'Users');
         XLSX.writeFile(wb, 'Sample_Users.xlsx');
     };
 
@@ -251,6 +291,16 @@ const SettingsPage: React.FC = () => {
                 [key]: !prev.permissions?.[key],
             },
         }));
+    };
+    
+    const handleRoleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const roleKey = e.target.value;
+        if (roleKey && PERMISSION_ROLES[roleKey]) {
+            setNewUser(prev => ({
+                ...prev,
+                permissions: PERMISSION_ROLES[roleKey].permissions,
+            }));
+        }
     };
 
     const handleAddNewUserSubmit = (e: React.FormEvent) => {
@@ -320,6 +370,15 @@ const SettingsPage: React.FC = () => {
                                 <div>
                                     <label htmlFor="new-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">رمز عبور</label>
                                     <input type="password" id="new-password" name="password" value={newUser.password || ''} onChange={handleNewUserFormChange} className={inputClass} required />
+                                </div>
+                                <div className="sm:col-span-2">
+                                    <label htmlFor="role-select" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">اعمال دسترسی گروهی (اختیاری)</label>
+                                    <select id="role-select" onChange={handleRoleChange} className={inputClass}>
+                                        <option value="">-- انتخاب گروه دسترسی --</option>
+                                        {Object.entries(PERMISSION_ROLES).map(([key, role]) => (
+                                            <option key={key} value={key}>{role.label}</option>
+                                        ))}
+                                    </select>
                                 </div>
                             </div>
                             <div>
