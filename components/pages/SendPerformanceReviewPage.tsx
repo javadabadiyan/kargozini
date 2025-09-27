@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import type { PerformanceReview } from '../../types';
 import { DocumentReportIcon } from '../icons/Icons';
 import { performanceReviewConfig } from '../performanceReviewConfig';
@@ -9,8 +9,6 @@ const toPersianDigits = (s: string | number | null | undefined): string => {
 };
 
 const initialFormData = {
-    review_period_start: '۱۴۰۱/۰۱/۰۱',
-    review_period_end: '۱۴۰۱/۱۲/۲۹',
     scores_functional: {},
     scores_behavioral: {},
     scores_ethical: {},
@@ -29,11 +27,24 @@ const initialPersonnelInfo = {
     department: '',
 };
 
+const getCurrentPersianYear = () => {
+    return new Intl.DateTimeFormat('fa-IR-u-nu-latn', {
+        year: 'numeric',
+        timeZone: 'Asia/Tehran',
+    }).format(new Date());
+};
+
 const SendPerformanceReviewPage: React.FC = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [status, setStatus] = useState<{ type: 'info' | 'success' | 'error'; message: string } | null>(null);
-    const [formData, setFormData] = useState<Omit<PerformanceReview, 'id' | 'personnel_code' | 'review_date' | 'total_score_functional' | 'total_score_behavioral' | 'total_score_ethical' | 'overall_score'>>(initialFormData);
+    const [formData, setFormData] = useState<Omit<PerformanceReview, 'id' | 'personnel_code' | 'review_date' | 'review_period_start' | 'review_period_end' | 'total_score_functional' | 'total_score_behavioral' | 'total_score_ethical' | 'overall_score'>>(initialFormData);
     const [personnelInfo, setPersonnelInfo] = useState(initialPersonnelInfo);
+    const [evaluationYear, setEvaluationYear] = useState('');
+
+    useEffect(() => {
+        setEvaluationYear(getCurrentPersianYear());
+    }, []);
+
 
     const handleScoreChange = (category: 'functional' | 'behavioral' | 'ethical', key: string, value: number) => {
         setFormData(prev => ({
@@ -56,9 +67,9 @@ const SendPerformanceReviewPage: React.FC = () => {
     };
 
     const totals = useMemo(() => {
-        const total_score_functional = Object.values(formData.scores_functional).reduce((sum: number, val: number) => sum + val, 0);
-        const total_score_behavioral = Object.values(formData.scores_behavioral).reduce((sum: number, val: number) => sum + val, 0);
-        const total_score_ethical = Object.values(formData.scores_ethical).reduce((sum: number, val: number) => sum + val, 0);
+        const total_score_functional = Object.values(formData.scores_functional).reduce((sum, val) => (sum as number) + (val as number), 0);
+        const total_score_behavioral = Object.values(formData.scores_behavioral).reduce((sum, val) => (sum as number) + (val as number), 0);
+        const total_score_ethical = Object.values(formData.scores_ethical).reduce((sum, val) => (sum as number) + (val as number), 0);
         const overall_score = total_score_functional + total_score_behavioral + total_score_ethical;
         return { total_score_functional, total_score_behavioral, total_score_ethical, overall_score };
     }, [formData.scores_functional, formData.scores_behavioral, formData.scores_ethical]);
@@ -69,6 +80,11 @@ const SendPerformanceReviewPage: React.FC = () => {
             setStatus({ type: 'error', message: 'لطفاً نام کامل و کد پرسنلی را وارد کنید.' });
             return;
         }
+        if (!evaluationYear) {
+            setStatus({ type: 'error', message: 'لطفاً سال ارزیابی را مشخص کنید.' });
+            return;
+        }
+
         setIsSubmitting(true);
         setStatus({ type: 'info', message: 'در حال ثبت ارزیابی...' });
 
@@ -76,6 +92,8 @@ const SendPerformanceReviewPage: React.FC = () => {
             ...formData,
             ...totals,
             personnel_code: personnelInfo.personnelCode,
+            review_period_start: `${evaluationYear}/۰۱/۰۱`,
+            review_period_end: `${evaluationYear}/۱۲/۲۹`,
         };
 
         try {
@@ -89,6 +107,7 @@ const SendPerformanceReviewPage: React.FC = () => {
             setStatus({ type: 'success', message: 'ارزیابی با موفقیت ثبت شد و به بایگانی ارسال گردید.' });
             setFormData(initialFormData);
             setPersonnelInfo(initialPersonnelInfo);
+            setEvaluationYear(getCurrentPersianYear());
         } catch (err) {
             setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در ثبت ارزیابی. ممکن است کد پرسنلی نامعتبر باشد.' });
         } finally {
@@ -167,8 +186,8 @@ const SendPerformanceReviewPage: React.FC = () => {
 
             <form onSubmit={handleSubmit} className="space-y-6">
                 <div className="border rounded-lg p-4 bg-slate-50 dark:bg-slate-700/50">
-                    <h3 className="text-lg font-bold mb-4">۱. اطلاعات پرسنل</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <h3 className="text-lg font-bold mb-4">۱. اطلاعات پرسنل و دوره</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div>
                             <label className="font-semibold block mb-1 text-sm text-slate-700 dark:text-slate-200">نام و نام خانوادگی:</label>
                             <input name="fullName" value={personnelInfo.fullName} onChange={handlePersonnelInfoChange} className="w-full p-2 border rounded-md bg-white dark:bg-slate-600" required />
@@ -181,15 +200,9 @@ const SendPerformanceReviewPage: React.FC = () => {
                             <label className="font-semibold block mb-1 text-sm text-slate-700 dark:text-slate-200">واحد:</label>
                             <input name="department" value={personnelInfo.department} onChange={handlePersonnelInfoChange} className="w-full p-2 border rounded-md bg-white dark:bg-slate-600" />
                         </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-                        <div>
-                            <label className="font-semibold block mb-1 text-sm text-slate-700 dark:text-slate-200">دوره ارزیابی از:</label>
-                            <input name="review_period_start" value={formData.review_period_start} onChange={handleTextChange} className="p-2 border rounded-md bg-white dark:bg-slate-600 w-full"/>
-                        </div>
-                        <div>
-                            <label className="font-semibold block mb-1 text-sm text-slate-700 dark:text-slate-200">تا:</label>
-                            <input name="review_period_end" value={formData.review_period_end} onChange={handleTextChange} className="p-2 border rounded-md bg-white dark:bg-slate-600 w-full"/>
+                         <div>
+                            <label className="font-semibold block mb-1 text-sm text-slate-700 dark:text-slate-200">سال ارزیابی:</label>
+                            <input name="evaluationYear" value={evaluationYear} onChange={(e) => setEvaluationYear(e.target.value)} className="w-full p-2 border rounded-md bg-white dark:bg-slate-600" required />
                         </div>
                     </div>
                 </div>

@@ -239,9 +239,9 @@ const SettingsPage: React.FC = () => {
     };
 
     const handleUserExcelSample = () => {
-        const headers = ['username', 'password', ...PERMISSION_KEYS.map(p => `perm_${p.key}`)];
-        const sampleRow = ['newuser', 'password123', ...PERMISSION_KEYS.map(() => 'FALSE')];
-        const ws = XLSX.utils.aoa_to_sheet([headers, sampleRow]);
+        const persianHeaders = ['نام کاربری', 'رمز عبور', ...PERMISSION_KEYS.map(p => p.label)];
+        const sampleRow = ['کاربر-جدید', 'رمز۱۲۳۴۵', ...PERMISSION_KEYS.map(() => 'FALSE')];
+        const ws = XLSX.utils.aoa_to_sheet([persianHeaders, sampleRow]);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Users');
         XLSX.writeFile(wb, 'Sample_Users.xlsx');
@@ -256,12 +256,28 @@ const SettingsPage: React.FC = () => {
             try {
                 const workbook = XLSX.read(new Uint8Array(event.target?.result as ArrayBuffer), { type: 'array' });
                 const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+                
+                const permissionLabelToKeyMap = PERMISSION_KEYS.reduce((acc, p) => {
+                    acc[p.label] = p.key;
+                    return acc;
+                }, {} as { [label: string]: string });
+
                 const usersToImport = json.map((row: any) => {
                     const permissions: UserPermissions = {};
-                    PERMISSION_KEYS.forEach(p => {
-                        permissions[p.key] = String(row[`perm_${p.key}`]).toUpperCase() === 'TRUE';
-                    });
-                    return { username: row.username, password: row.password, permissions };
+                    for (const persianLabel in row) {
+                         if (persianLabel === 'نام کاربری' || persianLabel === 'رمز عبور') continue;
+                         const permissionKey = permissionLabelToKeyMap[persianLabel];
+                         if (permissionKey) {
+                             permissions[permissionKey as keyof UserPermissions] = String(row[persianLabel]).toUpperCase() === 'TRUE';
+                         }
+                    }
+
+                    // FIX: Explicitly convert username and password from Excel to strings to avoid type errors.
+                    return { 
+                        username: String(row['نام کاربری']), 
+                        password: String(row['رمز عبور']), 
+                        permissions 
+                    };
                 }).filter(u => u.username && u.password);
                 
                 if (usersToImport.length === 0) throw new Error('هیچ کاربر معتبری در فایل یافت نشد.');
