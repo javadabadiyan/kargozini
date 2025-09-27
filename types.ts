@@ -205,9 +205,9 @@ export interface PerformanceReview {
   weaknesses_and_improvements: string;
   supervisor_suggestions: string;
   review_date: string; // ISO string
-  reviewer_name_and_signature: string;
-  supervisor_signature: string;
-  manager_signature: string;
+  reviewer_name_and_signature?: string;
+  supervisor_signature?: string;
+  manager_signature?: string;
   submitted_by_user?: string;
   department?: string;
 }

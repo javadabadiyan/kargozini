@@ -16,9 +16,6 @@ const initialFormData = {
     strengths: '',
     weaknesses_and_improvements: '',
     supervisor_suggestions: '',
-    reviewer_name_and_signature: '',
-    supervisor_signature: '',
-    manager_signature: '',
 };
 
 const initialPersonnelInfo = {
@@ -113,9 +110,6 @@ const SendPerformanceReviewPage: React.FC = () => {
             { value: formData.strengths, label: 'نقاط قوت' },
             { value: formData.weaknesses_and_improvements, label: 'نقاط ضعف و بهبود' },
             { value: formData.supervisor_suggestions, label: 'پیشنهادات سرپرست' },
-            { value: formData.reviewer_name_and_signature, label: 'ارزیابی کننده (مسئول مستقیم)' },
-            { value: formData.supervisor_signature, label: 'تایید کننده (سرپرست مستقیم)' },
-            { value: formData.manager_signature, label: 'تایید کننده نهایی (مدیر عامل)' },
         ];
 
         for (const field of fieldsToValidate) {
@@ -321,15 +315,6 @@ const SendPerformanceReviewPage: React.FC = () => {
                     </div>
                 </div>
                 
-                <div className="border rounded-lg p-4 bg-slate-50 dark:bg-slate-700/50">
-                    <h3 className="text-lg font-bold mb-4">تایید و امضاء</h3>
-                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div><label className="text-sm">ارزیابی کننده (مسئول مستقیم):</label><input name="reviewer_name_and_signature" value={formData.reviewer_name_and_signature} onChange={handleTextChange} className="w-full p-2 border rounded-md mt-1" required /></div>
-                        <div><label className="text-sm">تایید کننده (سرپرست مستقیم):</label><input name="supervisor_signature" value={formData.supervisor_signature} onChange={handleTextChange} className="w-full p-2 border rounded-md mt-1" required /></div>
-                        <div><label className="text-sm">تایید کننده نهایی (مدیر عامل):</label><input name="manager_signature" value={formData.manager_signature} onChange={handleTextChange} className="w-full p-2 border rounded-md mt-1" required /></div>
-                     </div>
-                </div>
-
                 <div className="flex justify-end pt-4">
                     <button type="submit" className="px-8 py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 disabled:bg-gray-400" disabled={isSubmitting}>
                         {isSubmitting ? 'در حال ثبت...' : 'ثبت نهایی و ارسال به بایگانی'}
