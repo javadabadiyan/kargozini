@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import type { Personnel, PerformanceReview } from '../../types';
-import { SearchIcon, UserIcon, DocumentReportIcon } from '../icons/Icons';
+import React, { useState, useMemo } from 'react';
+import type { PerformanceReview } from '../../types';
+import { DocumentReportIcon } from '../icons/Icons';
 import { performanceReviewConfig } from '../performanceReviewConfig';
 
 const toPersianDigits = (s: string | number | null | undefined): string => {
@@ -23,47 +23,17 @@ const initialFormData = {
     manager_signature: '',
 };
 
+const initialPersonnelInfo = {
+    fullName: '',
+    personnelCode: '',
+    department: '',
+};
+
 const SendPerformanceReviewPage: React.FC = () => {
-    const [personnelList, setPersonnelList] = useState<Personnel[]>([]);
-    const [selectedPersonnel, setSelectedPersonnel] = useState<Personnel | null>(null);
-    const [searchTerm, setSearchTerm] = useState('');
-    const [personnelLoading, setPersonnelLoading] = useState(true);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [status, setStatus] = useState<{ type: 'info' | 'success' | 'error'; message: string } | null>(null);
     const [formData, setFormData] = useState<Omit<PerformanceReview, 'id' | 'personnel_code' | 'review_date' | 'total_score_functional' | 'total_score_behavioral' | 'total_score_ethical' | 'overall_score'>>(initialFormData);
-    
-    useEffect(() => {
-        const fetchPersonnel = async () => {
-            setPersonnelLoading(true);
-            try {
-                const response = await fetch('/api/personnel?type=personnel&pageSize=100000');
-                if (!response.ok) throw new Error('Failed to fetch personnel');
-                const data = await response.json();
-                setPersonnelList(data.personnel || []);
-            } catch (err) {
-                setStatus({ type: 'error', message: err instanceof Error ? err.message : 'Unknown error' });
-            } finally {
-                setPersonnelLoading(false);
-            }
-        };
-        fetchPersonnel();
-    }, []);
-
-    const filteredPersonnel = useMemo(() => {
-        if (!searchTerm) return [];
-        const lowercasedTerm = searchTerm.toLowerCase().trim();
-        return personnelList.filter(p =>
-            `${p.first_name} ${p.last_name}`.toLowerCase().includes(lowercasedTerm) ||
-            p.personnel_code.toLowerCase().includes(lowercasedTerm)
-        ).slice(0, 10);
-    }, [personnelList, searchTerm]);
-    
-    const handleSelectPersonnel = (person: Personnel) => {
-        setSelectedPersonnel(person);
-        setSearchTerm('');
-        setFormData(initialFormData);
-        setStatus(null);
-    };
+    const [personnelInfo, setPersonnelInfo] = useState(initialPersonnelInfo);
 
     const handleScoreChange = (category: 'functional' | 'behavioral' | 'ethical', key: string, value: number) => {
         setFormData(prev => ({
@@ -79,9 +49,13 @@ const SendPerformanceReviewPage: React.FC = () => {
         const { name, value } = e.target;
         setFormData(prev => ({...prev, [name]: value}));
     };
+    
+    const handlePersonnelInfoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        setPersonnelInfo(prev => ({ ...prev, [name]: value }));
+    };
 
     const totals = useMemo(() => {
-        // FIX: Explicitly typed the arguments of the `reduce` function to `number` to resolve TS error.
         const total_score_functional = Object.values(formData.scores_functional).reduce((sum: number, val: number) => sum + val, 0);
         const total_score_behavioral = Object.values(formData.scores_behavioral).reduce((sum: number, val: number) => sum + val, 0);
         const total_score_ethical = Object.values(formData.scores_ethical).reduce((sum: number, val: number) => sum + val, 0);
@@ -91,8 +65,8 @@ const SendPerformanceReviewPage: React.FC = () => {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!selectedPersonnel) {
-            setStatus({ type: 'error', message: 'لطفاً یک پرسنل را انتخاب کنید.' });
+        if (!personnelInfo.personnelCode || !personnelInfo.fullName) {
+            setStatus({ type: 'error', message: 'لطفاً نام کامل و کد پرسنلی را وارد کنید.' });
             return;
         }
         setIsSubmitting(true);
@@ -101,7 +75,7 @@ const SendPerformanceReviewPage: React.FC = () => {
         const payload = {
             ...formData,
             ...totals,
-            personnel_code: selectedPersonnel.personnel_code,
+            personnel_code: personnelInfo.personnelCode,
         };
 
         try {
@@ -114,9 +88,9 @@ const SendPerformanceReviewPage: React.FC = () => {
             if (!response.ok) throw new Error(data.error);
             setStatus({ type: 'success', message: 'ارزیابی با موفقیت ثبت شد و به بایگانی ارسال گردید.' });
             setFormData(initialFormData);
-            setSelectedPersonnel(null);
+            setPersonnelInfo(initialPersonnelInfo);
         } catch (err) {
-            setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در ثبت ارزیابی' });
+            setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در ثبت ارزیابی. ممکن است کد پرسنلی نامعتبر باشد.' });
         } finally {
             setIsSubmitting(false);
             setTimeout(() => setStatus(null), 5000);
@@ -191,118 +165,100 @@ const SendPerformanceReviewPage: React.FC = () => {
             
             {status && <div className={`p-4 text-sm rounded-lg ${statusColor[status.type]}`}>{status.message}</div>}
 
-            {!selectedPersonnel ? (
-                <div className="bg-slate-50 dark:bg-slate-700/50 p-6 rounded-lg border border-slate-200 dark:border-slate-700">
-                    <label htmlFor="search-personnel" className="block text-lg font-semibold text-gray-700 dark:text-slate-200 mb-3">۱. ابتدا پرسنل مورد نظر را انتخاب کنید</label>
-                    <div className="relative">
-                        <input type="text" id="search-personnel" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="w-full md:w-1/2 p-2 border border-slate-300 dark:border-slate-600 rounded-md" placeholder="جستجوی نام یا کد پرسنلی..." />
-                        <SearchIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="border rounded-lg p-4 bg-slate-50 dark:bg-slate-700/50">
+                    <h3 className="text-lg font-bold mb-4">۱. اطلاعات پرسنل</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label className="font-semibold block mb-1 text-sm text-slate-700 dark:text-slate-200">نام و نام خانوادگی:</label>
+                            <input name="fullName" value={personnelInfo.fullName} onChange={handlePersonnelInfoChange} className="w-full p-2 border rounded-md bg-white dark:bg-slate-600" required />
+                        </div>
+                        <div>
+                            <label className="font-semibold block mb-1 text-sm text-slate-700 dark:text-slate-200">کد پرسنلی:</label>
+                            <input name="personnelCode" value={personnelInfo.personnelCode} onChange={handlePersonnelInfoChange} className="w-full p-2 border rounded-md bg-white dark:bg-slate-600" required />
+                        </div>
+                        <div>
+                            <label className="font-semibold block mb-1 text-sm text-slate-700 dark:text-slate-200">واحد:</label>
+                            <input name="department" value={personnelInfo.department} onChange={handlePersonnelInfoChange} className="w-full p-2 border rounded-md bg-white dark:bg-slate-600" />
+                        </div>
                     </div>
-                     {filteredPersonnel.length > 0 && (
-                        <ul className="mt-2 border rounded-md bg-white dark:bg-slate-800 max-h-60 overflow-y-auto w-full md:w-1/2">
-                            {filteredPersonnel.map(p => (
-                                <li key={p.id} onClick={() => handleSelectPersonnel(p)} className="flex items-center gap-3 p-3 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer text-sm">
-                                    <UserIcon className="w-5 h-5 text-slate-400"/>
-                                    <div>
-                                        <p className="font-semibold">{p.first_name} {p.last_name}</p>
-                                        <p className="text-xs text-slate-500">کد: {toPersianDigits(p.personnel_code)}</p>
-                                    </div>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                        <div>
+                            <label className="font-semibold block mb-1 text-sm text-slate-700 dark:text-slate-200">دوره ارزیابی از:</label>
+                            <input name="review_period_start" value={formData.review_period_start} onChange={handleTextChange} className="p-2 border rounded-md bg-white dark:bg-slate-600 w-full"/>
+                        </div>
+                        <div>
+                            <label className="font-semibold block mb-1 text-sm text-slate-700 dark:text-slate-200">تا:</label>
+                            <input name="review_period_end" value={formData.review_period_end} onChange={handleTextChange} className="p-2 border rounded-md bg-white dark:bg-slate-600 w-full"/>
+                        </div>
+                    </div>
                 </div>
-            ) : (
-                <form onSubmit={handleSubmit} className="space-y-6">
-                    <div className="border rounded-lg p-4 bg-slate-50 dark:bg-slate-700/50">
-                        <div className="flex justify-between items-start">
-                             <h3 className="text-lg font-bold mb-4">اطلاعات پرسنل</h3>
-                             <button type="button" onClick={() => setSelectedPersonnel(null)} className="text-sm text-red-600 hover:underline">تغییر پرسنل</button>
+
+                <ScoringTable title="عوامل عملکردی" config={performanceReviewConfig.functional} category="functional" maxScore={50} currentScore={totals.total_score_functional} />
+                <ScoringTable title="معیارهای رفتاری" config={performanceReviewConfig.behavioral} category="behavioral" maxScore={40} currentScore={totals.total_score_behavioral} />
+                <ScoringTable title="معیارهای اخلاقی" config={performanceReviewConfig.ethical} category="ethical" maxScore={10} currentScore={totals.total_score_ethical} />
+                
+                <div className="border rounded-lg p-4 bg-slate-50 dark:bg-slate-700/50">
+                    <h3 className="text-lg font-bold mb-4">جمع بندی امتیازات</h3>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                        <div className="p-3 bg-white dark:bg-slate-600 rounded-lg shadow-sm">
+                            <p className="text-sm text-slate-500 dark:text-slate-300">امتیاز عملکردی</p>
+                            <p className="text-2xl font-bold">{toPersianDigits(totals.total_score_functional)}</p>
                         </div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                            <p><strong>نام:</strong> {selectedPersonnel.first_name} {selectedPersonnel.last_name}</p>
-                            <p><strong>نام پدر:</strong> {selectedPersonnel.father_name}</p>
-                            <p><strong>کد پرسنلی:</strong> {toPersianDigits(selectedPersonnel.personnel_code)}</p>
-                            <p><strong>مدرک تحصیلی:</strong> {selectedPersonnel.education_level}</p>
-                            <p><strong>عنوان شغل:</strong> {selectedPersonnel.job_title}</p>
-                            <p><strong>محل خدمت:</strong> {selectedPersonnel.service_location}</p>
+                         <div className="p-3 bg-white dark:bg-slate-600 rounded-lg shadow-sm">
+                            <p className="text-sm text-slate-500 dark:text-slate-300">امتیاز رفتاری</p>
+                            <p className="text-2xl font-bold">{toPersianDigits(totals.total_score_behavioral)}</p>
+                        </div>
+                         <div className="p-3 bg-white dark:bg-slate-600 rounded-lg shadow-sm">
+                            <p className="text-sm text-slate-500 dark:text-slate-300">امتیاز اخلاقی</p>
+                            <p className="text-2xl font-bold">{toPersianDigits(totals.total_score_ethical)}</p>
+                        </div>
+                         <div className="p-3 bg-blue-100 dark:bg-blue-900/50 rounded-lg shadow-sm ring-2 ring-blue-500">
+                            <p className="text-sm text-blue-800 dark:text-blue-300">امتیاز کل</p>
+                            <p className="text-2xl font-bold text-blue-900 dark:text-blue-200">{toPersianDigits(totals.overall_score)}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="space-y-4">
+                    <div>
+                        <label className="font-semibold block mb-1">نظر ارزیابی شونده (در صورت نیاز / کسب امتیاز کمتر از ۵۰):</label>
+                        <textarea name="reviewer_comment" value={formData.reviewer_comment} onChange={handleTextChange} className="w-full p-2 border rounded-md min-h-[100px] bg-slate-50 dark:bg-slate-700/50"></textarea>
+                    </div>
+                    <div>
+                        <label className="font-semibold block mb-1">خلاصه مطالب مورد مذاکره در جلسه گفت و گو با مصاحبه پایان دوره:</label>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label className="font-bold">دوره ارزیابی از: </label>
-                                <input name="review_period_start" value={formData.review_period_start} onChange={handleTextChange} className="p-1 border rounded-md bg-white dark:bg-slate-600 w-28"/>
+                                <label className="text-sm font-semibold block mb-1">نقاط قوت عملکرد و شیوه های تقویت آن:</label>
+                                <textarea name="strengths" value={formData.strengths} onChange={handleTextChange} className="w-full p-2 border rounded-md min-h-[120px] bg-slate-50 dark:bg-slate-700/50"></textarea>
                             </div>
-                             <div>
-                                <label className="font-bold">تا: </label>
-                                <input name="review_period_end" value={formData.review_period_end} onChange={handleTextChange} className="p-1 border rounded-md bg-white dark:bg-slate-600 w-28"/>
+                            <div>
+                                <label className="text-sm font-semibold block mb-1">نقاط ضعف عملکرد و راههای اصلاح و بهبود آن:</label>
+                                <textarea name="weaknesses_and_improvements" value={formData.weaknesses_and_improvements} onChange={handleTextChange} className="w-full p-2 border rounded-md min-h-[120px] bg-slate-50 dark:bg-slate-700/50"></textarea>
                             </div>
                         </div>
                     </div>
+                    <div>
+                        <label className="font-semibold block mb-1">پیشنهادات سرپرست مستقیم در مورد همکار با توجه به نتیجه ارزشیابی و رعایت مقررات مربوط و ذکر آموزش های مورد نیاز در این خصوص:</label>
+                        <textarea name="supervisor_suggestions" value={formData.supervisor_suggestions} onChange={handleTextChange} className="w-full p-2 border rounded-md min-h-[100px] bg-slate-50 dark:bg-slate-700/50"></textarea>
+                    </div>
+                </div>
+                
+                <div className="border rounded-lg p-4 bg-slate-50 dark:bg-slate-700/50">
+                    <h3 className="text-lg font-bold mb-4">تایید و امضاء</h3>
+                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div><label className="text-sm">ارزیابی کننده (مسئول مستقیم):</label><input name="reviewer_name_and_signature" value={formData.reviewer_name_and_signature} onChange={handleTextChange} className="w-full p-2 border rounded-md mt-1" /></div>
+                        <div><label className="text-sm">تایید کننده (سرپرست مستقیم):</label><input name="supervisor_signature" value={formData.supervisor_signature} onChange={handleTextChange} className="w-full p-2 border rounded-md mt-1" /></div>
+                        <div><label className="text-sm">تایید کننده نهایی (مدیر عامل):</label><input name="manager_signature" value={formData.manager_signature} onChange={handleTextChange} className="w-full p-2 border rounded-md mt-1" /></div>
+                     </div>
+                </div>
 
-                    <ScoringTable title="عوامل عملکردی" config={performanceReviewConfig.functional} category="functional" maxScore={50} currentScore={totals.total_score_functional} />
-                    <ScoringTable title="معیارهای رفتاری" config={performanceReviewConfig.behavioral} category="behavioral" maxScore={40} currentScore={totals.total_score_behavioral} />
-                    <ScoringTable title="معیارهای اخلاقی" config={performanceReviewConfig.ethical} category="ethical" maxScore={10} currentScore={totals.total_score_ethical} />
-                    
-                    <div className="border rounded-lg p-4 bg-slate-50 dark:bg-slate-700/50">
-                        <h3 className="text-lg font-bold mb-4">جمع بندی امتیازات</h3>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                            <div className="p-3 bg-white dark:bg-slate-600 rounded-lg shadow-sm">
-                                <p className="text-sm text-slate-500 dark:text-slate-300">امتیاز عملکردی</p>
-                                <p className="text-2xl font-bold">{toPersianDigits(totals.total_score_functional)}</p>
-                            </div>
-                             <div className="p-3 bg-white dark:bg-slate-600 rounded-lg shadow-sm">
-                                <p className="text-sm text-slate-500 dark:text-slate-300">امتیاز رفتاری</p>
-                                <p className="text-2xl font-bold">{toPersianDigits(totals.total_score_behavioral)}</p>
-                            </div>
-                             <div className="p-3 bg-white dark:bg-slate-600 rounded-lg shadow-sm">
-                                <p className="text-sm text-slate-500 dark:text-slate-300">امتیاز اخلاقی</p>
-                                <p className="text-2xl font-bold">{toPersianDigits(totals.total_score_ethical)}</p>
-                            </div>
-                             <div className="p-3 bg-blue-100 dark:bg-blue-900/50 rounded-lg shadow-sm ring-2 ring-blue-500">
-                                <p className="text-sm text-blue-800 dark:text-blue-300">امتیاز کل</p>
-                                <p className="text-2xl font-bold text-blue-900 dark:text-blue-200">{toPersianDigits(totals.overall_score)}</p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="space-y-4">
-                        <div>
-                            <label className="font-semibold block mb-1">نظر ارزیابی شونده (در صورت نیاز / کسب امتیاز کمتر از ۵۰):</label>
-                            <textarea name="reviewer_comment" value={formData.reviewer_comment} onChange={handleTextChange} className="w-full p-2 border rounded-md min-h-[100px] bg-slate-50 dark:bg-slate-700/50"></textarea>
-                        </div>
-                        <div>
-                            <label className="font-semibold block mb-1">خلاصه مطالب مورد مذاکره در جلسه گفت و گو با مصاحبه پایان دوره:</label>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="text-sm font-semibold block mb-1">نقاط قوت عملکرد و شیوه های تقویت آن:</label>
-                                    <textarea name="strengths" value={formData.strengths} onChange={handleTextChange} className="w-full p-2 border rounded-md min-h-[120px] bg-slate-50 dark:bg-slate-700/50"></textarea>
-                                </div>
-                                <div>
-                                    <label className="text-sm font-semibold block mb-1">نقاط ضعف عملکرد و راههای اصلاح و بهبود آن:</label>
-                                    <textarea name="weaknesses_and_improvements" value={formData.weaknesses_and_improvements} onChange={handleTextChange} className="w-full p-2 border rounded-md min-h-[120px] bg-slate-50 dark:bg-slate-700/50"></textarea>
-                                </div>
-                            </div>
-                        </div>
-                        <div>
-                            <label className="font-semibold block mb-1">پیشنهادات سرپرست مستقیم در مورد همکار با توجه به نتیجه ارزشیابی و رعایت مقررات مربوط و ذکر آموزش های مورد نیاز در این خصوص:</label>
-                            <textarea name="supervisor_suggestions" value={formData.supervisor_suggestions} onChange={handleTextChange} className="w-full p-2 border rounded-md min-h-[100px] bg-slate-50 dark:bg-slate-700/50"></textarea>
-                        </div>
-                    </div>
-                    
-                    <div className="border rounded-lg p-4 bg-slate-50 dark:bg-slate-700/50">
-                        <h3 className="text-lg font-bold mb-4">تایید و امضاء</h3>
-                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div><label className="text-sm">ارزیابی کننده (مسئول مستقیم):</label><input name="reviewer_name_and_signature" value={formData.reviewer_name_and_signature} onChange={handleTextChange} className="w-full p-2 border rounded-md mt-1" /></div>
-                            <div><label className="text-sm">تایید کننده (سرپرست مستقیم):</label><input name="supervisor_signature" value={formData.supervisor_signature} onChange={handleTextChange} className="w-full p-2 border rounded-md mt-1" /></div>
-                            <div><label className="text-sm">تایید کننده نهایی (مدیر عامل):</label><input name="manager_signature" value={formData.manager_signature} onChange={handleTextChange} className="w-full p-2 border rounded-md mt-1" /></div>
-                         </div>
-                    </div>
-
-                    <div className="flex justify-end pt-4">
-                        <button type="submit" className="px-8 py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 disabled:bg-gray-400" disabled={isSubmitting}>
-                            {isSubmitting ? 'در حال ثبت...' : 'ثبت نهایی و ارسال به بایگانی'}
-                        </button>
-                    </div>
-                </form>
-            )}
+                <div className="flex justify-end pt-4">
+                    <button type="submit" className="px-8 py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 disabled:bg-gray-400" disabled={isSubmitting}>
+                        {isSubmitting ? 'در حال ثبت...' : 'ثبت نهایی و ارسال به بایگانی'}
+                    </button>
+                </div>
+            </form>
         </div>
     );
 };

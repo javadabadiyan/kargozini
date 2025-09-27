@@ -130,7 +130,7 @@ async function handlePostHourly(request: VercelRequest, response: VercelResponse
       }
     } catch (error) {
 // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
-      await client.sql`ROLLBACK;`.catch(()=>{});
+      await client.sql`ROLLBACK`.catch(()=>{});
       const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
       return response.status(500).json({ error: 'خطا در عملیات پایگاه داده.', details: errorMessage });
     } finally {
@@ -181,7 +181,7 @@ async function handlePostDaily(request: VercelRequest, response: VercelResponse,
         if (Array.isArray(body)) { // Bulk Import
             const validLogs = body.filter(log => log.personnel_code && log.guard_name && log.entry_time);
             if (validLogs.length === 0) return response.status(400).json({ error: 'هیچ رکورد معتبری برای ورود یافت نشد.' });
-// FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
+            // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
             await client.sql`BEGIN`;
             const columns = ['personnel_code', 'guard_name', 'entry_time', 'exit_time'];
             const values: (string | null)[] = [];
@@ -193,7 +193,7 @@ async function handlePostDaily(request: VercelRequest, response: VercelResponse,
             }
             const query = `INSERT INTO commute_logs (${columns.join(', ')}) VALUES ${valuePlaceholders.join(', ')}`;
             await (client as any).query(query, values);
-// FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
+            // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
             await client.sql`COMMIT`;
             return response.status(200).json({ message: `عملیات موفق. ${validLogs.length} رکورد تردد وارد شد.` });
         } else { // Single/Multi-person log
@@ -231,8 +231,8 @@ async function handlePostDaily(request: VercelRequest, response: VercelResponse,
             return response.status(400).json({ error: 'عملیات نامعتبر است.' });
         }
     } catch(error) {
-// FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
-         await client.sql`ROLLBACK;`.catch(() => {});
+        // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
+         await client.sql`ROLLBACK`.catch(() => {});
          const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
          return response.status(500).json({ error: 'عملیات پایگاه داده با شکست مواجه شد.', details: errorMessage });
     } finally {
@@ -245,7 +245,7 @@ async function handlePutDaily(request: VercelRequest, response: VercelResponse, 
     if (!id || !entry_time) return response.status(400).json({ error: 'شناسه و زمان ورود برای ویرایش الزامی است.' });
     const client = await pool.connect();
     try {
-// FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
+        // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
         await client.sql`BEGIN`;
         const { rows: oldLogs } = await (client as VercelPoolClient).sql`SELECT personnel_code, entry_time, exit_time FROM commute_logs WHERE id = ${id} FOR UPDATE;`;
         if (oldLogs.length === 0) { await client.sql`ROLLBACK`; return response.status(404).json({ error: 'رکوردی یافت نشد.' }); }
@@ -254,12 +254,12 @@ async function handlePutDaily(request: VercelRequest, response: VercelResponse, 
         if (formatTime(oldLog.entry_time) !== formatTime(entry_time)) await (client as VercelPoolClient).sql`INSERT INTO commute_edit_logs (commute_log_id, personnel_code, editor_name, field_name, old_value, new_value) VALUES (${id}, ${oldLog.personnel_code}, 'نگهبانی', 'ساعت ورود', ${formatTime(oldLog.entry_time)}, ${formatTime(entry_time)});`;
         if (formatTime(oldLog.exit_time) !== formatTime(exit_time)) await (client as VercelPoolClient).sql`INSERT INTO commute_edit_logs (commute_log_id, personnel_code, editor_name, field_name, old_value, new_value) VALUES (${id}, ${oldLog.personnel_code}, 'نگهبانی', 'ساعت خروج', ${formatTime(oldLog.exit_time)}, ${formatTime(exit_time)});`;
         await (client as VercelPoolClient).sql`UPDATE commute_logs SET entry_time = ${entry_time}, exit_time = ${exit_time} WHERE id = ${id};`;
-// FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
+        // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
         await client.sql`COMMIT`;
         const { rows: updatedLog } = await (client as VercelPoolClient).sql`SELECT cl.id, cl.personnel_code, cm.full_name, cl.guard_name, cl.entry_time, cl.exit_time FROM commute_logs cl LEFT JOIN commuting_members cm ON cl.personnel_code = cm.personnel_code WHERE cl.id = ${id};`;
         return response.status(200).json({ message: 'رکورد ویرایش شد.', log: updatedLog[0] });
     } catch (error) {
-// FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
+        // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
         await client.sql`ROLLBACK`;
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
         return response.status(500).json({ error: 'خطا در به‌روزرسانی.', details: errorMessage });

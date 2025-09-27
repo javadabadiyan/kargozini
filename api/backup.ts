@@ -124,7 +124,7 @@ async function handlePost(request: VercelRequest, response: VercelResponse, clie
         return response.status(200).json({ message: 'اطلاعات با موفقیت بازیابی شد.' });
     } catch (error) {
         // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
-        await client.sql`ROLLBACK;`.catch(rbError => console.error('Rollback failed:', rbError));
+        await client.sql`ROLLBACK`.catch(rbError => console.error('Rollback failed:', rbError));
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         return response.status(500).json({ error: 'Failed to restore from backup.', details: errorMessage });
     }
@@ -143,7 +143,7 @@ async function handleDelete(response: VercelResponse, client: VercelPoolClient) 
         return response.status(200).json({ message: 'تمام اطلاعات با موفقیت پاک شد.' });
     } catch(error) {
         // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
-        await client.sql`ROLLBACK;`.catch(rbError => console.error('Rollback failed:', rbError));
+        await client.sql`ROLLBACK`.catch(rbError => console.error('Rollback failed:', rbError));
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         return response.status(500).json({ error: 'Failed to delete all data.', details: errorMessage });
     }

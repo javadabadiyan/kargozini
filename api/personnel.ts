@@ -110,7 +110,7 @@ async function handlePostPersonnel(body: any, response: VercelResponse, pool: Ve
         }
     } catch (error) {
         // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
-        await client.sql`ROLLBACK;`.catch(() => {});
+        await client.sql`ROLLBACK`.catch(() => {});
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
         console.error("Error in handlePostPersonnel:", error);
 
@@ -285,7 +285,7 @@ async function handlePostJobGroupInfo(request: VercelRequest, response: VercelRe
       }
   } catch (error) {
       // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
-      await client.sql`ROLLBACK;`.catch(() => {});
+      await client.sql`ROLLBACK`.catch(() => {});
       const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
       if (errorMessage.includes('personnel_personnel_code_key')) return response.status(409).json({ error: 'کد پرسنلی تکراری است.' });
       return response.status(500).json({ error: 'خطا در عملیات پایگاه داده.', details: errorMessage });
@@ -309,7 +309,7 @@ async function handlePutJobGroupInfo(request: VercelRequest, response: VercelRes
 
   const query = `UPDATE personnel SET ${updateFields.join(', ')} WHERE id = $${updateValues.length} RETURNING *;`;
   
-  // FIX: Cast `updateValues` to `any[]` to resolve TypeScript error. The underlying pg driver correctly handles number and null types in the values array.
+  // FIX: Cast `updateValues` to `any[]` to resolve TypeScript error on line 260. The underlying pg driver correctly handles number and null types in the values array.
   const { rows } = await (pool as any).query(query, updateValues as any[]);
 
   if (rows.length === 0) return response.status(404).json({ error: 'رکورد یافت نشد.'});
@@ -459,7 +459,7 @@ async function handlePostDependents(request: VercelRequest, response: VercelResp
 
   } catch (error) {
     // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
-    await client.sql`ROLLBACK;`.catch(() => {});
+    await client.sql`ROLLBACK`.catch(() => {});
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     console.error("Error in handlePostDependents:", error);
 
@@ -569,7 +569,7 @@ async function handlePostCommutingMembers(body: any, response: VercelResponse, c
             return response.status(200).json({ message: `عملیات موفق. ${validList.length} رکورد پردازش شد.` });
         } catch (error) {
             // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
-            await client.sql`ROLLBACK;`.catch(() => {});
+            await client.sql`ROLLBACK`.catch(() => {});
             const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
             if (errorMessage.includes('duplicate key')) return response.status(409).json({ error: 'کد پرسنلی تکراری است.' });
             return response.status(500).json({ error: 'خطا در عملیات پایگاه داده.', details: errorMessage });
@@ -742,7 +742,7 @@ async function handlePostDisciplinaryRecords(request: VercelRequest, response: V
             return response.status(200).json({ message: `عملیات موفق. ${validList.length} رکورد پردازش شد.` });
         } catch (error) {
             // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
-            await client.sql`ROLLBACK;`.catch(() => {});
+            await client.sql`ROLLBACK`.catch(() => {});
             const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
             return response.status(500).json({ error: 'خطا در عملیات پایگاه داده.', details: errorMessage });
         }

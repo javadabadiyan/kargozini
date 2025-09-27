@@ -404,7 +404,7 @@ export default async function handler(
   
   } catch (error) {
     // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
-    await client.sql`ROLLBACK;`.catch((rbError: any) => console.error('Rollback failed:', rbError));
+    await client.sql`ROLLBACK`.catch((rbError: any) => console.error('Rollback failed:', rbError));
     console.error('Database setup failed:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     return response.status(500).json({ error: 'ایجاد جداول در پایگاه داده با خطا مواجه شد.', details: errorMessage });
