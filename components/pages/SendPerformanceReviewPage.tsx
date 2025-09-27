@@ -67,9 +67,9 @@ const SendPerformanceReviewPage: React.FC = () => {
     };
 
     const totals = useMemo(() => {
-        const total_score_functional = Object.values(formData.scores_functional).reduce((sum: number, val: number) => sum + val, 0);
-        const total_score_behavioral = Object.values(formData.scores_behavioral).reduce((sum: number, val: number) => sum + val, 0);
-        const total_score_ethical = Object.values(formData.scores_ethical).reduce((sum: number, val: number) => sum + val, 0);
+        const total_score_functional = Object.values(formData.scores_functional).reduce((sum, val) => (sum as number) + (val as number), 0);
+        const total_score_behavioral = Object.values(formData.scores_behavioral).reduce((sum, val) => (sum as number) + (val as number), 0);
+        const total_score_ethical = Object.values(formData.scores_ethical).reduce((sum, val) => (sum as number) + (val as number), 0);
         const overall_score = total_score_functional + total_score_behavioral + total_score_ethical;
         return { total_score_functional, total_score_behavioral, total_score_ethical, overall_score };
     }, [formData.scores_functional, formData.scores_behavioral, formData.scores_ethical]);
@@ -202,7 +202,7 @@ const SendPerformanceReviewPage: React.FC = () => {
                         </div>
                          <div>
                             <label className="font-semibold block mb-1 text-sm text-slate-700 dark:text-slate-200">سال ارزیابی:</label>
-                            <input name="evaluationYear" value={toPersianDigits(evaluationYear)} onChange={(e) => setEvaluationYear(e.target.value)} className="w-full p-2 border rounded-md bg-white dark:bg-slate-600" required />
+                            <input name="evaluationYear" value={evaluationYear} onChange={(e) => setEvaluationYear(e.target.value)} className="w-full p-2 border rounded-md bg-white dark:bg-slate-600" required />
                         </div>
                     </div>
                 </div>

@@ -25,6 +25,7 @@ const DetailsModal: React.FC<DetailsModalProps> = ({ isOpen, onClose, title, dat
   if (!isOpen) return null;
 
   let headers: string[] = [];
+  // FIX: Changed JSX.Element[] to React.ReactElement[] to resolve 'Cannot find namespace JSX' error.
   let bodyContent: React.ReactElement[] = [];
 
   switch(mode) {

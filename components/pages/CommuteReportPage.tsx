@@ -140,6 +140,7 @@ const CommuteReportPage: React.FC = () => {
     const hourlyBackupRef = useRef<HTMLInputElement>(null);
 
     const filterOptions = useMemo(() => {
+        // FIX: Explicitly cast sort callback arguments to string to fix 'localeCompare does not exist on type unknown' error.
         const departments = [...new Set(commutingMembers.map(m => m.department).filter(Boolean))].sort((a,b) => String(a).localeCompare(String(b), 'fa'));
         const positions = [...new Set(commutingMembers.map(m => m.position).filter(Boolean))].sort((a,b) => String(a).localeCompare(String(b), 'fa'));
         return { departments, positions };
@@ -653,35 +654,36 @@ const CommuteReportPage: React.FC = () => {
         setBackupStatus({ type: 'info', message: 'در حال آماده سازی فایل پشتیبان...'});
         try {
             const reportType = type === 'daily' ? 'general' : 'hourly';
-            const response = await fetch(`/api/commute-logs?report=${reportType}&pageSize=100000`);
+            const response = await fetch(`/api/commute-logs?report=${reportType}`);
             if (!response.ok) throw new Error((await response.json()).error || 'خطا در دریافت داده‌ها');
             const data = await response.json();
             const rows = data.reports || [];
             
-            let dataToExport, fileName;
+            let headers, dataToExport, fileName;
 
             if (type === 'daily') {
+                headers = ['personnel_code', 'guard_name', 'entry_time', 'exit_time'];
                 dataToExport = rows.map((r: CommuteReportRow) => ({
-                    'کد پرسنلی': r.personnel_code,
-                    'نام کامل': r.full_name,
-                    'نام نگهبان': r.guard_name,
-                    'زمان ورود': r.entry_time,
-                    'زمان خروج': r.exit_time,
+                    personnel_code: r.personnel_code,
+                    guard_name: r.guard_name,
+                    entry_time: r.entry_time,
+                    exit_time: r.exit_time
                 }));
                 fileName = 'Daily_Commute_Backup.xlsx';
             } else {
+                headers = ['personnel_code', 'full_name', 'guard_name', 'exit_time', 'entry_time', 'reason'];
                  dataToExport = rows.map((r: HourlyCommuteReportRow) => ({
-                    'کد پرسنلی': r.personnel_code,
-                    'نام کامل': r.full_name,
-                    'نام نگهبان': r.guard_name,
-                    'زمان خروج': r.exit_time,
-                    'زمان ورود': r.entry_time,
-                    'دلیل': r.reason,
+                    personnel_code: r.personnel_code,
+                    full_name: r.full_name,
+                    guard_name: r.guard_name,
+                    exit_time: r.exit_time,
+                    entry_time: r.entry_time,
+                    reason: r.reason,
                 }));
                 fileName = 'Hourly_Commute_Backup.xlsx';
             }
 
-            const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+            const worksheet = XLSX.utils.json_to_sheet(dataToExport, { header: headers });
             const workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, 'Backup');
             XLSX.writeFile(workbook, fileName);
@@ -703,35 +705,15 @@ const CommuteReportPage: React.FC = () => {
         const reader = new FileReader();
         reader.onload = async (event) => {
             try {
-                const workbook = XLSX.read(new Uint8Array(event.target?.result as ArrayBuffer), { type: 'array', cellDates: true });
+                const workbook = XLSX.read(new Uint8Array(event.target?.result as ArrayBuffer), { type: 'array' });
                 const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-
-                let mappedData;
-
-                if (type === 'daily') {
-                    mappedData = json.map((row: any) => ({
-                        personnel_code: row['کد پرسنلی'],
-                        guard_name: row['نام نگهبان'],
-                        entry_time: row['زمان ورود'],
-                        exit_time: row['زمان خروج'],
-                    }));
-                } else { // hourly
-                    mappedData = json.map((row: any) => ({
-                        personnel_code: row['کد پرسنلی'],
-                        full_name: row['نام کامل'],
-                        guard_name: row['نام نگهبان'],
-                        exit_time: row['زمان خروج'],
-                        entry_time: row['زمان ورود'],
-                        reason: row['دلیل'],
-                    }));
-                }
 
                 const url = type === 'daily' ? '/api/commute-logs' : '/api/commute-logs?entity=hourly';
                 
                 const response = await fetch(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(mappedData)
+                    body: JSON.stringify(json)
                 });
                 
                 const data = await response.json();
