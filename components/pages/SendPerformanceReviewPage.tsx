@@ -93,22 +93,50 @@ const SendPerformanceReviewPage: React.FC = () => {
 
     const totals = useMemo(() => {
         // FIX: Added explicit types to reduce callback arguments to resolve "Operator '+' cannot be applied to types 'unknown' and 'unknown'".
-        const total_score_functional = Object.values(formData.scores_functional).reduce((sum: number, val: number) => sum + val, 0);
-        const total_score_behavioral = Object.values(formData.scores_behavioral).reduce((sum: number, val: number) => sum + val, 0);
-        const total_score_ethical = Object.values(formData.scores_ethical).reduce((sum: number, val: number) => sum + val, 0);
+        const total_score_functional = Object.values(formData.scores_functional).reduce((sum: number, val: number) => sum + (val || 0), 0);
+        const total_score_behavioral = Object.values(formData.scores_behavioral).reduce((sum: number, val: number) => sum + (val || 0), 0);
+        const total_score_ethical = Object.values(formData.scores_ethical).reduce((sum: number, val: number) => sum + (val || 0), 0);
         const overall_score = total_score_functional + total_score_behavioral + total_score_ethical;
         return { total_score_functional, total_score_behavioral, total_score_ethical, overall_score };
     }, [formData.scores_functional, formData.scores_behavioral, formData.scores_ethical]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!personnelInfo.personnelCode || !personnelInfo.fullName) {
-            setStatus({ type: 'error', message: 'لطفاً نام کامل و کد پرسنلی را وارد کنید.' });
-            return;
+        
+        // Field validations
+        const fieldsToValidate = [
+            { value: personnelInfo.fullName, label: 'نام و نام خانوادگی' },
+            { value: personnelInfo.personnelCode, label: 'کد پرسنلی' },
+            { value: personnelInfo.department, label: 'واحد' },
+            { value: evaluationYear, label: 'سال ارزیابی' },
+            { value: formData.reviewer_comment, label: 'نظر ارزیابی شونده' },
+            { value: formData.strengths, label: 'نقاط قوت' },
+            { value: formData.weaknesses_and_improvements, label: 'نقاط ضعف و بهبود' },
+            { value: formData.supervisor_suggestions, label: 'پیشنهادات سرپرست' },
+            { value: formData.reviewer_name_and_signature, label: 'ارزیابی کننده (مسئول مستقیم)' },
+            { value: formData.supervisor_signature, label: 'تایید کننده (سرپرست مستقیم)' },
+            { value: formData.manager_signature, label: 'تایید کننده نهایی (مدیر عامل)' },
+        ];
+
+        for (const field of fieldsToValidate) {
+            if (!field.value || field.value.trim() === '') {
+                setStatus({ type: 'error', message: `لطفاً فیلد "${field.label}" را تکمیل کنید.` });
+                return;
+            }
         }
-        if (!evaluationYear) {
-            setStatus({ type: 'error', message: 'لطفاً سال ارزیابی را مشخص کنید.' });
-            return;
+        
+        // Scoring sections validation
+        const scoringSections = [
+            { answered: Object.keys(formData.scores_functional).length, total: performanceReviewConfig.functional.length, name: 'عوامل عملکردی' },
+            { answered: Object.keys(formData.scores_behavioral).length, total: performanceReviewConfig.behavioral.length, name: 'معیارهای رفتاری' },
+            { answered: Object.keys(formData.scores_ethical).length, total: performanceReviewConfig.ethical.length, name: 'معیارهای اخلاقی' },
+        ];
+
+        for (const section of scoringSections) {
+            if (section.answered < section.total) {
+                setStatus({ type: 'error', message: `لطفاً به تمام سوالات بخش "${section.name}" پاسخ دهید (${toPersianDigits(section.answered)} از ${toPersianDigits(section.total)}).` });
+                return;
+            }
         }
 
         setIsSubmitting(true);
@@ -183,6 +211,7 @@ const SendPerformanceReviewPage: React.FC = () => {
                                         checked={formData[`scores_${category}`][item.id] === score.value}
                                         onChange={() => handleScoreChange(category, item.id, score.value)}
                                         className="w-5 h-5 accent-blue-600"
+                                        required
                                     />
                                 </td>
                             ))}
@@ -226,7 +255,7 @@ const SendPerformanceReviewPage: React.FC = () => {
                         </div>
                         <div>
                             <label className="font-semibold block mb-1 text-sm text-slate-700 dark:text-slate-200">واحد:</label>
-                            <select name="department" value={personnelInfo.department} onChange={handlePersonnelInfoChange} className="w-full p-2 border rounded-md bg-white dark:bg-slate-600" disabled={personnelLoading}>
+                            <select name="department" value={personnelInfo.department} onChange={handlePersonnelInfoChange} className="w-full p-2 border rounded-md bg-white dark:bg-slate-600" disabled={personnelLoading} required>
                                 <option value="">انتخاب واحد</option>
                                 {departments.map(d => <option key={d} value={d}>{d}</option>)}
                             </select>
@@ -270,34 +299,34 @@ const SendPerformanceReviewPage: React.FC = () => {
 
                 <div className="space-y-4">
                     <div>
-                        <label className="font-semibold block mb-1">نظر ارزیابی شونده (در صورت نیاز / کسب امتیاز کمتر از ۵۰):</label>
-                        <textarea name="reviewer_comment" value={formData.reviewer_comment} onChange={handleTextChange} className="w-full p-2 border rounded-md min-h-[100px] bg-slate-50 dark:bg-slate-700/50"></textarea>
+                        <label className="font-semibold block mb-1">نظر ارزیابی شونده:</label>
+                        <textarea name="reviewer_comment" value={formData.reviewer_comment} onChange={handleTextChange} className="w-full p-2 border rounded-md min-h-[100px] bg-slate-50 dark:bg-slate-700/50" required></textarea>
                     </div>
                     <div>
                         <label className="font-semibold block mb-1">خلاصه مطالب مورد مذاکره در جلسه گفت و گو با مصاحبه پایان دوره:</label>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label className="text-sm font-semibold block mb-1">نقاط قوت عملکرد و شیوه های تقویت آن:</label>
-                                <textarea name="strengths" value={formData.strengths} onChange={handleTextChange} className="w-full p-2 border rounded-md min-h-[120px] bg-slate-50 dark:bg-slate-700/50"></textarea>
+                                <textarea name="strengths" value={formData.strengths} onChange={handleTextChange} className="w-full p-2 border rounded-md min-h-[120px] bg-slate-50 dark:bg-slate-700/50" required></textarea>
                             </div>
                             <div>
                                 <label className="text-sm font-semibold block mb-1">نقاط ضعف عملکرد و راههای اصلاح و بهبود آن:</label>
-                                <textarea name="weaknesses_and_improvements" value={formData.weaknesses_and_improvements} onChange={handleTextChange} className="w-full p-2 border rounded-md min-h-[120px] bg-slate-50 dark:bg-slate-700/50"></textarea>
+                                <textarea name="weaknesses_and_improvements" value={formData.weaknesses_and_improvements} onChange={handleTextChange} className="w-full p-2 border rounded-md min-h-[120px] bg-slate-50 dark:bg-slate-700/50" required></textarea>
                             </div>
                         </div>
                     </div>
                     <div>
                         <label className="font-semibold block mb-1">پیشنهادات سرپرست مستقیم در مورد همکار با توجه به نتیجه ارزشیابی و رعایت مقررات مربوط و ذکر آموزش های مورد نیاز در این خصوص:</label>
-                        <textarea name="supervisor_suggestions" value={formData.supervisor_suggestions} onChange={handleTextChange} className="w-full p-2 border rounded-md min-h-[100px] bg-slate-50 dark:bg-slate-700/50"></textarea>
+                        <textarea name="supervisor_suggestions" value={formData.supervisor_suggestions} onChange={handleTextChange} className="w-full p-2 border rounded-md min-h-[100px] bg-slate-50 dark:bg-slate-700/50" required></textarea>
                     </div>
                 </div>
                 
                 <div className="border rounded-lg p-4 bg-slate-50 dark:bg-slate-700/50">
                     <h3 className="text-lg font-bold mb-4">تایید و امضاء</h3>
                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div><label className="text-sm">ارزیابی کننده (مسئول مستقیم):</label><input name="reviewer_name_and_signature" value={formData.reviewer_name_and_signature} onChange={handleTextChange} className="w-full p-2 border rounded-md mt-1" /></div>
-                        <div><label className="text-sm">تایید کننده (سرپرست مستقیم):</label><input name="supervisor_signature" value={formData.supervisor_signature} onChange={handleTextChange} className="w-full p-2 border rounded-md mt-1" /></div>
-                        <div><label className="text-sm">تایید کننده نهایی (مدیر عامل):</label><input name="manager_signature" value={formData.manager_signature} onChange={handleTextChange} className="w-full p-2 border rounded-md mt-1" /></div>
+                        <div><label className="text-sm">ارزیابی کننده (مسئول مستقیم):</label><input name="reviewer_name_and_signature" value={formData.reviewer_name_and_signature} onChange={handleTextChange} className="w-full p-2 border rounded-md mt-1" required /></div>
+                        <div><label className="text-sm">تایید کننده (سرپرست مستقیم):</label><input name="supervisor_signature" value={formData.supervisor_signature} onChange={handleTextChange} className="w-full p-2 border rounded-md mt-1" required /></div>
+                        <div><label className="text-sm">تایید کننده نهایی (مدیر عامل):</label><input name="manager_signature" value={formData.manager_signature} onChange={handleTextChange} className="w-full p-2 border rounded-md mt-1" required /></div>
                      </div>
                 </div>
 

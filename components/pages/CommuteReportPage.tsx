@@ -618,7 +618,7 @@ const CommuteReportPage: React.FC = () => {
         reader.readAsArrayBuffer(file);
     };
 
-    // ... (rest of the component render logic)
+    return <div>Rest of JSX...</div>;
 };
 
 export default CommuteReportPage;
