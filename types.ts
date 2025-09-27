@@ -208,4 +208,6 @@ export interface PerformanceReview {
   reviewer_name_and_signature: string;
   supervisor_signature: string;
   manager_signature: string;
+  submitted_by_user?: string;
+  department?: string;
 }

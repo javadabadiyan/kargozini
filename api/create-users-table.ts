@@ -252,6 +252,15 @@ export default async function handler(
     }
     
     try {
+        await client.sql`ALTER TABLE performance_reviews ADD COLUMN IF NOT EXISTS submitted_by_user VARCHAR(255);`;
+        messages.push('ستون "submitted_by_user" در جدول "performance_reviews" تایید یا اضافه شد.');
+        await client.sql`ALTER TABLE performance_reviews ADD COLUMN IF NOT EXISTS department VARCHAR(100);`;
+        messages.push('ستون "department" در جدول "performance_reviews" تایید یا اضافه شد.');
+    } catch (e: any) {
+         messages.push(`هشدار هنگام افزودن ستون‌های ارزیابی عملکرد: ${e.message}`);
+    }
+
+    try {
         await client.sql`ALTER TABLE personnel ADD COLUMN IF NOT EXISTS birth_year VARCHAR(10);`;
         messages.push('ستون "birth_year" در جدول "personnel" تایید یا اضافه شد.');
     } catch (e: any) {

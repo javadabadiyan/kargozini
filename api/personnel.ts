@@ -1,6 +1,6 @@
 import { createPool, VercelPool, VercelPoolClient } from '@vercel/postgres';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import type { Personnel, Dependent, CommutingMember, DisciplinaryRecord } from '../types';
+import type { Personnel, Dependent, CommutingMember, DisciplinaryRecord, PerformanceReview } from '../types';
 
 // --- Type Aliases for Payloads ---
 type NewPersonnel = Omit<Personnel, 'id'>;
@@ -309,8 +309,9 @@ async function handlePutJobGroupInfo(request: VercelRequest, response: VercelRes
 
   const query = `UPDATE personnel SET ${updateFields.join(', ')} WHERE id = $${updateValues.length} RETURNING *;`;
   
-  // FIX: Cast `updateValues` to `any[]` to resolve TypeScript error on line 260. The underlying pg driver correctly handles number and null types in the values array.
-  const { rows } = await (pool as any).query(query, updateValues as any[]);
+  // FIX: Removed unnecessary cast on `updateValues`. The cast on `pool` to `any`
+  // is sufficient for the database driver to handle mixed-type parameter arrays.
+  const { rows } = await (pool as any).query(query, updateValues);
 
   if (rows.length === 0) return response.status(404).json({ error: 'رکورد یافت نشد.'});
   return response.status(200).json({ message: 'اطلاعات به‌روزرسانی شد.', record: rows[0] });
@@ -814,7 +815,7 @@ async function handleGetPerformanceReviews(request: VercelRequest, response: Ver
 }
 
 async function handlePostPerformanceReview(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
-    const r = request.body;
+    const r = request.body as PerformanceReview;
     if (!r || !r.personnel_code) {
         return response.status(400).json({ error: 'کد پرسنلی الزامی است.' });
     }
@@ -824,13 +825,15 @@ async function handlePostPerformanceReview(request: VercelRequest, response: Ver
             scores_functional, scores_behavioral, scores_ethical,
             total_score_functional, total_score_behavioral, total_score_ethical,
             overall_score, reviewer_comment, strengths, weaknesses_and_improvements,
-            supervisor_suggestions, reviewer_name_and_signature, supervisor_signature, manager_signature
+            supervisor_suggestions, reviewer_name_and_signature, supervisor_signature, manager_signature,
+            submitted_by_user, department
         ) VALUES (
             ${r.personnel_code}, ${r.review_period_start}, ${r.review_period_end},
             ${JSON.stringify(r.scores_functional)}, ${JSON.stringify(r.scores_behavioral)}, ${JSON.stringify(r.scores_ethical)},
             ${r.total_score_functional}, ${r.total_score_behavioral}, ${r.total_score_ethical},
             ${r.overall_score}, ${r.reviewer_comment}, ${r.strengths}, ${r.weaknesses_and_improvements},
-            ${r.supervisor_suggestions}, ${r.reviewer_name_and_signature}, ${r.supervisor_signature}, ${r.manager_signature}
+            ${r.supervisor_suggestions}, ${r.reviewer_name_and_signature}, ${r.supervisor_signature}, ${r.manager_signature},
+            ${r.submitted_by_user || null}, ${r.department || null}
         ) RETURNING *;
     `;
     return response.status(201).json({ message: 'ارزیابی با موفقیت ثبت شد.', review: rows[0] });
