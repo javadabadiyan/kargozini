@@ -384,7 +384,7 @@ const AccountingCommitmentPage: React.FC = () => {
             return acc;
         }, {} as Record<string, { guarantor_personnel_code: string; guarantor_name: string; letterCount: number; totalAmount: number; letters: CommitmentLetter[] }>);
 
-        return Object.values(summary).sort((a, b) => b.totalAmount - a.totalAmount);
+        return Object.values(summary).sort((a: any, b: any) => b.totalAmount - a.totalAmount);
     }, [archivedLetters]);
 
      const paginatedGuarantorSummary = useMemo(() => {

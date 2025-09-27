@@ -21,7 +21,7 @@ const AnimatedDigit: React.FC<{ digit: string; hasChanged: boolean }> = memo(({ 
   );
 });
 
-const Clock: React.FC<{isMobile?: boolean}> = ({ isMobile = false }) => {
+const Clock: React.FC<{size?: 'sm' | 'md' | 'lg'}> = ({ size = 'lg' }) => {
     const [timeString, setTimeString] = useState('');
     const previousTimeRef = useRef('');
 
@@ -50,10 +50,12 @@ const Clock: React.FC<{isMobile?: boolean}> = ({ isMobile = false }) => {
     const formattedTime = toPersianDigits(timeString);
     const previousFormattedTime = toPersianDigits(previousTimeRef.current);
     
-    const textSize = isMobile ? 'text-5xl' : 'text-6xl';
+    const textSize = size === 'lg' ? 'text-6xl' : size === 'md' ? 'text-5xl' : 'text-xl';
+    const justification = size === 'lg' ? 'justify-end' : 'justify-center';
+    const marginBottom = size === 'sm' ? 'mb-1' : 'mb-4';
 
     return (
-        <div className={`mb-4 flex ${isMobile ? 'justify-center' : 'justify-end'} text-slate-700 dark:text-slate-200`}>
+        <div className={`${marginBottom} flex ${justification} text-slate-700 dark:text-slate-200`}>
             <div className={`${textSize} font-bold tracking-widest font-orbitron`} dir="ltr" style={{ textShadow: '0 0 10px rgba(71, 145, 255, 0.4)' }}>
                 {formattedTime.split('').map((char, index) => {
                     const hasChanged = formattedTime[index] !== previousFormattedTime[index];
@@ -92,8 +94,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
         <div className="grid grid-cols-1 items-center gap-12 md:grid-cols-2">
           
           <div className="hidden md:block text-right space-y-6">
-             <Clock />
-             <div className="flex items-center justify-end gap-3">
+             <div className="flex items-center justify-end gap-3 pt-20">
                <h1 className="text-5xl font-extrabold bg-gradient-to-r from-blue-600 to-indigo-500 bg-clip-text text-transparent dark:from-sky-400 dark:to-blue-500">
                  سیستم جامع کارگزینی
                </h1>
@@ -108,9 +109,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
 
           <div className="w-full max-w-md p-8 space-y-8 bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 mx-auto">
             <div className="text-center">
-               <div className="md:hidden">
-                 <Clock isMobile={true}/>
-               </div>
                <div className="flex items-center justify-center gap-3 mb-4 md:hidden">
                  <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-500 bg-clip-text text-transparent dark:from-sky-400 dark:to-blue-500">
                    سیستم جامع کارگزینی
@@ -170,6 +168,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
         </div>
       </main>
       <footer className="absolute bottom-4 text-center w-full z-10">
+        <Clock size="sm" />
         <p className="text-sm text-slate-500 dark:text-slate-400">طراح و کدنویسی جواد آبادیان</p>
       </footer>
     </div>
