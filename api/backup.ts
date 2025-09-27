@@ -6,6 +6,7 @@ const TABLES_IN_ORDER = [
     'commuting_members',
     'dependents',
     'app_users',
+    'permission_roles',
     'commute_logs',
     'hourly_commute_logs',
     'commute_edit_logs',
@@ -27,7 +28,8 @@ const TABLE_COLUMNS: Record<string, string[]> = {
       'birth_date', 'gender', 'birth_month', 'birth_day', 'id_number', 
       'national_id', 'guardian_national_id', 'issue_place', 'insurance_type'
     ],
-    app_users: ['username', 'password', 'permissions'],
+    app_users: ['username', 'password', 'permissions', 'full_name', 'national_id'],
+    permission_roles: ['role_name', 'permissions'],
     commute_logs: ['personnel_code', 'guard_name', 'entry_time', 'exit_time', 'created_at', 'updated_at'],
     hourly_commute_logs: [
       'personnel_code', 'full_name', 'guard_name', 'exit_time', 'entry_time', 

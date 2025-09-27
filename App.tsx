@@ -6,6 +6,7 @@ import type { UserPermissions } from './types';
 interface CurrentUser {
   username: string;
   permissions: UserPermissions;
+  full_name?: string;
 }
 
 const App: React.FC = () => {
@@ -33,6 +34,7 @@ const App: React.FC = () => {
         const userData: CurrentUser = {
           username: data.user.username,
           permissions: data.user.permissions,
+          full_name: data.user.full_name,
         };
         sessionStorage.setItem('currentUser', JSON.stringify(userData));
         setCurrentUser(userData);

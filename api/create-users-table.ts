@@ -20,7 +20,6 @@ export default async function handler(
   const messages: string[] = [];
   try {
     // --- Phase 1: Critical schema setup in a single transaction ---
-    // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
     await client.sql`BEGIN`;
 
     // Create personnel table
@@ -143,6 +142,15 @@ export default async function handler(
     messages.push('جدول "app_users" با موفقیت ایجاد یا تایید شد.');
 
     await client.sql`
+      CREATE TABLE IF NOT EXISTS permission_roles (
+        id SERIAL PRIMARY KEY,
+        role_name VARCHAR(100) UNIQUE NOT NULL,
+        permissions JSONB NOT NULL
+      );
+    `;
+    messages.push('جدول "permission_roles" با موفقیت ایجاد یا تایید شد.');
+
+    await client.sql`
       CREATE TABLE IF NOT EXISTS personnel_documents (
         id SERIAL PRIMARY KEY,
         personnel_code VARCHAR(50) NOT NULL,
@@ -214,12 +222,18 @@ export default async function handler(
     `;
     messages.push('جدول "performance_reviews" با موفقیت ایجاد یا تایید شد.');
 
-    // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
     await client.sql`COMMIT`;
     messages.push('تراکنش اصلی ایجاد جداول با موفقیت انجام شد.');
 
     // --- Phase 2: Add optional/backward-compatibility columns individually ---
-    // This makes the setup process more resilient to pre-existing conditions.
+    try {
+        await client.sql`ALTER TABLE app_users ADD COLUMN IF NOT EXISTS full_name VARCHAR(255);`;
+        messages.push('ستون "full_name" در جدول "app_users" تایید یا اضافه شد.');
+        await client.sql`ALTER TABLE app_users ADD COLUMN IF NOT EXISTS national_id VARCHAR(20);`;
+        messages.push('ستون "national_id" در جدول "app_users" تایید یا اضافه شد.');
+    } catch (e: any) {
+        messages.push(`هشدار هنگام افزودن ستون‌های کاربر: ${e.message}`);
+    }
     try {
         await client.sql`ALTER TABLE personnel ADD COLUMN IF NOT EXISTS hire_month VARCHAR(20);`;
         messages.push('ستون "hire_month" در جدول "personnel" تایید یا اضافه شد.');
@@ -300,8 +314,6 @@ export default async function handler(
 
 
     // --- Phase 3: Create triggers, indexes, and default data ---
-    // This is also in a transaction for atomicity.
-    // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
     await client.sql`BEGIN`;
 
     await client.sql`CREATE INDEX IF NOT EXISTS dependents_personnel_code_idx ON dependents (personnel_code);`;
@@ -373,22 +385,20 @@ export default async function handler(
     });
 
     await client.sql`
-      INSERT INTO app_users (username, password, permissions) VALUES
-      ('ادمین', '5221157', ${adminPermissions})
+      INSERT INTO app_users (username, password, permissions, full_name) VALUES
+      ('ادمین', '5221157', ${adminPermissions}, 'کاربر مدیر')
       ON CONFLICT (username) DO UPDATE SET permissions = ${adminPermissions};
     `;
     await client.sql`
-      INSERT INTO app_users (username, password, permissions) VALUES
-      ('نگهبانی', '123456789', ${guardPermissions})
-      ON CONFLICT (username) DO UPDATE SET password = '123456789', permissions = ${guardPermissions};
+      INSERT INTO app_users (username, password, permissions, full_name) VALUES
+      ('نگهبانی', '123456789', ${guardPermissions}, 'کاربر نگهبانی')
+      ON CONFLICT (username) DO UPDATE SET password = '123456789', permissions = ${guardPermissions}, full_name = 'کاربر نگهبانی';
     `;
     messages.push('کاربران پیش‌فرض "ادمین" و "نگهبانی" ایجاد یا به‌روزرسانی شدند.');
 
-    // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
     await client.sql`COMMIT`;
 
     // --- Phase 4: Optional performance enhancements ---
-    // This runs last and outside a transaction, so its failure doesn't affect the core setup.
     try {
         await client.sql`CREATE EXTENSION IF NOT EXISTS pg_trgm;`;
         messages.push('افزونه "pg_trgm" برای جستجوی سریع فعال شد.');
@@ -403,7 +413,6 @@ export default async function handler(
     return response.status(200).json({ message: 'عملیات راه‌اندازی پایگاه داده با موفقیت انجام شد.', details: messages });
   
   } catch (error) {
-    // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
     await client.sql`ROLLBACK`.catch((rbError: any) => console.error('Rollback failed:', rbError));
     console.error('Database setup failed:', error);
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';

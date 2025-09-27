@@ -24,7 +24,7 @@ export default async function handler(
     }
 
     const { rows } = await pool.sql`
-      SELECT id, username, password, permissions 
+      SELECT id, username, password, permissions, full_name 
       FROM app_users 
       WHERE username = ${username};
     `;

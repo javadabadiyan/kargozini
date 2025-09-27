@@ -17,6 +17,14 @@ export interface AppUser {
   username: string;
   password?: string; // Only for sending to API, not for receiving
   permissions: UserPermissions;
+  full_name?: string;
+  national_id?: string;
+}
+
+export interface PermissionRole {
+  id: number;
+  role_name: string;
+  permissions: UserPermissions;
 }
 
 export interface Personnel {

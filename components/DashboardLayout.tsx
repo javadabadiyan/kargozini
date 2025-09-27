@@ -7,6 +7,7 @@ import { ALL_MENU_ITEMS } from './menuConfig';
 interface CurrentUser {
   username: string;
   permissions: UserPermissions;
+  full_name?: string;
 }
 
 interface DashboardLayoutProps {
@@ -85,7 +86,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ onLogout, user }) => 
          ></div>
       )}
       <main className="flex-1 flex flex-col overflow-y-auto overflow-x-hidden">
-        <Header onLogout={onLogout} onMenuClick={toggleSidebar} username={user.username} />
+        <Header onLogout={onLogout} onMenuClick={toggleSidebar} userFullName={user.full_name || user.username} />
         <div className="p-4 sm:p-6 flex-1">
             <ActivePage />
         </div>

@@ -56,7 +56,7 @@ const Clock: React.FC<{size?: 'sm' | 'md' | 'lg'}> = ({ size = 'lg' }) => {
 
     return (
         <div className={`${marginBottom} flex ${justification} text-slate-700 dark:text-slate-200`}>
-            <div className={`${textSize} font-bold tracking-widest font-orbitron`} dir="ltr" style={{ textShadow: '0 0 10px rgba(71, 145, 255, 0.4)' }}>
+            <div className={`${textSize} font-bold tracking-widest`} dir="ltr" style={{ textShadow: '0 0 10px rgba(71, 145, 255, 0.4)' }}>
                 {formattedTime.split('').map((char, index) => {
                     const hasChanged = formattedTime[index] !== previousFormattedTime[index];
                     return char === ':' ?
