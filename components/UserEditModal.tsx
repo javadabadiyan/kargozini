@@ -4,7 +4,8 @@ import type { AppUser, UserPermissions } from '../types';
 interface UserEditModalProps {
   user: AppUser | null;
   onClose: () => void;
-  onSave: (user: AppUser) => Promise<void>;
+  // FIX: The onSave handler in SettingsPage accepts a Partial<AppUser>. The type is updated to match.
+  onSave: (user: Partial<AppUser>) => Promise<void>;
 }
 
 const PERMISSION_KEYS: { key: keyof UserPermissions, label: string }[] = [
@@ -115,7 +116,8 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, onClose, onSave }) 
     }
     setIsSaving(true);
     try {
-      await onSave(formData as AppUser);
+      // FIX: The internal state is Partial<AppUser>, so the cast is removed to align with the prop type change.
+      await onSave(formData);
     } finally {
       setIsSaving(false);
     }
