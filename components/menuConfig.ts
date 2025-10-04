@@ -15,8 +15,8 @@ import DisciplinaryCommitteePage from './pages/DisciplinaryCommitteePage';
 import JobGroupPage from './pages/JobGroupPage';
 import SendPerformanceReviewPage from './pages/SendPerformanceReviewPage';
 import ArchivePerformanceReviewPage from './pages/ArchivePerformanceReviewPage';
+import EnterBonusPage from './pages/EnterBonusPage';
 
-const EnterBonusPage: React.FC = () => React.createElement(PlaceholderPage, { title: "وارد کردن کارانه" });
 const BonusAnalyzerPage: React.FC = () => React.createElement(PlaceholderPage, { title: "تحلیلگر هوشمند کارانه" });
 
 export const ALL_MENU_ITEMS: MenuItem[] = [

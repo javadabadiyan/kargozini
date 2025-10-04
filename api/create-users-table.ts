@@ -222,6 +222,20 @@ export default async function handler(
     `;
     messages.push('جدول "performance_reviews" با موفقیت ایجاد یا تایید شد.');
 
+    await client.sql`
+      CREATE TABLE IF NOT EXISTS bonuses (
+        id SERIAL PRIMARY KEY,
+        personnel_code VARCHAR(50) NOT NULL,
+        "year" INTEGER NOT NULL,
+        bonuses JSONB,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (personnel_code, "year"),
+        CONSTRAINT fk_personnel_bonus FOREIGN KEY(personnel_code) REFERENCES personnel(personnel_code) ON DELETE CASCADE
+      );
+    `;
+    messages.push('جدول "bonuses" با موفقیت ایجاد یا تایید شد.');
+
     await client.sql`COMMIT`;
     messages.push('تراکنش اصلی ایجاد جداول با موفقیت انجام شد.');
 
@@ -330,6 +344,7 @@ export default async function handler(
     await client.sql`CREATE INDEX IF NOT EXISTS personnel_last_first_name_idx ON personnel (last_name, first_name);`;
     await client.sql`CREATE INDEX IF NOT EXISTS commitment_letters_guarantor_code_idx ON commitment_letters (guarantor_personnel_code);`;
     await client.sql`CREATE INDEX IF NOT EXISTS performance_reviews_personnel_code_idx ON performance_reviews (personnel_code);`;
+    await client.sql`CREATE INDEX IF NOT EXISTS bonuses_personnel_code_year_idx ON bonuses (personnel_code, "year");`;
     messages.push('ایندکس‌های ضروری برای جستجوی سریع ایجاد شدند.');
 
     await (client as any).query(`
@@ -357,7 +372,16 @@ export default async function handler(
         FOR EACH ROW
         EXECUTE FUNCTION update_updated_at_column();
     `);
-    messages.push('تریگرهای به‌روزرسانی خودکار برای جداول تردد ایجاد شدند.');
+
+    await (client as any).query(`
+        DROP TRIGGER IF EXISTS update_bonuses_updated_at ON bonuses;
+        CREATE TRIGGER update_bonuses_updated_at
+        BEFORE UPDATE ON bonuses
+        FOR EACH ROW
+        EXECUTE FUNCTION update_updated_at_column();
+    `);
+
+    messages.push('تریگرهای به‌روزرسانی خودکار برای جداول تردد و کارانه ایجاد شدند.');
     
     const adminPermissions = JSON.stringify({
       dashboard: true,

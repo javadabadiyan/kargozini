@@ -303,7 +303,7 @@ async function handlePutJobGroupInfo(request: VercelRequest, response: VercelRes
 
   const query = `UPDATE personnel SET ${updateFields.join(', ')} WHERE id = $${updateValues.length} RETURNING *;`;
   
-  // FIX: FIX: Removed incorrect `as string[]` cast. The database driver can handle
+  // FIX: Removed incorrect `as string[]` cast. The database driver can handle
   // the (string | number | null)[] type for parameter arrays.
   const { rows } = await (pool as any).query(query, updateValues);
 
@@ -858,6 +858,72 @@ async function handleDeletePerformanceReview(request: VercelRequest, response: V
 }
 
 // =================================================================================
+// BONUS HANDLERS
+// =================================================================================
+async function handleGetBonuses(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+    const { year } = request.query;
+    if (!year || typeof year !== 'string') {
+        return response.status(400).json({ error: 'سال برای دریافت اطلاعات کارانه الزامی است.' });
+    }
+
+    try {
+        const { rows } = await pool.sql`
+            SELECT 
+                p.personnel_code,
+                p.first_name,
+                p.last_name,
+                p."position",
+                p.department,
+                b.bonuses
+            FROM personnel p
+            LEFT JOIN bonuses b ON p.personnel_code = b.personnel_code AND b."year" = ${parseInt(year)}
+            ORDER BY p.last_name, p.first_name;
+        `;
+        return response.status(200).json({ bonuses: rows });
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return response.status(500).json({ error: 'Failed to fetch bonus data.', details: errorMessage });
+    }
+}
+
+async function handlePostBonuses(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+    const { year, month, data } = request.body;
+    if (!year || !month || !Array.isArray(data) || data.length === 0) {
+        return response.status(400).json({ error: 'اطلاعات ارسالی برای ثبت کارانه ناقص یا نامعتبر است.' });
+    }
+
+    const client = await pool.connect();
+    try {
+        await client.sql`BEGIN`;
+        for (const record of data) {
+            const { personnel_code, bonus_value } = record;
+            if (!personnel_code || bonus_value === undefined || bonus_value === null) continue;
+
+            const bonusValueNumber = Number(bonus_value);
+            if (isNaN(bonusValueNumber)) continue;
+
+            // This query inserts a new record if it doesn't exist for the personnel_code and year.
+            // If it does exist, it merges the new month's bonus into the existing `bonuses` JSONB object.
+            // The `||` operator for JSONB merges objects, overwriting keys if they exist.
+            await client.sql`
+                INSERT INTO bonuses (personnel_code, "year", bonuses)
+                VALUES (${personnel_code}, ${year}, jsonb_build_object(${month}, ${bonusValueNumber}))
+                ON CONFLICT (personnel_code, "year") DO UPDATE
+                SET bonuses = bonuses.bonuses || jsonb_build_object(${month}, ${bonusValueNumber});
+            `;
+        }
+        await client.sql`COMMIT`;
+        return response.status(200).json({ message: `اطلاعات کارانه ماه '${month}' برای ${data.length} نفر با موفقیت ثبت/به‌روزرسانی شد.` });
+    } catch (error) {
+        await client.sql`ROLLBACK`;
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return response.status(500).json({ error: 'Failed to save bonus data.', details: errorMessage });
+    } finally {
+        client.release();
+    }
+}
+
+// =================================================================================
 // MAIN API HANDLER
 // =================================================================================
 export default async function handler(request: VercelRequest, response: VercelResponse) {
@@ -931,7 +997,14 @@ export default async function handler(request: VercelRequest, response: VercelRe
             case 'DELETE': return await handleDeletePerformanceReview(request, response, pool);
             default: response.setHeader('Allow', ['GET', 'POST', 'DELETE']); return response.status(405).end();
         }
+    } else if (type === 'bonuses') {
+        switch (request.method) {
+            case 'GET': return await handleGetBonuses(request, response, pool);
+            case 'POST': return await handlePostBonuses(request, response, pool);
+            default: response.setHeader('Allow', ['GET', 'POST']); return response.status(405).end();
+        }
     }
+
 
     return response.status(400).json({ error: `نوع "${type}" نامعتبر است.` });
   } catch (error) {

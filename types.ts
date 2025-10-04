@@ -211,3 +211,12 @@ export interface PerformanceReview {
   submitted_by_user?: string;
   department?: string;
 }
+
+export interface BonusData {
+    personnel_code: string;
+    first_name: string;
+    last_name: string;
+    position: string | null;
+    department: string | null;
+    bonuses: { [month: string]: number } | null;
+}

@@ -12,7 +12,9 @@ const TABLES_IN_ORDER = [
     'commute_edit_logs',
     'personnel_documents',
     'commitment_letters',
-    'disciplinary_records'
+    'disciplinary_records',
+    'performance_reviews',
+    'bonuses'
 ];
 
 const TABLE_COLUMNS: Record<string, string[]> = {
@@ -45,7 +47,14 @@ const TABLE_COLUMNS: Record<string, string[]> = {
       'guarantor_national_id', 'loan_amount', 'sum_of_decree_factors', 'bank_name', 'branch_name',
       'issue_date', 'reference_number', 'created_at'
     ],
-    disciplinary_records: ['full_name', 'personnel_code', 'meeting_date', 'letter_description', 'final_decision', 'created_at']
+    disciplinary_records: ['full_name', 'personnel_code', 'meeting_date', 'letter_description', 'final_decision', 'created_at'],
+    performance_reviews: [
+        'personnel_code', 'review_period_start', 'review_period_end', 'scores_functional', 'scores_behavioral', 'scores_ethical',
+        'total_score_functional', 'total_score_behavioral', 'total_score_ethical', 'overall_score', 'reviewer_comment', 'strengths',
+        'weaknesses_and_improvements', 'supervisor_suggestions', 'reviewer_name_and_signature', 'supervisor_signature',
+        'manager_signature', 'review_date', 'submitted_by_user', 'department'
+    ],
+    bonuses: ['personnel_code', 'year', 'bonuses', 'created_at', 'updated_at']
 };
 
 // Helper to safely quote all column names
