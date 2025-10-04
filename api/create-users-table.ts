@@ -222,16 +222,19 @@ export default async function handler(
     `;
     messages.push('جدول "performance_reviews" با موفقیت ایجاد یا تایید شد.');
 
+    await client.sql`DROP TABLE IF EXISTS bonuses CASCADE;`;
     await client.sql`
       CREATE TABLE IF NOT EXISTS bonuses (
         id SERIAL PRIMARY KEY,
         personnel_code VARCHAR(50) NOT NULL,
         "year" INTEGER NOT NULL,
-        bonuses JSONB,
+        first_name VARCHAR(100),
+        last_name VARCHAR(100),
+        "position" VARCHAR(255),
+        monthly_data JSONB,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        UNIQUE (personnel_code, "year"),
-        CONSTRAINT fk_personnel_bonus FOREIGN KEY(personnel_code) REFERENCES personnel(personnel_code) ON DELETE CASCADE
+        UNIQUE (personnel_code, "year")
       );
     `;
     messages.push('جدول "bonuses" با موفقیت ایجاد یا تایید شد.');

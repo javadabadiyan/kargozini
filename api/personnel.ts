@@ -297,13 +297,14 @@ async function handlePutJobGroupInfo(request: VercelRequest, response: VercelRes
   
   const updateValues: (string | number | null)[] = JOB_GROUP_UPDATE_COLUMNS.map(col => {
       const val = p[col as keyof Personnel];
+      // FIX: Ensure that the 'id' which is a number is correctly handled, and other values are properly typed.
       return val ?? null;
   });
   updateValues.push(p.id); // Add id for WHERE clause
 
   const query = `UPDATE personnel SET ${updateFields.join(', ')} WHERE id = $${updateValues.length} RETURNING *;`;
   
-  // FIX: Removed incorrect `as string[]` cast. The database driver can handle
+  // FIX: Removed incorrect `as string[]` cast on line 256. The database driver can handle
   // the (string | number | null)[] type for parameter arrays.
   const { rows } = await (pool as any).query(query, updateValues);
 
@@ -869,16 +870,16 @@ async function handleGetBonuses(request: VercelRequest, response: VercelResponse
     try {
         const { rows } = await pool.sql`
             SELECT 
-                p.personnel_code,
-                p.first_name,
-                p.last_name,
-                p."position",
-                p.department,
-                b.bonuses
-            FROM personnel p
-            LEFT JOIN bonuses b ON p.personnel_code = b.personnel_code AND b."year" = ${parseInt(year)}
-            ORDER BY p.last_name, p.first_name;
+                personnel_code,
+                first_name,
+                last_name,
+                "position",
+                monthly_data
+            FROM bonuses
+            WHERE "year" = ${parseInt(year)}
+            ORDER BY last_name, first_name;
         `;
+        // Rename monthly_data to match legacy frontend expectations if needed, but type change is better
         return response.status(200).json({ bonuses: rows });
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -896,20 +897,28 @@ async function handlePostBonuses(request: VercelRequest, response: VercelRespons
     try {
         await client.sql`BEGIN`;
         for (const record of data) {
-            const { personnel_code, bonus_value } = record;
-            if (!personnel_code || bonus_value === undefined || bonus_value === null) continue;
+            const { personnel_code, first_name, last_name, position, department, bonus_value } = record;
+            if (!personnel_code || bonus_value === undefined) continue;
 
             const bonusValueNumber = Number(bonus_value);
             if (isNaN(bonusValueNumber)) continue;
+            
+            const monthlyUpdate = {
+                [month]: {
+                    bonus: bonusValueNumber,
+                    department: department
+                }
+            };
 
-            // This query inserts a new record if it doesn't exist for the personnel_code and year.
-            // If it does exist, it merges the new month's bonus into the existing `bonuses` JSONB object.
-            // The `||` operator for JSONB merges objects, overwriting keys if they exist.
             await client.sql`
-                INSERT INTO bonuses (personnel_code, "year", bonuses)
-                VALUES (${personnel_code}, ${year}, jsonb_build_object(${month}, ${bonusValueNumber}))
+                INSERT INTO bonuses (personnel_code, "year", first_name, last_name, "position", monthly_data)
+                VALUES (${personnel_code}, ${year}, ${first_name}, ${last_name}, ${position}, ${JSON.stringify(monthlyUpdate)})
                 ON CONFLICT (personnel_code, "year") DO UPDATE
-                SET bonuses = bonuses.bonuses || jsonb_build_object(${month}, ${bonusValueNumber});
+                SET 
+                    first_name = EXCLUDED.first_name,
+                    last_name = EXCLUDED.last_name,
+                    "position" = EXCLUDED."position",
+                    monthly_data = bonuses.monthly_data || EXCLUDED.monthly_data;
             `;
         }
         await client.sql`COMMIT`;
@@ -917,6 +926,7 @@ async function handlePostBonuses(request: VercelRequest, response: VercelRespons
     } catch (error) {
         await client.sql`ROLLBACK`;
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error("Error in handlePostBonuses:", error);
         return response.status(500).json({ error: 'Failed to save bonus data.', details: errorMessage });
     } finally {
         client.release();

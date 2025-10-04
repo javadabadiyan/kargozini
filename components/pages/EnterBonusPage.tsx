@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import type { BonusData } from '../../types';
 import { DownloadIcon, UploadIcon, DocumentReportIcon } from '../icons/Icons';
 
@@ -9,10 +9,17 @@ const YEARS = Array.from({ length: 7 }, (_, i) => 1404 + i);
 
 const toPersianDigits = (s: string | number | null | undefined): string => {
     if (s === null || s === undefined) return '';
-    return String(s).replace(/[0-9]/g, (w) => '۰۱۲۳۴۵۶۷۸۹'[parseInt(w, 10)]);
+    const str = String(s);
+    if (typeof s === 'number' && !isNaN(s)) {
+        return s.toLocaleString('fa-IR', { useGrouping: false });
+    }
+    return str.replace(/[0-9]/g, (w) => '۰۱۲۳۴۵۶۷۸۹'[parseInt(w, 10)]);
 };
 
 const EnterBonusPage: React.FC = () => {
+    const currentUser = useMemo(() => JSON.parse(sessionStorage.getItem('currentUser') || '{}'), []);
+    const canView = useMemo(() => currentUser.permissions?.enter_bonus, [currentUser]);
+
     const [selectedYear, setSelectedYear] = useState<number>(YEARS[0]);
     const [selectedMonth, setSelectedMonth] = useState<string>(PERSIAN_MONTHS[0]);
     const [bonusData, setBonusData] = useState<BonusData[]>([]);
@@ -22,6 +29,10 @@ const EnterBonusPage: React.FC = () => {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const fetchBonuses = useCallback(async (year: number) => {
+        if (!canView) {
+            setLoading(false);
+            return;
+        }
         setLoading(true);
         setError(null);
         try {
@@ -37,18 +48,28 @@ const EnterBonusPage: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    }, []);
+    }, [canView]);
 
     useEffect(() => {
         fetchBonuses(selectedYear);
     }, [selectedYear, fetchBonuses]);
+    
+    const getLatestDepartment = (monthlyData: BonusData['monthly_data']): string => {
+        if (!monthlyData) return '---';
+        for (const month of [...PERSIAN_MONTHS].reverse()) {
+            if (monthlyData[month] && monthlyData[month].department) {
+                return monthlyData[month].department;
+            }
+        }
+        return '---';
+    };
 
     const handleDownloadSample = () => {
         if (!selectedMonth) {
             setStatus({ type: 'error', message: 'لطفاً ابتدا یک ماه را برای تهیه فایل نمونه انتخاب کنید.' });
             return;
         }
-        const headers = ['کد پرسنلی', `کارانه ${selectedMonth}`];
+        const headers = ['کد پرسنلی', 'نام', 'نام خانوادگی', 'پست', `واحد ${selectedMonth}`, `کارانه ${selectedMonth}`];
         const ws = XLSX.utils.aoa_to_sheet([headers]);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'نمونه کارانه');
@@ -70,10 +91,15 @@ const EnterBonusPage: React.FC = () => {
                 const workbook = XLSX.read(new Uint8Array(e.target?.result as ArrayBuffer), { type: 'array' });
                 const json: any[] = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
                 
+                const departmentColumnName = `واحد ${selectedMonth}`;
                 const bonusColumnName = `کارانه ${selectedMonth}`;
 
                 const dataToUpload = json.map(row => ({
                     personnel_code: String(row['کد پرسنلی'] || ''),
+                    first_name: String(row['نام'] || ''),
+                    last_name: String(row['نام خانوادگی'] || ''),
+                    position: String(row['پست'] || ''),
+                    department: String(row[departmentColumnName] || ''),
                     bonus_value: row[bonusColumnName],
                 })).filter(item => item.personnel_code && item.bonus_value !== undefined);
                 
@@ -92,10 +118,10 @@ const EnterBonusPage: React.FC = () => {
                 });
 
                 const result = await response.json();
-                if (!response.ok) throw new Error(result.error);
+                if (!response.ok) throw new Error(result.details || result.error);
                 
                 setStatus({ type: 'success', message: result.message });
-                fetchBonuses(selectedYear); // Refresh data
+                fetchBonuses(selectedYear);
 
             } catch (err) {
                  setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در پردازش فایل' });
@@ -108,16 +134,16 @@ const EnterBonusPage: React.FC = () => {
     };
 
     const handleExport = () => {
-        const headers = ['کد پرسنلی', 'نام و نام خانوادگی', 'پست', 'واحد', ...PERSIAN_MONTHS];
+        const headers = ['کد پرسنلی', 'نام و نام خانوادگی', 'پست', 'آخرین واحد', ...PERSIAN_MONTHS];
         const dataToExport = bonusData.map(person => {
             const row: any = {
                 'کد پرسنلی': person.personnel_code,
                 'نام و نام خانوادگی': `${person.first_name} ${person.last_name}`,
                 'پست': person.position || '',
-                'واحد': person.department || '',
+                'آخرین واحد': getLatestDepartment(person.monthly_data),
             };
             PERSIAN_MONTHS.forEach(month => {
-                row[month] = person.bonuses?.[month] ?? '';
+                row[month] = person.monthly_data?.[month]?.bonus ?? '';
             });
             return row;
         });
@@ -126,15 +152,26 @@ const EnterBonusPage: React.FC = () => {
         XLSX.utils.book_append_sheet(workbook, worksheet, `کارانه سال ${selectedYear}`);
         XLSX.writeFile(workbook, `Bonus_Report_${selectedYear}.xlsx`);
     };
+    
+    if (!canView) {
+        return (
+            <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-lg p-6 rounded-xl shadow-xl flex items-center justify-center h-full">
+              <div className="text-center text-slate-600 dark:text-slate-400">
+                <h2 className="text-2xl font-bold mb-4">عدم دسترسی</h2>
+                <p>شما به این صفحه دسترسی ندارید. لطفاً با مدیر سیستم تماس بگیرید.</p>
+              </div>
+            </div>
+        );
+    }
 
-    const statusColor = { info: 'bg-blue-100 text-blue-800', success: 'bg-green-100 text-green-800', error: 'bg-red-100 text-red-800' };
+    const statusColor = { info: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300', success: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300', error: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' };
 
     return (
         <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-lg p-6 rounded-xl shadow-xl">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 border-b-2 border-slate-200/50 dark:border-slate-700/50 pb-4">
                 <h2 className="text-2xl font-bold text-gray-800 dark:text-slate-100">ثبت و مدیریت کارانه</h2>
                  <div className="flex items-center gap-2 flex-wrap">
-                    <button onClick={handleDownloadSample} className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 border border-gray-300 text-sm rounded-lg hover:bg-gray-200">
+                    <button onClick={handleDownloadSample} className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 border border-gray-300 text-sm rounded-lg hover:bg-gray-200 dark:bg-slate-600 dark:text-slate-200 dark:border-slate-500 dark:hover:bg-slate-500">
                         <DownloadIcon className="w-4 h-4" /> دانلود نمونه
                     </button>
                     <input type="file" ref={fileInputRef} onChange={handleFileImport} className="hidden" id="excel-import-bonus" accept=".xlsx, .xls" />
@@ -177,17 +214,17 @@ const EnterBonusPage: React.FC = () => {
                         {loading && <tr><td colSpan={16} className="text-center p-4">در حال بارگذاری...</td></tr>}
                         {error && <tr><td colSpan={16} className="text-center p-4 text-red-500">{error}</td></tr>}
                         {!loading && !error && bonusData.length === 0 && (
-                            <tr><td colSpan={16} className="text-center p-8 text-gray-500"><DocumentReportIcon className="w-12 h-12 mx-auto mb-2 text-gray-300" />هیچ داده‌ای برای سال انتخاب شده یافت نشد.</td></tr>
+                            <tr><td colSpan={16} className="text-center p-8 text-gray-500 dark:text-gray-400"><DocumentReportIcon className="w-12 h-12 mx-auto mb-2 text-gray-300" />هیچ داده‌ای برای سال انتخاب شده یافت نشد.</td></tr>
                         )}
                         {!loading && !error && bonusData.map((person) => (
                             <tr key={person.personnel_code} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
-                                <td className="px-4 py-3 whitespace-nowrap text-sm">{toPersianDigits(person.personnel_code)}</td>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold">{person.first_name} {person.last_name}</td>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm">{person.position || '---'}</td>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm">{person.department || '---'}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-slate-300">{toPersianDigits(person.personnel_code)}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-gray-800 dark:text-slate-200">{person.first_name} {person.last_name}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-slate-300">{person.position || '---'}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-slate-300">{getLatestDepartment(person.monthly_data)}</td>
                                 {PERSIAN_MONTHS.map(month => (
-                                    <td key={month} className="px-4 py-3 whitespace-nowrap text-sm text-center">
-                                        {toPersianDigits(person.bonuses?.[month]) || '-'}
+                                    <td key={month} className="px-4 py-3 whitespace-nowrap text-sm text-center text-gray-700 dark:text-slate-300">
+                                        {toPersianDigits(person.monthly_data?.[month]?.bonus) || '-'}
                                     </td>
                                 ))}
                             </tr>

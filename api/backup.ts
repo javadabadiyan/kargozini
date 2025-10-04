@@ -54,7 +54,7 @@ const TABLE_COLUMNS: Record<string, string[]> = {
         'weaknesses_and_improvements', 'supervisor_suggestions', 'reviewer_name_and_signature', 'supervisor_signature',
         'manager_signature', 'review_date', 'submitted_by_user', 'department'
     ],
-    bonuses: ['personnel_code', 'year', 'bonuses', 'created_at', 'updated_at']
+    bonuses: ['personnel_code', 'year', 'first_name', 'last_name', 'position', 'monthly_data', 'created_at', 'updated_at']
 };
 
 // Helper to safely quote all column names

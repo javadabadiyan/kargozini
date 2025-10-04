@@ -273,6 +273,7 @@ const SettingsPage: React.FC = () => {
                     }
 
                     // FIX: Explicitly convert username and password from Excel to strings to avoid type errors and creating "undefined" users.
+                    // This prevents issues where a numeric username/password is read as a number instead of a string.
                     return { 
                         username: String(row['نام کاربری'] || ''), 
                         password: String(row['رمز عبور'] || ''), 
