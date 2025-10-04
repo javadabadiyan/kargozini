@@ -131,14 +131,4 @@ const DetailsModal: React.FC<DetailsModalProps> = ({ isOpen, onClose, title, dat
           <button
             type="button"
             onClick={onClose}
-            className="px-6 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 dark:bg-slate-600 dark:text-gray-200 dark:border-slate-500 dark:hover:bg-slate-500"
-          >
-            بستن
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default DetailsModal;
+            className="px-6 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded

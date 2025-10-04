@@ -304,7 +304,7 @@ async function handlePutJobGroupInfo(request: VercelRequest, response: VercelRes
 
   const query = `UPDATE personnel SET ${updateFields.join(', ')} WHERE id = $${updateValues.length} RETURNING *;`;
   
-  // FIX: Removed incorrect `as string[]` cast on line 256. The database driver can handle
+  // FIX: Removed incorrect `as string[]` cast. The database driver can handle
   // the (string | number | null)[] type for parameter arrays.
   const { rows } = await (pool as any).query(query, updateValues);
 
