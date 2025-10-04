@@ -153,34 +153,4 @@ async function handleDelete(response: VercelResponse, client: VercelPoolClient) 
         await client.sql`COMMIT`;
         return response.status(200).json({ message: 'تمام اطلاعات با موفقیت پاک شد.' });
     } catch(error) {
-        // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
-        await client.sql`ROLLBACK`.catch(rbError => console.error('Rollback failed:', rbError));
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        return response.status(500).json({ error: 'Failed to delete all data.', details: errorMessage });
-    }
-}
-
-
-export default async function handler(request: VercelRequest, response: VercelResponse) {
-    if (!process.env.POSTGRES_URL) {
-        return response.status(500).json({ error: 'Database connection string is not configured.' });
-    }
-    const pool = createPool({ connectionString: process.env.POSTGRES_URL });
-    const client = await pool.connect();
-
-    try {
-        switch (request.method) {
-            case 'GET':
-                return await handleGet(response, client);
-            case 'POST':
-                return await handlePost(request, response, client);
-            case 'DELETE':
-                return await handleDelete(response, client);
-            default:
-                response.setHeader('Allow', ['GET', 'POST', 'DELETE']);
-                return response.status(405).json({ error: `Method ${request.method} Not Allowed` });
-        }
-    } finally {
-        client.release();
-    }
-}
+        // FIX: Corrected invalid syntax for client.sql transaction command. It

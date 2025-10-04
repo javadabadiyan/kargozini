@@ -1,36 +1,29 @@
-import { sql } from '@vercel/postgres';
-import { VercelRequest, VercelResponse } from '@vercel/node';
+import { createPool } from '@vercel/postgres';
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 export default async function handler(
-  request: VercelRequest,
+  _request: VercelRequest,
   response: VercelResponse,
 ) {
-  try {
-    let result;
-    
-    // Create app_users table
-    await sql`
-      CREATE TABLE IF NOT EXISTS app_users (
-        id SERIAL PRIMARY KEY,
-        username VARCHAR(255) UNIQUE NOT NULL,
-        password VARCHAR(255) NOT NULL,
-        permissions JSONB,
-        full_name VARCHAR(255),
-        national_id VARCHAR(20)
-      );
-    `;
+  if (!process.env.POSTGRES_URL) {
+    return response.status(500).json({
+        error: 'متغیر اتصال به پایگاه داده (POSTGRES_URL) تنظیم نشده است.',
+        details: 'لطفاً تنظیمات پروژه خود را در Vercel بررسی کنید و از اتصال صحیح پایگاه داده اطمینان حاصل کنید.'
+    });
+  }
+  
+  const pool = createPool({
+    connectionString: process.env.POSTGRES_URL,
+  });
+  const client = await pool.connect();
 
-    // Create permission_roles table
-    await sql`
-      CREATE TABLE IF NOT EXISTS permission_roles (
-        id SERIAL PRIMARY KEY,
-        role_name VARCHAR(255) UNIQUE NOT NULL,
-        permissions JSONB NOT NULL
-      );
-    `;
+  const messages: string[] = [];
+  try {
+    // --- Phase 1: Critical schema setup in a single transaction ---
+    await client.sql`BEGIN`;
 
     // Create personnel table
-    await sql`
+    await client.sql`
       CREATE TABLE IF NOT EXISTS personnel (
         id SERIAL PRIMARY KEY,
         personnel_code VARCHAR(50) UNIQUE NOT NULL,
@@ -40,219 +33,445 @@ export default async function handler(
         national_id VARCHAR(20) UNIQUE,
         id_number VARCHAR(20),
         birth_year VARCHAR(10),
-        birth_date VARCHAR(20),
+        birth_date VARCHAR(30),
         birth_place VARCHAR(100),
-        issue_date VARCHAR(20),
+        issue_date VARCHAR(30),
         issue_place VARCHAR(100),
         marital_status VARCHAR(50),
         military_status VARCHAR(50),
-        job_title VARCHAR(100),
-        "position" VARCHAR(100),
+        job_title VARCHAR(255),
+        "position" VARCHAR(255),
         employment_type VARCHAR(100),
         department VARCHAR(100),
-        service_location VARCHAR(100),
-        hire_date VARCHAR(20),
+        service_location VARCHAR(255),
+        hire_date VARCHAR(30),
         education_level VARCHAR(100),
         field_of_study VARCHAR(100),
-        job_group VARCHAR(50),
-        sum_of_decree_factors VARCHAR(50),
-        status VARCHAR(50),
-        hire_month VARCHAR(10),
-        total_insurance_history VARCHAR(50),
-        mining_history VARCHAR(50),
-        non_mining_history VARCHAR(50),
-        group_distance_from_1404 VARCHAR(50),
-        next_group_distance VARCHAR(50)
+        job_group VARCHAR(100),
+        sum_of_decree_factors VARCHAR(100),
+        status VARCHAR(50)
       );
     `;
+    messages.push('جدول "personnel" با موفقیت ایجاد یا تایید شد.');
 
-    // Create dependents table
-    await sql`
+    // Create other primary tables
+    await client.sql`
       CREATE TABLE IF NOT EXISTS dependents (
         id SERIAL PRIMARY KEY,
-        personnel_code VARCHAR(50) NOT NULL REFERENCES personnel(personnel_code) ON DELETE CASCADE,
+        personnel_code VARCHAR(50) NOT NULL,
         first_name VARCHAR(100) NOT NULL,
         last_name VARCHAR(100) NOT NULL,
         father_name VARCHAR(100),
-        relation_type VARCHAR(50),
-        birth_date VARCHAR(20),
+        relation_type VARCHAR(100),
+        birth_date VARCHAR(30),
         gender VARCHAR(20),
-        birth_month VARCHAR(10),
-        birth_day VARCHAR(10),
+        birth_month VARCHAR(20),
+        birth_day VARCHAR(20),
         id_number VARCHAR(20),
         national_id VARCHAR(20) NOT NULL,
         guardian_national_id VARCHAR(20),
         issue_place VARCHAR(100),
-        insurance_type VARCHAR(50),
-        UNIQUE(personnel_code, national_id)
+        insurance_type VARCHAR(100),
+        CONSTRAINT unique_dependent UNIQUE (personnel_code, national_id),
+        CONSTRAINT fk_personnel FOREIGN KEY(personnel_code) REFERENCES personnel(personnel_code) ON DELETE CASCADE
       );
     `;
+    messages.push('جدول "dependents" با موفقیت ایجاد یا تایید شد.');
 
-     // Create commuting_members table
-    await sql`
+    await client.sql`
       CREATE TABLE IF NOT EXISTS commuting_members (
         id SERIAL PRIMARY KEY,
         personnel_code VARCHAR(50) UNIQUE NOT NULL,
-        full_name VARCHAR(255) NOT NULL,
+        full_name VARCHAR(200) NOT NULL,
         department VARCHAR(100),
-        "position" VARCHAR(100)
+        "position" VARCHAR(255)
       );
     `;
+    messages.push('جدول "commuting_members" با موفقیت ایجاد یا تایید شد.');
 
-    // Create commute_logs table
-    await sql`
+    await client.sql`
       CREATE TABLE IF NOT EXISTS commute_logs (
-          id SERIAL PRIMARY KEY,
-          personnel_code VARCHAR(50) NOT NULL,
-          guard_name VARCHAR(255) NOT NULL,
-          entry_time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-          exit_time TIMESTAMPTZ,
-          created_at TIMESTAMPTZ DEFAULT NOW(),
-          updated_at TIMESTAMPTZ DEFAULT NOW()
+        id SERIAL PRIMARY KEY,
+        personnel_code VARCHAR(50) NOT NULL,
+        guard_name VARCHAR(255) NOT NULL,
+        entry_time TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        exit_time TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
     `;
+    messages.push('جدول "commute_logs" با موفقیت ایجاد یا تایید شد.');
 
-     // Create hourly_commute_logs table
-    await sql`
+    await client.sql`
       CREATE TABLE IF NOT EXISTS hourly_commute_logs (
-          id SERIAL PRIMARY KEY,
-          personnel_code VARCHAR(50) NOT NULL,
-          full_name VARCHAR(255) NOT NULL,
-          guard_name VARCHAR(255) NOT NULL,
-          exit_time TIMESTAMPTZ,
-          entry_time TIMESTAMPTZ,
-          reason TEXT,
-          created_at TIMESTAMPTZ DEFAULT NOW(),
-          updated_at TIMESTAMPTZ DEFAULT NOW()
+        id SERIAL PRIMARY KEY,
+        personnel_code VARCHAR(50) NOT NULL,
+        full_name VARCHAR(200) NOT NULL,
+        guard_name VARCHAR(255) NOT NULL,
+        exit_time TIMESTAMPTZ,
+        entry_time TIMESTAMPTZ,
+        reason TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
     `;
+    messages.push('جدول "hourly_commute_logs" با موفقیت ایجاد یا تایید شد.');
 
-    // Create commute_edit_logs table
-    await sql`
+    await client.sql`
       CREATE TABLE IF NOT EXISTS commute_edit_logs (
-          id SERIAL PRIMARY KEY,
-          commute_log_id INTEGER NOT NULL REFERENCES commute_logs(id) ON DELETE CASCADE,
-          personnel_code VARCHAR(50) NOT NULL,
-          editor_name VARCHAR(255) NOT NULL,
-          edit_timestamp TIMESTAMPTZ DEFAULT NOW(),
-          field_name VARCHAR(50) NOT NULL,
-          old_value TEXT,
-          new_value TEXT
+        id SERIAL PRIMARY KEY,
+        commute_log_id INTEGER NOT NULL,
+        personnel_code VARCHAR(50) NOT NULL,
+        editor_name VARCHAR(255) NOT NULL,
+        edit_timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        field_name VARCHAR(100) NOT NULL,
+        old_value VARCHAR(100),
+        new_value VARCHAR(100)
       );
     `;
+    messages.push('جدول "commute_edit_logs" با موفقیت ایجاد یا تایید شد.');
 
-    // Create personnel_documents table
-    await sql`
+    await client.sql`
+      CREATE TABLE IF NOT EXISTS app_users (
+        id SERIAL PRIMARY KEY,
+        username VARCHAR(100) UNIQUE NOT NULL,
+        password VARCHAR(255) NOT NULL,
+        permissions JSONB NOT NULL
+      );
+    `;
+    messages.push('جدول "app_users" با موفقیت ایجاد یا تایید شد.');
+
+    await client.sql`
+      CREATE TABLE IF NOT EXISTS permission_roles (
+        id SERIAL PRIMARY KEY,
+        role_name VARCHAR(100) UNIQUE NOT NULL,
+        permissions JSONB NOT NULL
+      );
+    `;
+    messages.push('جدول "permission_roles" با موفقیت ایجاد یا تایید شد.');
+
+    await client.sql`
       CREATE TABLE IF NOT EXISTS personnel_documents (
         id SERIAL PRIMARY KEY,
-        personnel_code VARCHAR(50) NOT NULL REFERENCES personnel(personnel_code) ON DELETE CASCADE,
+        personnel_code VARCHAR(50) NOT NULL,
         title VARCHAR(255) NOT NULL,
         file_name VARCHAR(255) NOT NULL,
         file_type VARCHAR(100) NOT NULL,
         file_data TEXT NOT NULL,
-        uploaded_at TIMESTAMPTZ DEFAULT NOW()
+        uploaded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        CONSTRAINT fk_personnel FOREIGN KEY(personnel_code) REFERENCES personnel(personnel_code) ON DELETE CASCADE
       );
     `;
+    messages.push('جدول "personnel_documents" ایجاد شد.');
     
-    // Create commitment_letters table
-    await sql`
+    await client.sql`
       CREATE TABLE IF NOT EXISTS commitment_letters (
         id SERIAL PRIMARY KEY,
         recipient_name VARCHAR(255) NOT NULL,
         recipient_national_id VARCHAR(20) NOT NULL,
         guarantor_personnel_code VARCHAR(50) NOT NULL,
         guarantor_name VARCHAR(255) NOT NULL,
-        guarantor_national_id VARCHAR(20),
-        loan_amount NUMERIC(15, 2) NOT NULL,
-        sum_of_decree_factors NUMERIC(15, 2),
-        bank_name VARCHAR(100),
-        branch_name VARCHAR(100),
-        issue_date DATE DEFAULT CURRENT_DATE,
-        reference_number VARCHAR(100),
-        created_at TIMESTAMPTZ DEFAULT NOW()
+        guarantor_national_id VARCHAR(20) NOT NULL,
+        loan_amount BIGINT NOT NULL,
+        sum_of_decree_factors BIGINT,
+        bank_name VARCHAR(255),
+        branch_name VARCHAR(255),
+        issue_date DATE NOT NULL DEFAULT CURRENT_DATE,
+        reference_number VARCHAR(100) UNIQUE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
     `;
-    
-    // Create disciplinary_records table
-    await sql`
+    messages.push('جدول "commitment_letters" با موفقیت ایجاد یا تایید شد.');
+
+    await client.sql`
       CREATE TABLE IF NOT EXISTS disciplinary_records (
         id SERIAL PRIMARY KEY,
         full_name VARCHAR(255) NOT NULL,
         personnel_code VARCHAR(50) NOT NULL,
-        meeting_date VARCHAR(20),
+        meeting_date VARCHAR(50),
         letter_description TEXT,
         final_decision TEXT,
-        created_at TIMESTAMPTZ DEFAULT NOW()
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
     `;
+    messages.push('جدول "disciplinary_records" با موفقیت ایجاد یا تایید شد.');
     
-    // Create performance_reviews table
-    await sql`
+    await client.sql`
       CREATE TABLE IF NOT EXISTS performance_reviews (
         id SERIAL PRIMARY KEY,
         personnel_code VARCHAR(50) NOT NULL,
-        review_period_start VARCHAR(20) NOT NULL,
-        review_period_end VARCHAR(20) NOT NULL,
+        review_period_start VARCHAR(50),
+        review_period_end VARCHAR(50),
         scores_functional JSONB,
         scores_behavioral JSONB,
         scores_ethical JSONB,
-        total_score_functional NUMERIC(5, 2),
-        total_score_behavioral NUMERIC(5, 2),
-        total_score_ethical NUMERIC(5, 2),
-        overall_score NUMERIC(5, 2),
+        total_score_functional INTEGER,
+        total_score_behavioral INTEGER,
+        total_score_ethical INTEGER,
+        overall_score INTEGER,
         reviewer_comment TEXT,
         strengths TEXT,
         weaknesses_and_improvements TEXT,
         supervisor_suggestions TEXT,
-        review_date TIMESTAMPTZ DEFAULT NOW(),
         reviewer_name_and_signature VARCHAR(255),
         supervisor_signature VARCHAR(255),
         manager_signature VARCHAR(255),
-        submitted_by_user VARCHAR(255),
-        department VARCHAR(100)
+        review_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        CONSTRAINT fk_personnel_review FOREIGN KEY(personnel_code) REFERENCES personnel(personnel_code) ON DELETE CASCADE
       );
     `;
+    messages.push('جدول "performance_reviews" با موفقیت ایجاد یا تایید شد.');
 
-    // Create bonuses table
-    await sql`
+    await client.sql`DROP TABLE IF EXISTS bonuses CASCADE;`;
+    await client.sql`
       CREATE TABLE IF NOT EXISTS bonuses (
         id SERIAL PRIMARY KEY,
         personnel_code VARCHAR(50) NOT NULL,
         "year" INTEGER NOT NULL,
-        submitted_by_user VARCHAR(255) NOT NULL,
         first_name VARCHAR(100),
         last_name VARCHAR(100),
-        "position" VARCHAR(100),
+        "position" VARCHAR(255),
         monthly_data JSONB,
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW(),
-        UNIQUE(personnel_code, "year", submitted_by_user)
+        submitted_by_user VARCHAR(255),
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (personnel_code, "year", submitted_by_user)
       );
     `;
+    messages.push('جدول "bonuses" با موفقیت ایجاد یا تایید شد.');
     
-    await sql`
+    await client.sql`
       CREATE TABLE IF NOT EXISTS submitted_bonuses (
         id SERIAL PRIMARY KEY,
         personnel_code VARCHAR(50) NOT NULL,
         "year" INTEGER NOT NULL,
         first_name VARCHAR(100),
         last_name VARCHAR(100),
-        "position" VARCHAR(100),
+        "position" VARCHAR(255),
         monthly_data JSONB,
         submitted_by_user TEXT,
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW(),
-        UNIQUE(personnel_code, "year")
+        submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (personnel_code, "year")
       );
     `;
+    messages.push('جدول "submitted_bonuses" با موفقیت ایجاد یا تایید شد.');
 
-    result = await sql`SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname != 'pg_catalog' AND schemaname != 'information_schema';`;
+    await client.sql`COMMIT`;
+    messages.push('تراکنش اصلی ایجاد جداول با موفقیت انجام شد.');
 
-    return response.status(200).json({ 
-        message: 'All tables created successfully or already exist.',
-        tables: result.rows.map(r => r.tablename)
+    // --- Phase 2: Add optional/backward-compatibility columns individually ---
+    try {
+        await client.sql`ALTER TABLE app_users ADD COLUMN IF NOT EXISTS full_name VARCHAR(255);`;
+        messages.push('ستون "full_name" در جدول "app_users" تایید یا اضافه شد.');
+        await client.sql`ALTER TABLE app_users ADD COLUMN IF NOT EXISTS national_id VARCHAR(20);`;
+        messages.push('ستون "national_id" در جدول "app_users" تایید یا اضافه شد.');
+    } catch (e: any) {
+        messages.push(`هشدار هنگام افزودن ستون‌های کاربر: ${e.message}`);
+    }
+    try {
+        await client.sql`ALTER TABLE personnel ADD COLUMN IF NOT EXISTS hire_month VARCHAR(20);`;
+        messages.push('ستون "hire_month" در جدول "personnel" تایید یا اضافه شد.');
+        await client.sql`ALTER TABLE personnel ADD COLUMN IF NOT EXISTS total_insurance_history VARCHAR(100);`;
+        messages.push('ستون "total_insurance_history" در جدول "personnel" تایید یا اضافه شد.');
+        await client.sql`ALTER TABLE personnel ADD COLUMN IF NOT EXISTS mining_history VARCHAR(100);`;
+        messages.push('ستون "mining_history" در جدول "personnel" تایید یا اضافه شد.');
+        await client.sql`ALTER TABLE personnel ADD COLUMN IF NOT EXISTS non_mining_history VARCHAR(100);`;
+        messages.push('ستون "non_mining_history" در جدول "personnel" تایید یا اضافه شد.');
+        await client.sql`ALTER TABLE personnel ADD COLUMN IF NOT EXISTS group_distance_from_1404 VARCHAR(100);`;
+        messages.push('ستون "group_distance_from_1404" در جدول "personnel" تایید یا اضافه شد.');
+        await client.sql`ALTER TABLE personnel ADD COLUMN IF NOT EXISTS next_group_distance VARCHAR(100);`;
+        messages.push('ستون "next_group_distance" در جدول "personnel" تایید یا اضافه شد.');
+    } catch (e: any) {
+         messages.push(`هشدار هنگام افزودن ستون‌های گروه شغلی: ${e.message}`);
+    }
+    
+    try {
+        await client.sql`ALTER TABLE performance_reviews ADD COLUMN IF NOT EXISTS submitted_by_user VARCHAR(255);`;
+        messages.push('ستون "submitted_by_user" در جدول "performance_reviews" تایید یا اضافه شد.');
+        await client.sql`ALTER TABLE performance_reviews ADD COLUMN IF NOT EXISTS department VARCHAR(100);`;
+        messages.push('ستون "department" در جدول "performance_reviews" تایید یا اضافه شد.');
+    } catch (e: any) {
+         messages.push(`هشدار هنگام افزودن ستون‌های ارزیابی عملکرد: ${e.message}`);
+    }
+
+    try {
+        await client.sql`ALTER TABLE personnel ADD COLUMN IF NOT EXISTS birth_year VARCHAR(10);`;
+        messages.push('ستون "birth_year" در جدول "personnel" تایید یا اضافه شد.');
+    } catch (e: any) {
+        messages.push(`هشدار هنگام افزودن ستون birth_year: ${e.message}`);
+    }
+    try {
+        await client.sql`ALTER TABLE personnel ADD COLUMN IF NOT EXISTS job_group VARCHAR(100);`;
+        messages.push('ستون "job_group" در جدول "personnel" تایید یا اضافه شد.');
+    } catch (e: any) {
+        messages.push(`هشدار هنگام افزودن ستون job_group: ${e.message}`);
+    }
+    try {
+        await client.sql`ALTER TABLE personnel ADD COLUMN IF NOT EXISTS sum_of_decree_factors VARCHAR(100);`;
+        messages.push('ستون "sum_of_decree_factors" در جدول "personnel" تایید یا اضافه شد.');
+    } catch (e: any) {
+        messages.push(`هشدار هنگام افزودن ستون sum_of_decree_factors: ${e.message}`);
+    }
+    try {
+        await client.sql`ALTER TABLE dependents ADD COLUMN IF NOT EXISTS father_name VARCHAR(100);`;
+        messages.push('ستون "father_name" در جدول "dependents" تایید یا اضافه شد.');
+    } catch (e: any) {
+        messages.push(`هشدار هنگام افزودن ستون father_name: ${e.message}`);
+    }
+    try {
+        await client.sql`ALTER TABLE dependents ADD COLUMN IF NOT EXISTS birth_month VARCHAR(20);`;
+        messages.push('ستون "birth_month" در جدول "dependents" تایید یا اضافه شد.');
+    } catch (e: any) {
+        messages.push(`هشدار هنگام افزودن ستون birth_month: ${e.message}`);
+    }
+    try {
+        await client.sql`ALTER TABLE dependents ADD COLUMN IF NOT EXISTS birth_day VARCHAR(20);`;
+        messages.push('ستون "birth_day" در جدول "dependents" تایید یا اضافه شد.');
+    } catch (e: any) {
+        messages.push(`هشدار هنگام افزودن ستون birth_day: ${e.message}`);
+    }
+    try {
+        await client.sql`ALTER TABLE dependents ADD COLUMN IF NOT EXISTS id_number VARCHAR(20);`;
+        messages.push('ستون "id_number" در جدول "dependents" تایید یا اضافه شد.');
+    } catch (e: any) {
+        messages.push(`هشدار هنگام افزودن ستون id_number: ${e.message}`);
+    }
+    try {
+        await client.sql`ALTER TABLE dependents ADD COLUMN IF NOT EXISTS guardian_national_id VARCHAR(20);`;
+        messages.push('ستون "guardian_national_id" در جدول "dependents" تایید یا اضافه شد.');
+    } catch (e: any) {
+        messages.push(`هشدار هنگام افزودن ستون guardian_national_id: ${e.message}`);
+    }
+    try {
+        await client.sql`ALTER TABLE dependents ADD COLUMN IF NOT EXISTS issue_place VARCHAR(100);`;
+        messages.push('ستون "issue_place" در جدول "dependents" تایید یا اضافه شد.');
+    } catch (e: any) {
+        messages.push(`هشدار هنگام افزودن ستون issue_place: ${e.message}`);
+    }
+    try {
+        await client.sql`ALTER TABLE dependents ADD COLUMN IF NOT EXISTS insurance_type VARCHAR(100);`;
+        messages.push('ستون "insurance_type" در جدول "dependents" تایید یا اضافه شد.');
+    } catch (e: any) {
+        messages.push(`هشدار هنگام افزودن ستون insurance_type: ${e.message}`);
+    }
+
+
+    // --- Phase 3: Create triggers, indexes, and default data ---
+    await client.sql`BEGIN`;
+
+    await client.sql`CREATE INDEX IF NOT EXISTS dependents_personnel_code_idx ON dependents (personnel_code);`;
+    await client.sql`CREATE INDEX IF NOT EXISTS personnel_documents_personnel_code_idx ON personnel_documents (personnel_code);`;
+    await client.sql`CREATE INDEX IF NOT EXISTS personnel_last_first_name_idx ON personnel (last_name, first_name);`;
+    await client.sql`CREATE INDEX IF NOT EXISTS commitment_letters_guarantor_code_idx ON commitment_letters (guarantor_personnel_code);`;
+    await client.sql`CREATE INDEX IF NOT EXISTS performance_reviews_personnel_code_idx ON performance_reviews (personnel_code);`;
+    await client.sql`CREATE INDEX IF NOT EXISTS bonuses_user_year_idx ON bonuses (submitted_by_user, "year");`;
+    await client.sql`CREATE INDEX IF NOT EXISTS submitted_bonuses_year_idx ON submitted_bonuses ("year");`;
+    messages.push('ایندکس‌های ضروری برای جستجوی سریع ایجاد شدند.');
+
+    await (client as any).query(`
+        CREATE OR REPLACE FUNCTION update_updated_at_column()
+        RETURNS TRIGGER AS $$
+        BEGIN
+           NEW.updated_at = NOW();
+           RETURN NEW;
+        END;
+        $$ language 'plpgsql';
+    `);
+    
+    await (client as any).query(`
+        DROP TRIGGER IF EXISTS update_commute_logs_updated_at ON commute_logs;
+        CREATE TRIGGER update_commute_logs_updated_at
+        BEFORE UPDATE ON commute_logs
+        FOR EACH ROW
+        EXECUTE FUNCTION update_updated_at_column();
+    `);
+
+     await (client as any).query(`
+        DROP TRIGGER IF EXISTS update_hourly_commute_logs_updated_at ON hourly_commute_logs;
+        CREATE TRIGGER update_hourly_commute_logs_updated_at
+        BEFORE UPDATE ON hourly_commute_logs
+        FOR EACH ROW
+        EXECUTE FUNCTION update_updated_at_column();
+    `);
+
+    await (client as any).query(`
+        DROP TRIGGER IF EXISTS update_bonuses_updated_at ON bonuses;
+        CREATE TRIGGER update_bonuses_updated_at
+        BEFORE UPDATE ON bonuses
+        FOR EACH ROW
+        EXECUTE FUNCTION update_updated_at_column();
+    `);
+
+    messages.push('تریگرهای به‌روزرسانی خودکار برای جداول تردد و کارانه ایجاد شدند.');
+    
+    const adminPermissions = JSON.stringify({
+      dashboard: true,
+      personnel: true,
+      personnel_list: true,
+      dependents_info: true,
+      document_upload: true,
+      recruitment: true,
+      accounting_commitment: true,
+      commitment_letter_archive: true,
+      disciplinary_committee: true,
+      performance_review: true,
+      send_performance_review: true,
+      archive_performance_review: true,
+      job_group: true,
+      bonus_management: true,
+      enter_bonus: true,
+      submitted_bonuses: true,
+      bonus_analyzer: true,
+      security: true,
+      commuting_members: true,
+      log_commute: true,
+      commute_report: true,
+      settings: true,
+      user_management: true,
     });
+    const guardPermissions = JSON.stringify({
+      dashboard: false,
+      personnel: false,
+      security: true,
+      commuting_members: true,
+      log_commute: true,
+      commute_report: true,
+    });
+
+    await client.sql`
+      INSERT INTO app_users (username, password, permissions, full_name) VALUES
+      ('ادمین', '5221157', ${adminPermissions}, 'کاربر مدیر')
+      ON CONFLICT (username) DO UPDATE SET permissions = ${adminPermissions};
+    `;
+    await client.sql`
+      INSERT INTO app_users (username, password, permissions, full_name) VALUES
+      ('نگهبانی', '123456789', ${guardPermissions}, 'کاربر نگهبانی')
+      ON CONFLICT (username) DO UPDATE SET password = '123456789', permissions = ${guardPermissions}, full_name = 'کاربر نگهبانی';
+    `;
+    messages.push('کاربران پیش‌فرض "ادمین" و "نگهبانی" ایجاد یا به‌روزرسانی شدند.');
+
+    await client.sql`COMMIT`;
+
+    // --- Phase 4: Optional performance enhancements ---
+    try {
+        await client.sql`CREATE EXTENSION IF NOT EXISTS pg_trgm;`;
+        messages.push('افزونه "pg_trgm" برای جستجوی سریع فعال شد.');
+        await client.sql`CREATE INDEX IF NOT EXISTS personnel_first_name_trgm_idx ON personnel USING gin (first_name gin_trgm_ops);`;
+        await client.sql`CREATE INDEX IF NOT EXISTS personnel_last_name_trgm_idx ON personnel USING gin (last_name gin_trgm_ops);`;
+        messages.push('ایندکس‌های جستجوی سریع (GIN) برای پرسنل ایجاد شدند.');
+    } catch (extError: any) {
+        console.warn('Could not create pg_trgm extension or GIN indexes:', extError);
+        messages.push('هشدار: امکان فعال‌سازی افزونه "pg_trgm" یا ایندکس‌های GIN وجود نداشت. جستجو ممکن است کند باشد (این خطا برای پلن‌های رایگان طبیعی است).');
+    }
+    
+    return response.status(200).json({ message: 'عملیات راه‌اندازی پایگاه داده با موفقیت انجام شد.', details: messages });
+  
   } catch (error) {
-    return response.status(500).json({ error });
+    await client.sql`ROLLBACK`.catch((rbError: any) => console.error('Rollback failed:', rbError));
+    console.error('Database setup failed:', error);
+    const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
+    return response.status(500).json({ error: 'ایجاد جداول در پایگاه داده با خطا مواجه شد.', details: errorMessage });
+  } finally {
+      client.release();
   }
 }

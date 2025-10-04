@@ -346,9 +346,23 @@ const AccountingCommitmentPage: React.FC = () => {
         const amount = Number(loanAmount || '0');
         const creditLimit = factors * 30;
         const remainingCredit = creditLimit - totalCommitted;
-        const isOverLimit = amount > remainingCredit;
+        const isOverLimit = amount > remainingCredit && amount > 0;
         return { creditLimit, remainingCredit, isOverLimit };
     }, [decreeFactors, loanAmount, totalCommitted]);
+
+    const handleLoanAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = toEnglishDigits(e.target.value).replace(/,/g, '');
+        if (/^\d*$/.test(val)) {
+            setLoanAmount(val);
+        }
+    };
+
+    const handleDecreeFactorsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = toEnglishDigits(e.target.value).replace(/,/g, '');
+        if (/^\d*$/.test(val)) {
+            setDecreeFactors(val);
+        }
+    };
 
     const guarantorSummary = useMemo(() => {
         if (!archivedLetters || archivedLetters.length === 0) return [];
@@ -370,154 +384,326 @@ const AccountingCommitmentPage: React.FC = () => {
             return acc;
         }, {} as Record<string, { guarantor_personnel_code: string; guarantor_name: string; letterCount: number; totalAmount: number; letters: CommitmentLetter[] }>);
 
+        // FIX: Explicitly cast sort callback arguments to any to fix 'property does not exist on type unknown' error.
         return Object.values(summary).sort((a: any, b: any) => b.totalAmount - a.totalAmount);
-    // FIX: Add explicit any type to sort callback arguments to fix 'property does not exist on type unknown' error.
     }, [archivedLetters]);
-    
-    const { paginatedGuarantors, totalArchivePages } = useMemo(() => {
+
+     const paginatedGuarantorSummary = useMemo(() => {
         const startIndex = (archiveCurrentPage - 1) * ARCHIVE_PAGE_SIZE;
-        const endIndex = startIndex + ARCHIVE_PAGE_SIZE;
-        return {
-            paginatedGuarantors: guarantorSummary.slice(startIndex, endIndex),
-            totalArchivePages: Math.ceil(guarantorSummary.length / ARCHIVE_PAGE_SIZE),
-        };
+        return guarantorSummary.slice(startIndex, startIndex + ARCHIVE_PAGE_SIZE);
     }, [guarantorSummary, archiveCurrentPage]);
     
+    const toggleGuarantorExpansion = (code: string) => {
+        setExpandedGuarantors(prev => {
+            const newSet = new Set(prev);
+            if (newSet.has(code)) {
+                newSet.delete(code);
+            } else {
+                newSet.add(code);
+            }
+            return newSet;
+        });
+    };
+    
+    // --- Drag Logic ---
+    const handleMouseMove = useCallback((e: MouseEvent) => {
+        if (!dragInfo.current.isDragging) return;
+        const dx = e.clientX - dragInfo.current.startX;
+        const dy = e.clientY - dragInfo.current.startY;
+        setPosition({
+            x: dragInfo.current.initialX + dx,
+            y: dragInfo.current.initialY + dy,
+        });
+    }, []);
+
+    const handleMouseUp = useCallback(() => {
+        dragInfo.current.isDragging = false;
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+    }, [handleMouseMove]);
+
+    const handleMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+        if (!isAdjusting) return;
+        e.preventDefault();
+        dragInfo.current = {
+            isDragging: true,
+            startX: e.clientX,
+            startY: e.clientY,
+            initialX: position.x,
+            initialY: position.y,
+        };
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+    }, [isAdjusting, position.x, position.y, handleMouseMove, handleMouseUp]);
+
     const statusColor = { info: 'bg-blue-100 text-blue-800', success: 'bg-green-100 text-green-800', error: 'bg-red-100 text-red-800' };
+    const inputClass = "w-full px-3 py-2 text-gray-700 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent";
 
     return (
-        <div className="space-y-6">
-            <div className="bg-white p-6 rounded-lg shadow-lg">
-                <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b-2 border-gray-100 pb-4">صدور نامه تعهد کسر حقوق</h2>
-                {status && <div className={`p-4 mb-4 text-sm rounded-lg ${statusColor[status.type]}`}>{status.message}</div>}
+        <div className="bg-white p-6 rounded-lg shadow-lg">
+            <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b-2 border-gray-100 pb-4">صدور و بایگانی نامه تعهد کسر از حقوق</h2>
+            {status && <div className={`p-4 mb-4 text-sm rounded-lg ${statusColor[status.type]}`}>{status.message}</div>}
 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    {/* Form side */}
-                    <div className="lg:col-span-2 space-y-4">
-                        {/* Guarantor Selection */}
-                        <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                           <h3 className="text-lg font-bold mb-2">۱. انتخاب ضامن</h3>
-                           {!selectedGuarantor ? (
-                                <div>
-                                    <div className="relative">
-                                        <input type="text" className="w-full pr-10 pl-4 py-2 border rounded-md" placeholder="جستجوی نام یا کد پرسنلی ضامن..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
-                                        <SearchIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                                    </div>
-                                    {personnelLoading ? <p className="text-center text-gray-500 mt-2">...</p> : (
-                                    <ul className="mt-2 border rounded-md bg-white max-h-40 overflow-y-auto">
-                                        {filteredPersonnel.map(p => (
-                                            <li key={p.id} onClick={() => handleSelectGuarantor(p)} className="p-2 hover:bg-gray-100 cursor-pointer">{p.first_name} {p.last_name} ({toPersianDigits(p.personnel_code)})</li>
-                                        ))}
-                                    </ul>
-                                    )}
-                                </div>
-                           ) : (
-                                <div className="p-3 bg-blue-100 border border-blue-200 rounded-lg flex justify-between items-center">
-                                    <div>
-                                        <p className="font-bold text-blue-800">{selectedGuarantor.first_name} {selectedGuarantor.last_name}</p>
-                                        <p className="text-sm text-blue-700">کد پرسنلی: {toPersianDigits(selectedGuarantor.personnel_code)}</p>
-                                    </div>
-                                    <button onClick={handleClearGuarantor} className="text-red-500 hover:text-red-700 text-sm font-semibold">تغییر ضامن</button>
-                                </div>
-                           )}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="lg:col-span-1 space-y-6">
+                    <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
+                        <h3 className="font-bold text-gray-700 mb-2">۱. انتخاب ضامن</h3>
+                        <div className="relative">
+                            <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className={inputClass} placeholder="جستجوی نام یا کد پرسنلی ضامن..." disabled={!!selectedGuarantor} />
+                            <SearchIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                         </div>
-                        {/* Recipient and Loan Info */}
-                        <form onSubmit={handleSaveAndPrint} className="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-4">
-                           <h3 className="text-lg font-bold mb-2">۲. اطلاعات وام</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">نام و نام خانوادگی وام گیرنده</label>
-                                    <input value={recipientName} onChange={e => setRecipientName(e.target.value)} className="w-full p-2 border rounded-md" required disabled={!selectedGuarantor} />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">کد ملی وام گیرنده</label>
-                                    <input value={toPersianDigits(recipientNationalId)} onChange={e => setRecipientNationalId(toEnglishDigits(e.target.value))} className="w-full p-2 border rounded-md" required disabled={!selectedGuarantor} />
-                                </div>
-                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">مبلغ وام (ریال)</label>
-                                    <input value={toPersianDigits(formatCurrency(loanAmount))} onChange={e => setLoanAmount(toEnglishDigits(e.target.value))} className="w-full p-2 border rounded-md font-sans text-left" required disabled={!selectedGuarantor} />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">شماره نامه ارجاع بانک (اختیاری)</label>
-                                    <input value={toPersianDigits(referenceNumber)} onChange={e => setReferenceNumber(toEnglishDigits(e.target.value))} className="w-full p-2 border rounded-md" disabled={!selectedGuarantor} />
-                                </div>
-                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">نام بانک</label>
-                                    <input value={bankName} onChange={e => setBankName(e.target.value)} className="w-full p-2 border rounded-md" required disabled={!selectedGuarantor} />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">نام شعبه</label>
-                                    <input value={branchName} onChange={e => setBranchName(e.target.value)} className="w-full p-2 border rounded-md" required disabled={!selectedGuarantor} />
+                         {filteredPersonnel.length > 0 && (
+                            <ul className="mt-2 border rounded-md bg-white max-h-48 overflow-y-auto">
+                                {filteredPersonnel.map(p => (
+                                    <li key={p.id} onClick={() => handleSelectGuarantor(p)} className="p-2 hover:bg-gray-100 cursor-pointer text-sm">
+                                        {p.first_name} {p.last_name} ({toPersianDigits(p.personnel_code)})
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                     {selectedGuarantor && (
+                        <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 space-y-2">
+                             <div className="flex justify-between items-center">
+                                <h3 className="font-bold text-blue-800">مشخصات ضامن</h3>
+                                <button onClick={handleClearGuarantor} className="text-xs text-red-600 hover:underline">تغییر ضامن</button>
+                             </div>
+                            <p className="text-sm"><strong>نام:</strong> {selectedGuarantor.first_name} {selectedGuarantor.last_name}</p>
+                            <p className="text-sm"><strong>کد پرسنلی:</strong> {toPersianDigits(selectedGuarantor.personnel_code)}</p>
+                            <p className="text-sm"><strong>کد ملی:</strong> {toPersianDigits(selectedGuarantor.national_id)}</p>
+                            <div className="pt-2 mt-2 border-t space-y-1">
+                                <p className="text-sm"><strong>سقف تعهد (۳۰ برابر حکم):</strong> <span className="font-sans">{toPersianDigits(formatCurrency(creditLimit))} ریال</span></p>
+                                <p className="text-sm"><strong>تعهدات قبلی:</strong> <span className="font-sans">{loadingCommitment ? '...' : `${toPersianDigits(formatCurrency(totalCommitted))} ریال`}</span></p>
+                                <p className={`text-sm font-bold ${remainingCredit < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                    <strong>اعتبار باقیمانده:</strong> <span className="font-sans">{toPersianDigits(formatCurrency(remainingCredit))} ریال</span>
+                                </p>
+                            </div>
+                        </div>
+                    )}
+                </div>
+                <div className="lg:col-span-2 space-y-6">
+                     <form onSubmit={handleSaveAndPrint} className="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-4">
+                        <h3 className="font-bold text-gray-700 mb-2">۲. اطلاعات وام و وام گیرنده</h3>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                             <div><label className="text-sm">نام وام گیرنده</label><input type="text" value={recipientName} onChange={e => setRecipientName(e.target.value)} className={inputClass} required/></div>
+                             <div><label className="text-sm">کد ملی وام گیرنده</label><input type="text" value={recipientNationalId} onChange={e => setRecipientNationalId(e.target.value)} className={inputClass} required/></div>
+                             <div><label className="text-sm">مبلغ وام (ریال)</label><input type="text" value={toPersianDigits(formatCurrency(loanAmount))} onChange={handleLoanAmountChange} className={inputClass} required/></div>
+                             <div>
+                                <label className="text-sm">جمع عوامل حکمی ضامن (ریال)</label>
+                                <div className="flex items-center gap-2">
+                                    <input 
+                                        type="text" 
+                                        value={toPersianDigits(formatCurrency(decreeFactors))} 
+                                        onChange={handleDecreeFactorsChange} 
+                                        className={inputClass} 
+                                        disabled={!selectedGuarantor}
+                                    />
+                                    <button 
+                                        type="button" 
+                                        onClick={handleRefreshDecreeFactors}
+                                        className="p-2 bg-slate-200 rounded-md hover:bg-slate-300 disabled:opacity-50"
+                                        title="بازیابی از اطلاعات پرسنل"
+                                        disabled={!selectedGuarantor}
+                                    >
+                                        <RefreshIcon className="w-5 h-5 text-gray-600" />
+                                    </button>
                                 </div>
                             </div>
-                             <div className="pt-4 flex justify-end">
-                                <button type="submit" disabled={!selectedGuarantor || isPrintingArchived} className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white font-bold rounded-lg hover:bg-green-700 disabled:bg-gray-400">
-                                    <PrinterIcon className="w-5 h-5" /> ذخیره و چاپ نامه
+                             <div><label className="text-sm">نام بانک</label><input type="text" value={bankName} onChange={e => setBankName(e.target.value)} className={inputClass} required/></div>
+                             <div><label className="text-sm">نام شعبه</label><input type="text" value={branchName} onChange={e => setBranchName(e.target.value)} className={inputClass} required/></div>
+                             <div><label className="text-sm">شماره نامه ارجاع بانک</label><input type="text" value={referenceNumber} onChange={e => setReferenceNumber(e.target.value)} className={inputClass}/></div>
+                        </div>
+                         {isOverLimit && (
+                            <div className="p-3 text-sm rounded-lg bg-red-100 text-red-800 text-center">
+                                هشدار: مبلغ وام درخواستی از اعتبار باقیمانده ضامن بیشتر است!
+                            </div>
+                         )}
+                        <div className="flex justify-end gap-2 pt-4">
+                            <button type="submit" className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:bg-gray-400" disabled={!selectedGuarantor}><PrinterIcon className="w-5 h-5"/> ذخیره و چاپ</button>
+                        </div>
+                     </form>
+                </div>
+            </div>
+
+            <div className="mt-8 border-t pt-6">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-xl font-bold text-gray-800">۳. پیش نمایش و تنظیم نامه جهت چاپ</h3>
+                    <div className="flex items-center gap-2">
+                        {!isAdjusting ? (
+                            <button onClick={() => setIsAdjusting(true)} className="px-4 py-2 text-sm bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">
+                                تنظیم چیدمان
+                            </button>
+                        ) : (
+                            <div className="flex items-center gap-2 p-2 rounded-lg bg-blue-50 border border-blue-200">
+                                <span className="text-sm font-semibold text-blue-700">حالت تنظیم</span>
+                                <button onClick={handleSavePosition} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">ذخیره</button>
+                                <button onClick={handleResetPosition} className="px-4 py-2 text-sm bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">بازنشانی</button>
+                                <button onClick={() => setIsAdjusting(false)} className="px-4 py-2 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200">اتمام</button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+                <div className="border rounded-lg bg-gray-50 text-gray-800 relative overflow-hidden" style={{ minHeight: '800px' }}>
+                    <div
+                        onMouseDown={handleMouseDown}
+                        className={`transition-shadow p-8 ${isAdjusting ? 'shadow-2xl border-2 border-dashed border-blue-500' : ''}`}
+                        style={{
+                            position: 'absolute',
+                            top: `${position.y}px`,
+                            left: `${position.x}px`,
+                            cursor: isAdjusting ? 'move' : 'default',
+                            width: '100%',
+                            boxSizing: 'border-box'
+                        }}
+                    >
+                        <div ref={printRef} style={{ direction: 'rtl', lineHeight: '2.5' }}>
+                            <p className="font-bold my-8">ریاست محترم بانک <span className="underline">{bankName || '....................'}</span> شعبه <span className="underline">{branchName || '....................'}</span></p>
+                            
+                            <p>
+                                احتراماً، بدینوسیله گواهی می‌شود آقای/خانم <span className="underline">{selectedGuarantor ? `${selectedGuarantor.first_name} ${selectedGuarantor.last_name}` : '..............................'}</span> به شماره پرسنلی <span className="underline">{toPersianDigits(selectedGuarantor?.personnel_code)}</span> و کد ملی <span className="underline">{toPersianDigits(selectedGuarantor?.national_id)}</span> کارمند این شرکت بوده و این شرکت متعهد می‌گردد در صورت عدم پرداخت اقساط وام دریافتی آقای/خانم <span className="underline">{recipientName || '..............................'}</span> به کد ملی <span className="underline">{toPersianDigits(recipientNationalId)}</span> به مبلغ <span className="underline">{toPersianDigits(formatCurrency(loanAmount))}</span> ریال، پس از اعلام کتبی بانک، نسبت به کسر از حقوق و مزایای ضامن و واریز به حساب آن بانک اقدام نماید.
+                            </p>
+                            <p>این گواهی صرفاً جهت اطلاع بانک صادر گردیده و فاقد هرگونه ارزش و اعتبار دیگری می‌باشد.</p>
+                            <br />
+                            <div className="signature text-left">
+                                <p className="font-bold">با تشکر</p>
+                                <p className="font-bold">مدیریت سرمایه انسانی</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="mt-8 border-t pt-6">
+                <h3 className="text-xl font-bold text-gray-800 mb-4">۴. بایگانی و خلاصه تعهدات</h3>
+                 <form onSubmit={handleArchiveSearchSubmit} className="mb-6">
+                    <label htmlFor="search-letters" className="block text-sm font-medium text-gray-700 mb-2">
+                        جستجو در بایگانی
+                    </label>
+                    <div className="flex">
+                        <div className="relative flex-grow">
+                            <input
+                                type="text"
+                                id="search-letters"
+                                className="w-full pr-10 pl-4 py-2 border border-gray-300 rounded-r-md focus:ring-blue-500 focus:border-blue-500"
+                                placeholder="نام وام‌گیرنده، ضامن، کد ملی، کد پرسنلی..."
+                                value={archiveSearchTerm}
+                                onChange={e => setArchiveSearchTerm(e.target.value)}
+                            />
+                            <SearchIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                        </div>
+                        <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-l-md hover:bg-blue-700">جستجو</button>
+                    </div>
+                </form>
+                
+                <div className="overflow-x-auto bg-slate-50 p-4 rounded-lg border border-slate-200">
+                    {archiveLoading && <p className="text-center py-4">در حال بارگذاری بایگانی...</p>}
+                    {archiveError && <p className="text-center py-4 text-red-500">{archiveError}</p>}
+                    {!archiveLoading && !archiveError && guarantorSummary.length === 0 && (
+                        <div className="text-center py-10 text-gray-400">
+                            <DocumentReportIcon className="w-16 h-16 mx-auto mb-4" />
+                            <h3 className="text-lg font-semibold">
+                                {archiveSearchTerm ? 'هیچ نامه‌ای مطابق با جستجوی شما یافت نشد.' : 'هیچ نامه‌ای در بایگانی ثبت نشده است.'}
+                            </h3>
+                        </div>
+                    )}
+                     {!archiveLoading && !archiveError && guarantorSummary.length > 0 && (
+                        <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-100">
+                                <tr>
+                                    {['ضامن', 'کد پرسنلی', 'تعداد تعهدات', 'جمع مبالغ (ریال)', 'جزئیات'].map(h => (
+                                        <th key={h} scope="col" className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">{h}</th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                               {paginatedGuarantorSummary.map(summaryItem => (
+                                   <React.Fragment key={summaryItem.guarantor_personnel_code}>
+                                       <tr className="cursor-pointer hover:bg-slate-100" onClick={() => toggleGuarantorExpansion(summaryItem.guarantor_personnel_code)}>
+                                            <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold">{summaryItem.guarantor_name}</td>
+                                            <td className="px-4 py-3 whitespace-nowrap text-sm">{toPersianDigits(summaryItem.guarantor_personnel_code)}</td>
+                                            <td className="px-4 py-3 whitespace-nowrap text-sm">{toPersianDigits(summaryItem.letterCount)}</td>
+                                            <td className="px-4 py-3 whitespace-nowrap text-sm font-sans font-bold">{toPersianDigits(formatCurrency(summaryItem.totalAmount))}</td>
+                                            <td className="px-4 py-3 whitespace-nowrap text-sm text-center">
+                                                {expandedGuarantors.has(summaryItem.guarantor_personnel_code) ? <ChevronUpIcon className="w-5 h-5 mx-auto" /> : <ChevronDownIcon className="w-5 h-5 mx-auto" />}
+                                            </td>
+                                       </tr>
+                                       {expandedGuarantors.has(summaryItem.guarantor_personnel_code) && (
+                                           <tr>
+                                               <td colSpan={5} className="p-4 bg-gray-50 border-b-2 border-blue-200">
+                                                   <h4 className="font-bold mb-2">جزئیات تعهدات {summaryItem.guarantor_name}:</h4>
+                                                   <div className="overflow-x-auto border rounded-lg">
+                                                       <table className="min-w-full divide-y divide-gray-200">
+                                                            <thead className="bg-gray-200">
+                                                                <tr>
+                                                                    {['وام گیرنده', 'مبلغ وام (ریال)', 'بانک', 'تاریخ صدور', 'عملیات'].map(h => (
+                                                                        <th key={h} scope="col" className="px-3 py-2 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">{h}</th>
+                                                                    ))}
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="bg-white divide-y divide-gray-200">
+                                                                {summaryItem.letters.map(letter => (
+                                                                    <tr key={letter.id}>
+                                                                        <td className="px-3 py-2 whitespace-nowrap text-sm"><p className="font-semibold">{letter.recipient_name}</p><p className="text-xs text-gray-500">کد ملی: {toPersianDigits(letter.recipient_national_id)}</p></td>
+                                                                        <td className="px-3 py-2 whitespace-nowrap text-sm font-sans">{toPersianDigits(formatCurrency(letter.loan_amount))}</td>
+                                                                        <td className="px-3 py-2 whitespace-nowrap text-sm">{letter.bank_name} - {letter.branch_name}</td>
+                                                                        <td className="px-3 py-2 whitespace-nowrap text-sm">{toPersianDigits(new Date(letter.issue_date).toLocaleDateString('fa-IR'))}</td>
+                                                                        <td className="px-3 py-2 whitespace-nowrap text-sm text-center">
+                                                                            <div className="flex items-center justify-center gap-1">
+                                                                                <button onClick={() => handleShowArchivedLetter(letter)} className="text-gray-600 hover:text-gray-800 p-1 rounded-full hover:bg-gray-100 transition-colors" aria-label={`نمایش نامه ${letter.id}`}>
+                                                                                    <DocumentIcon className="w-5 h-5" />
+                                                                                </button>
+                                                                                <button onClick={() => handlePrintArchivedLetter(letter)} className="text-gray-600 hover:text-gray-800 p-1 rounded-full hover:bg-gray-100 transition-colors" aria-label={`چاپ نامه ${letter.id}`}>
+                                                                                    <PrinterIcon className="w-5 h-5" />
+                                                                                </button>
+                                                                                <button onClick={() => handleEditClick(letter)} className="text-blue-600 hover:text-blue-800 p-1 rounded-full hover:bg-blue-100 transition-colors" aria-label={`ویرایش نامه ${letter.id}`}>
+                                                                                    <PencilIcon className="w-5 h-5" />
+                                                                                </button>
+                                                                                <button onClick={() => handleDeleteLetter(letter.id)} className="text-red-600 hover:text-red-800 p-1 rounded-full hover:bg-red-100 transition-colors ml-1" aria-label={`حذف نامه ${letter.id}`}>
+                                                                                    <TrashIcon className="w-5 h-5" />
+                                                                                </button>
+                                                                            </div>
+                                                                        </td>
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                       </table>
+                                                   </div>
+                                               </td>
+                                           </tr>
+                                       )}
+                                   </React.Fragment>
+                               ))}
+                            </tbody>
+                        </table>
+                    )}
+                </div>
+                 {(() => {
+                    const totalArchivePages = Math.ceil(guarantorSummary.length / ARCHIVE_PAGE_SIZE);
+                    if (!archiveLoading && !archiveError && totalArchivePages > 1) {
+                        return (
+                            <div className="flex justify-center items-center gap-4 mt-4">
+                                <button
+                                    onClick={() => setArchiveCurrentPage(p => Math.max(p - 1, 1))}
+                                    disabled={archiveCurrentPage === 1}
+                                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50"
+                                >
+                                    قبلی
+                                </button>
+                                <span className="text-sm text-gray-600">
+                                    صفحه {toPersianDigits(archiveCurrentPage)} از {toPersianDigits(totalArchivePages)}
+                                </span>
+                                <button
+                                    onClick={() => setArchiveCurrentPage(p => Math.min(p + 1, totalArchivePages))}
+                                    disabled={archiveCurrentPage === totalArchivePages}
+                                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 disabled:opacity-50"
+                                >
+                                    بعدی
                                 </button>
                             </div>
-                        </form>
-                    </div>
-
-                    {/* Credit Info Side */}
-                    <div className="lg:col-span-1 space-y-4">
-                       <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 h-full">
-                           <h3 className="text-lg font-bold mb-2">۳. بررسی اعتبار ضامن</h3>
-                           {selectedGuarantor ? (
-                               <div className="space-y-3">
-                                   <div className="flex items-center">
-                                       <label className="w-32 text-sm">جمع عوامل حکمی:</label>
-                                       <div className="flex-grow flex items-center">
-                                            <input value={toPersianDigits(formatCurrency(decreeFactors))} onChange={e => setDecreeFactors(toEnglishDigits(e.target.value))} className="flex-grow p-2 border rounded-md font-sans text-left" />
-                                            <button onClick={handleRefreshDecreeFactors} className="mr-2 p-2 text-blue-600 hover:bg-blue-100 rounded-full" title="بارگذاری مجدد از پرونده"><RefreshIcon className="w-5 h-5"/></button>
-                                       </div>
-                                   </div>
-                                    <div className="p-3 bg-blue-50 border-t border-b border-blue-200">
-                                       <p className="text-sm text-blue-800">حداکثر اعتبار ضمانت (ریال):</p>
-                                       <p className="text-xl font-bold font-sans text-blue-900">{toPersianDigits(formatCurrency(creditLimit))}</p>
-                                   </div>
-                                    <div className="p-3 bg-yellow-50 border-t border-b border-yellow-200">
-                                       <p className="text-sm text-yellow-800">مجموع تعهدات قبلی (ریال):</p>
-                                       {loadingCommitment ? <p>...</p> : <p className="text-xl font-bold font-sans text-yellow-900">{toPersianDigits(formatCurrency(totalCommitted))}</p>}
-                                   </div>
-                                    <div className={`p-3 rounded-b-lg ${isOverLimit ? 'bg-red-50 border-red-200' : 'bg-green-50 border-green-200'} border-t border-b`}>
-                                       <p className={`text-sm ${isOverLimit ? 'text-red-800' : 'text-green-800'}`}>مانده اعتبار (ریال):</p>
-                                       <p className={`text-xl font-bold font-sans ${isOverLimit ? 'text-red-900' : 'text-green-900'}`}>{toPersianDigits(formatCurrency(remainingCredit))}</p>
-                                       {isOverLimit && <p className="text-xs text-red-700 mt-1">مبلغ وام درخواستی از مانده اعتبار ضامن بیشتر است!</p>}
-                                   </div>
-                               </div>
-                           ) : <p className="text-center text-gray-500 py-10">یک ضامن انتخاب کنید.</p>}
-                       </div>
-                       <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                           <h3 className="text-lg font-bold mb-2">تنظیمات چاپ</h3>
-                            <div className="flex items-center gap-2">
-                                <button onClick={() => setIsAdjusting(!isAdjusting)} className="px-4 py-2 bg-yellow-500 text-white rounded-lg">{isAdjusting ? 'پایان تنظیم' : 'تنظیم موقعیت'}</button>
-                                {isAdjusting && (
-                                    <>
-                                        <button onClick={handleSavePosition} className="px-4 py-2 bg-green-500 text-white rounded-lg">ذخیره</button>
-                                        <button onClick={handleResetPosition} className="px-4 py-2 bg-gray-500 text-white rounded-lg">ریست</button>
-                                    </>
-                                )}
-                            </div>
-                             {isAdjusting && <p className="text-xs text-gray-500 mt-2">برای جابجایی متن نامه روی پیش‌نمایش کلیک کرده و بکشید.</p>}
-                       </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Print Preview */}
-            <div className="hidden">
-                <div ref={printRef} style={{ fontFamily: 'Amiri, serif', direction: 'rtl', lineHeight: '2.5', fontSize: '16px' }}>
-                    {/* ... print content ... */}
-                </div>
-            </div>
-            
-            {/* Archive Section */}
-            <div className="mt-8 bg-white p-6 rounded-lg shadow-lg">
-                <div className="flex items-center gap-3 mb-6 border-b-2 border-gray-100 pb-4">
-                    <DocumentIcon className="w-8 h-8 text-indigo-600"/>
-                    <h2 className="text-2xl font-bold text-gray-800">بایگانی تعهدات</h2>
-                </div>
-                {/* ... archive table ... */}
+                        );
+                    }
+                    return null;
+                })()}
             </div>
 
             {isEditModalOpen && editingLetter && (

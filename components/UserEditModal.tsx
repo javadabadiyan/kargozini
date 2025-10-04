@@ -1,96 +1,199 @@
 import React, { useState, useEffect } from 'react';
-import type { AppUser } from '../types';
-import { ALL_MENU_ITEMS } from './menuConfig';
+import type { AppUser, UserPermissions } from '../types';
 
 interface UserEditModalProps {
-    user: AppUser | null;
-    onClose: () => void;
-    onSave: (user: AppUser) => void;
+  user: AppUser | null;
+  onClose: () => void;
+  onSave: (user: AppUser) => Promise<void>;
 }
 
+const PERMISSION_KEYS: { key: keyof UserPermissions, label: string }[] = [
+    { key: 'dashboard', label: 'داشبورد' },
+    { key: 'personnel', label: 'منوی مدیریت پرسنل' },
+    { key: 'personnel_list', label: ' - لیست پرسنل' },
+    { key: 'dependents_info', label: ' - اطلاعات بستگان' },
+    { key: 'document_upload', label: ' - بارگذاری مدارک' },
+    { key: 'recruitment', label: 'منوی کارگزینی' },
+    { key: 'accounting_commitment', label: ' - نامه تعهد (صدور و بایگانی)' },
+    { key: 'disciplinary_committee', label: ' - کمیته تشویق و انضباطی' },
+    { key: 'performance_review', label: ' - ارزیابی عملکرد' },
+    { key: 'send_performance_review', label: '   - ارسال ارزیابی عملکرد پرسنل' },
+    { key: 'archive_performance_review', label: '   - بایگانی ارزیابی عملکرد پرسنل' },
+    { key: 'job_group', label: ' - گروه شغلی پرسنل' },
+    { key: 'bonus_management', label: ' - مدیریت کارانه' },
+    { key: 'enter_bonus', label: '   - وارد کردن کارانه' },
+    { key: 'bonus_analyzer', label: '   - تحلیلگر هوشمند کارانه' },
+    { key: 'security', label: 'منوی حراست' },
+    { key: 'commuting_members', label: ' - کارمندان عضو تردد' },
+    { key: 'log_commute', label: ' - ثبت تردد' },
+    { key: 'commute_report', label: ' - گزارش گیری تردد' },
+    { key: 'settings', label: 'تنظیمات' },
+    { key: 'user_management', label: 'مدیریت کاربران (در تنظیمات)' },
+];
+
+const PERMISSION_ROLES: { [key: string]: { label: string; permissions: UserPermissions } } = {
+  admin: {
+    label: 'دسترسی کامل (ادمین)',
+    permissions: PERMISSION_KEYS.reduce((acc, perm) => {
+      acc[perm.key] = true;
+      return acc;
+    }, {} as UserPermissions),
+  },
+  supervisor: {
+    label: 'سرپرست',
+    permissions: PERMISSION_KEYS.reduce((acc, perm) => {
+      const supervisorPermissions: (keyof UserPermissions)[] = [
+          'dashboard', 'personnel', 'personnel_list', 'dependents_info', 'document_upload',
+          'recruitment', 'accounting_commitment', 'disciplinary_committee', 'performance_review',
+          'send_performance_review', 'archive_performance_review', 'job_group', 'commute_report'
+      ];
+      acc[perm.key] = supervisorPermissions.includes(perm.key);
+      return acc;
+    }, {} as UserPermissions),
+  },
+  guard: {
+    label: 'نگهبان',
+    permissions: PERMISSION_KEYS.reduce((acc, perm) => {
+      const guardPermissions: (keyof UserPermissions)[] = [
+          'security', 'commuting_members', 'log_commute', 'commute_report'
+      ];
+      acc[perm.key] = guardPermissions.includes(perm.key);
+      return acc;
+    }, {} as UserPermissions),
+  },
+  normal: {
+    label: 'کاربر عادی',
+    permissions: PERMISSION_KEYS.reduce((acc, perm) => {
+      const normalPermissions: (keyof UserPermissions)[] = ['dashboard', 'personnel', 'personnel_list'];
+      acc[perm.key] = normalPermissions.includes(perm.key);
+      return acc;
+    }, {} as UserPermissions),
+  }
+};
+
+
 const UserEditModal: React.FC<UserEditModalProps> = ({ user, onClose, onSave }) => {
-    const [formData, setFormData] = useState<Partial<AppUser>>({});
-    const [isSaving, setIsSaving] = useState(false);
-    const isNew = !user?.id;
+  const [formData, setFormData] = useState<Partial<AppUser>>({});
+  const [isSaving, setIsSaving] = useState(false);
+  
+  const isNew = !user;
 
-    useEffect(() => {
-        setFormData(user || { permissions: {} });
-    }, [user]);
+  useEffect(() => {
+    setFormData(user || { username: '', password: '', permissions: {} });
+  }, [user]);
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
-    };
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
 
-    const handlePermissionChange = (permissionId: string, checked: boolean) => {
-        setFormData(prev => {
-            const newPermissions = { ...prev.permissions, [permissionId]: checked };
-            return { ...prev, permissions: newPermissions };
-        });
-    };
+  const handlePermissionChange = (key: keyof UserPermissions) => {
+    setFormData(prev => ({
+        ...prev,
+        permissions: {
+            ...prev.permissions,
+            [key]: !prev.permissions?.[key]
+        }
+    }));
+  };
 
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        setIsSaving(true);
-        onSave(formData as AppUser);
-        // isSaving will be reset by parent component
-    };
-    
-    const inputClass = "w-full px-3 py-2 text-gray-700 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-slate-700 dark:border-slate-600 dark:text-gray-200";
+  const handleRoleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const roleKey = e.target.value;
+    if (roleKey && PERMISSION_ROLES[roleKey]) {
+        setFormData(prev => ({
+            ...prev,
+            permissions: PERMISSION_ROLES[roleKey].permissions,
+        }));
+    }
+  };
 
-    return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4" onClick={onClose}>
-            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-2xl" onClick={e => e.stopPropagation()}>
-                <form onSubmit={handleSubmit}>
-                    <div className="p-4 border-b">
-                        <h3 className="text-xl font-semibold">{isNew ? 'افزودن کاربر جدید' : `ویرایش کاربر: ${user?.username}`}</h3>
-                    </div>
-                    <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                           <div>
-                                <label className="block text-sm font-medium mb-1">نام کاربری</label>
-                                <input type="text" name="username" value={formData.username || ''} onChange={handleChange} className={inputClass} required/>
-                           </div>
-                           <div>
-                                <label className="block text-sm font-medium mb-1">رمز عبور {isNew ? '' : '(خالی بگذارید تا تغییر نکند)'}</label>
-                                <input type="password" name="password" value={formData.password || ''} onChange={handleChange} className={inputClass} required={isNew} />
-                           </div>
-                        </div>
-                         <div>
-                            <label className="block text-sm font-medium mb-1">نام کامل (اختیاری)</label>
-                            <input type="text" name="full_name" value={formData.full_name || ''} onChange={handleChange} className={inputClass} />
-                        </div>
-                        <div>
-                            <h4 className="font-semibold mb-2">دسترسی‌ها</h4>
-                            <div className="space-y-2">
-                                {ALL_MENU_ITEMS.map(item => (
-                                    <div key={item.id} className="p-2 border rounded-md">
-                                        <label className="flex items-center font-bold">
-                                            <input type="checkbox" checked={!!formData.permissions?.[item.id]} onChange={e => handlePermissionChange(item.id, e.target.checked)} className="ml-2"/>
-                                            {item.label}
-                                        </label>
-                                        {item.children && (
-                                            <div className="mr-6 mt-2 space-y-1">
-                                                {item.children.map(child => (
-                                                    <label key={child.id} className="flex items-center text-sm">
-                                                         <input type="checkbox" checked={!!formData.permissions?.[child.id]} onChange={e => handlePermissionChange(child.id, e.target.checked)} className="ml-2"/>
-                                                         {child.label}
-                                                    </label>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                    <div className="p-4 border-t bg-gray-50 flex justify-end gap-2">
-                        <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-200 rounded-md">انصراف</button>
-                        <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded-md" disabled={isSaving}>{isSaving ? 'در حال ذخیره...' : 'ذخیره'}</button>
-                    </div>
-                </form>
-            </div>
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.username || (isNew && !formData.password)) {
+        alert('نام کاربری و رمز عبور برای کاربر جدید الزامی است.');
+        return;
+    }
+    setIsSaving(true);
+    try {
+      await onSave(formData as AppUser);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const inputClass = "w-full px-3 py-2 text-gray-700 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-slate-700 dark:border-slate-600 dark:text-gray-200";
+
+  return (
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center"
+      onClick={onClose}
+    >
+      <div 
+        className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="flex justify-between items-center p-4 border-b dark:border-slate-700">
+          <h3 className="text-xl font-semibold text-gray-800 dark:text-gray-100">
+            {isNew ? 'افزودن کاربر جدید' : `ویرایش کاربر ${user?.username}`}
+          </h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+          </button>
         </div>
-    );
+        
+        <form onSubmit={handleSubmit} className="flex-1 flex flex-col overflow-hidden">
+          <div className="overflow-y-auto p-6 space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                 <div>
+                  <label htmlFor="username" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">نام کاربری</label>
+                  <input type="text" id="username" name="username" value={formData.username || ''} onChange={handleChange} className={inputClass} required />
+                </div>
+                 <div>
+                  <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    رمز عبور {isNew ? '' : '(برای عدم تغییر، خالی بگذارید)'}
+                  </label>
+                  <input type="password" id="password" name="password" value={formData.password || ''} onChange={handleChange} className={inputClass} required={isNew} />
+                </div>
+                 <div className="sm:col-span-2">
+                    <label htmlFor="role-select-modal" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">اعمال دسترسی گروهی (اختیاری)</label>
+                    <select id="role-select-modal" onChange={handleRoleChange} className={inputClass} defaultValue="">
+                        <option value="">-- انتخاب گروه دسترسی --</option>
+                        {Object.entries(PERMISSION_ROLES).map(([key, role]) => (
+                            <option key={key} value={key}>{role.label}</option>
+                        ))}
+                    </select>
+                </div>
+            </div>
+            <div>
+                <h4 className="text-md font-semibold text-gray-700 dark:text-gray-300 mb-2">دسترسی‌ها</h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 p-4 border rounded-lg bg-slate-50 dark:bg-slate-700/50 dark:border-slate-600">
+                    {PERMISSION_KEYS.map(perm => (
+                        <label key={perm.key} className="flex items-center space-x-2 space-x-reverse cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={!!formData.permissions?.[perm.key]}
+                                onChange={() => handlePermissionChange(perm.key)}
+                                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-sm text-gray-700 dark:text-gray-200">{perm.label}</span>
+                        </label>
+                    ))}
+                </div>
+            </div>
+          </div>
+          
+          <div className="flex justify-end items-center p-4 border-t bg-gray-50 dark:bg-slate-900/50 dark:border-slate-700 rounded-b-lg mt-auto">
+            <button type="button" onClick={onClose} className="px-6 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 dark:bg-slate-600 dark:text-gray-200 dark:border-slate-500 dark:hover:bg-slate-500" disabled={isSaving}>
+              انصراف
+            </button>
+            <button type="submit" className="mr-3 px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-blue-300" disabled={isSaving}>
+              {isSaving ? 'در حال ذخیره...' : (isNew ? 'افزودن کاربر' : 'ذخیره تغییرات')}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
 };
 
 export default UserEditModal;
