@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import type { BonusData } from '../../types';
-import { DownloadIcon, UploadIcon, DocumentReportIcon, UserPlusIcon, PencilIcon, TrashIcon } from '../icons/Icons';
+import { DownloadIcon, UploadIcon, DocumentReportIcon, UserPlusIcon, PencilIcon, TrashIcon, SearchIcon } from '../icons/Icons';
 import EditBonusModal from '../EditBonusModal';
 
 declare const XLSX: any;
@@ -42,6 +42,10 @@ const EnterBonusPage: React.FC = () => {
     const [status, setStatus] = useState<{ type: 'info' | 'success' | 'error'; message: string } | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    // Search and Filter State
+    const [searchTerm, setSearchTerm] = useState('');
+    const [departmentFilter, setDepartmentFilter] = useState('');
+
     // Edit Modal State
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editingBonusInfo, setEditingBonusInfo] = useState<{ person: BonusData, month: string } | null>(null);
@@ -77,6 +81,35 @@ const EnterBonusPage: React.FC = () => {
     useEffect(() => {
         fetchBonuses(selectedYear);
     }, [selectedYear, fetchBonuses]);
+
+    const uniqueDepartments = useMemo(() => {
+        const allDepartments = new Set<string>();
+        bonusData.forEach(person => {
+            if (person.monthly_data) {
+                // FIX: Explicitly type monthData to allow access to 'department' property.
+                Object.values(person.monthly_data).forEach((monthData: { bonus: number; department: string; }) => {
+                    if (monthData.department) {
+                        allDepartments.add(monthData.department);
+                    }
+                });
+            }
+        });
+        return Array.from(allDepartments).sort((a, b) => a.localeCompare(b, 'fa'));
+    }, [bonusData]);
+
+    const filteredBonusData = useMemo(() => {
+        const lowercasedSearchTerm = searchTerm.toLowerCase();
+        return bonusData.filter(person => {
+            const nameMatch = `${person.first_name} ${person.last_name}`.toLowerCase().includes(lowercasedSearchTerm) ||
+                              person.personnel_code.toLowerCase().includes(lowercasedSearchTerm);
+            
+            // FIX: Explicitly type md to allow access to 'department' property.
+            const departmentMatch = departmentFilter === '' || 
+                                    (person.monthly_data && Object.values(person.monthly_data).some((md: { bonus: number; department: string; }) => md.department === departmentFilter));
+
+            return nameMatch && departmentMatch;
+        });
+    }, [bonusData, searchTerm, departmentFilter]);
     
     const handleDownloadSample = () => {
         if (!selectedMonth) {
@@ -144,7 +177,6 @@ const EnterBonusPage: React.FC = () => {
     };
 
     const handleExport = () => {
-        // Explicitly type `dataAsArray` as `any[][]` to resolve type inference issues.
         const headers: string[] = ['کد پرسنلی', 'نام و نام خانوادگی', 'پست', 'کاربر ثبت کننده'];
         PERSIAN_MONTHS.forEach(month => {
             headers.push(`کارانه ${month}`);
@@ -152,7 +184,7 @@ const EnterBonusPage: React.FC = () => {
         });
         
         const dataAsArray: any[][] = [headers];
-        bonusData.forEach(person => {
+        filteredBonusData.forEach(person => {
             const row: (string | number | undefined)[] = [
                 person.personnel_code,
                 `${person.first_name} ${person.last_name}`,
@@ -259,7 +291,7 @@ const EnterBonusPage: React.FC = () => {
     };
     
     const handleFinalize = async () => {
-        if (window.confirm(`آیا از ارسال نهایی کارانه سال ${toPersianDigits(selectedYear)} اطمینان دارید؟ پس از ارسال، داده‌های شما از این صفحه حذف و به بایگانی منتقل می‌شود.`)) {
+        if (window.confirm(`آیا از ارسال نهایی کارانه سال ${toPersianDigits(selectedYear)} اطمینان دارید؟ پس از ارسال، داده‌های شما در بایگانی ثبت می‌شود.`)) {
             setStatus({ type: 'info', message: 'در حال ارسال نهایی...'});
             try {
                 const response = await fetch('/api/personnel?type=finalize_bonuses', {
@@ -318,6 +350,37 @@ const EnterBonusPage: React.FC = () => {
 
             {status && <div className={`p-4 mb-4 text-sm rounded-lg ${statusColor[status.type]}`}>{status.message}</div>}
 
+            <div className="my-4 p-4 border rounded-lg bg-slate-50 dark:bg-slate-700/50 dark:border-slate-700">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label htmlFor="search-input" className="block text-sm font-medium mb-1 dark:text-slate-300">جستجو</label>
+                        <div className="relative">
+                            <input 
+                                id="search-input"
+                                type="text" 
+                                placeholder="بر اساس نام یا کد پرسنلی..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className={inputClass} 
+                            />
+                            <SearchIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                        </div>
+                    </div>
+                    <div>
+                        <label htmlFor="dept-filter" className="block text-sm font-medium mb-1 dark:text-slate-300">فیلتر بر اساس واحد</label>
+                        <select
+                            id="dept-filter"
+                            value={departmentFilter}
+                            onChange={(e) => setDepartmentFilter(e.target.value)}
+                            className={inputClass}
+                        >
+                            <option value="">همه واحدها</option>
+                            {uniqueDepartments.map(dept => <option key={dept} value={dept}>{dept}</option>)}
+                        </select>
+                    </div>
+                </div>
+            </div>
+
             {showManualForm && (
                 <div className="p-4 my-4 border rounded-lg bg-indigo-50 dark:bg-indigo-900/20 dark:border-indigo-800 transition-all duration-300">
                     <h3 className="text-lg font-bold text-indigo-800 dark:text-indigo-200 mb-4">ثبت دستی کارانه برای ماه {selectedMonth} سال {toPersianDigits(selectedYear)}</h3>
@@ -358,10 +421,13 @@ const EnterBonusPage: React.FC = () => {
                     <tbody className="bg-white dark:bg-slate-800/50 divide-y divide-gray-200 dark:divide-slate-700">
                         {loading && <tr><td colSpan={16} className="text-center p-4">در حال بارگذاری...</td></tr>}
                         {error && <tr><td colSpan={16} className="text-center p-4 text-red-500">{error}</td></tr>}
+                        {!loading && !error && bonusData.length > 0 && filteredBonusData.length === 0 && (
+                            <tr><td colSpan={16} className="text-center p-8 text-gray-500 dark:text-gray-400">هیچ رکوردی مطابق با فیلترهای اعمال شده یافت نشد.</td></tr>
+                        )}
                         {!loading && !error && bonusData.length === 0 && (
                             <tr><td colSpan={16} className="text-center p-8 text-gray-500 dark:text-gray-400"><DocumentReportIcon className="w-12 h-12 mx-auto mb-2 text-gray-300" />هیچ داده‌ای برای سال انتخاب شده یافت نشد.</td></tr>
                         )}
-                        {!loading && !error && bonusData.map((person) => (
+                        {!loading && !error && filteredBonusData.map((person) => (
                             <tr key={person.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
                                 <td className="px-4 py-3 whitespace-nowrap text-sm">{toPersianDigits(person.personnel_code)}</td>
                                 <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold">{person.first_name} {person.last_name}</td>

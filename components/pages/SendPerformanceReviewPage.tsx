@@ -8,7 +8,7 @@ const toPersianDigits = (s: string | number | null | undefined): string => {
     return String(s).replace(/[0-9]/g, (w) => '۰۱۲۳۴۵۶۷۸۹'[parseInt(w, 10)]);
 };
 
-// FIX: Explicitly type score objects to prevent them from being inferred as `never[]`.
+// FIX: Explicitly type score objects and initialize them as objects, not arrays.
 const initialFormData = {
     scores_functional: {} as { [key: string]: number },
     scores_behavioral: {} as { [key: string]: number },

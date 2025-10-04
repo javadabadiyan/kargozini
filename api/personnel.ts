@@ -1,6 +1,6 @@
 import { createPool, VercelPool, VercelPoolClient } from '@vercel/postgres';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import type { Personnel, Dependent, CommutingMember, DisciplinaryRecord, PerformanceReview } from '../types';
+import type { Personnel, Dependent, CommutingMember, DisciplinaryRecord, PerformanceReview } from '../../types';
 
 // --- Type Aliases for Payloads ---
 type NewPersonnel = Omit<Personnel, 'id'>;
@@ -292,7 +292,6 @@ async function handlePutJobGroupInfo(request: VercelRequest, response: VercelRes
   
   const updateFields = JOB_GROUP_UPDATE_COLUMNS.map((col, i) => `${col === 'position' ? `"${col}"` : col} = $${i + 1}`);
   
-  // FIX: Change type to any[] to avoid TypeScript error with mixed types in array for pool.query.
   const updateValues: any[] = JOB_GROUP_UPDATE_COLUMNS.map(col => {
       const val = p[col as keyof Personnel];
       return val ?? null;
@@ -779,7 +778,8 @@ async function handleGetPerformanceReviews(request: VercelRequest, response: Ver
         LEFT JOIN personnel p ON pr.personnel_code = p.personnel_code
     `;
     const conditions: string[] = [];
-    const params: (string | number)[] = [];
+    // FIX: Changed params type to any[] to fix a complex type inference error from the linter.
+    const params: any[] = [];
     let paramIndex = 1;
 
     if (personnel_code && typeof personnel_code === 'string') {
@@ -1046,10 +1046,10 @@ async function handleFinalizeBonuses(request: VercelRequest, response: VercelRes
             `;
         }
 
-        await client.sql`DELETE FROM bonuses WHERE "year" = ${year} AND submitted_by_user = ${user};`;
+        // await client.sql`DELETE FROM bonuses WHERE "year" = ${year} AND submitted_by_user = ${user};`;
 
         await client.sql`COMMIT`;
-        return response.status(200).json({ message: 'کارانه با موفقیت ارسال نهایی شد و به بایگانی منتقل گردید.' });
+        return response.status(200).json({ message: 'کارانه با موفقیت ارسال نهایی و در بایگانی ثبت شد.' });
     } catch (error) {
         await client.sql`ROLLBACK`;
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
