@@ -411,7 +411,6 @@ export default async function handler(
       dependents_info: true,
       document_upload: true,
       recruitment: true,
-      accounting_commitment_parent: true,
       accounting_commitment: true,
       commitment_letter_archive: true,
       disciplinary_committee: true,
