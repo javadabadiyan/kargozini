@@ -778,7 +778,6 @@ async function handleGetPerformanceReviews(request: VercelRequest, response: Ver
         LEFT JOIN personnel p ON pr.personnel_code = p.personnel_code
     `;
     const conditions: string[] = [];
-    // FIX: Changed params type to any[] to fix a complex type inference error from the linter.
     const params: any[] = [];
     let paramIndex = 1;
 
