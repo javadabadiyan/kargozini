@@ -83,405 +83,344 @@ const SettingsPage: React.FC = () => {
     const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
     const [status, setStatus] = useState<{ type: 'info' | 'success' | 'error'; message: string } | null>(null);
 
+    // User management state
     const [users, setUsers] = useState<AppUser[]>([]);
-    const [loadingUsers, setLoadingUsers] = useState(true);
+    const [usersLoading, setUsersLoading] = useState(true);
     const [isUserModalOpen, setIsUserModalOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<AppUser | null>(null);
 
-    // New state for inline add-user form
-    const [showAddUserForm, setShowAddUserForm] = useState(false);
-    const [newUser, setNewUser] = useState<Omit<AppUser, 'id'>>({
-        username: '',
-        password: '',
-        permissions: {},
-    });
+    const handleAppNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setAppName(e.target.value);
+    };
 
+    const saveAppName = () => {
+        localStorage.setItem('appName', appName);
+        setStatus({ type: 'success', message: 'نام برنامه با موفقیت ذخیره شد.' });
+        setTimeout(() => setStatus(null), 3000);
+        window.dispatchEvent(new Event('storage'));
+    };
+    
+    const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const dataUrl = event.target?.result as string;
+                localStorage.setItem('appLogo', dataUrl);
+                setAppLogo(dataUrl);
+                setStatus({ type: 'success', message: 'لوگو با موفقیت تغییر کرد.' });
+                setTimeout(() => setStatus(null), 3000);
+                window.dispatchEvent(new Event('storage'));
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+    
+    const removeLogo = () => {
+        localStorage.removeItem('appLogo');
+        setAppLogo(null);
+        if (logoInputRef.current) logoInputRef.current.value = '';
+        window.dispatchEvent(new Event('storage'));
+    };
 
+    useEffect(() => {
+        const root = window.document.documentElement;
+        if (theme === 'dark') {
+            root.classList.add('dark');
+        } else {
+            root.classList.remove('dark');
+        }
+        localStorage.setItem('theme', theme);
+    }, [theme]);
+    
+    // --- Backup and Restore ---
+    const handleCreateBackup = async () => {
+        setStatus({ type: 'info', message: 'در حال ایجاد فایل پشتیبان... این عملیات ممکن است چند لحظه طول بکشد.' });
+        try {
+            const response = await fetch('/api/backup');
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.details || errorData.error);
+            }
+            const data = await response.json();
+            const jsonString = JSON.stringify(data, null, 2);
+            const blob = new Blob([jsonString], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            const date = new Date().toLocaleDateString('fa-IR-u-nu-latn').replace(/\//g, '-');
+            link.download = `backup-${date}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            setStatus({ type: 'success', message: 'فایل پشتیبان با موفقیت ایجاد و دانلود شد.' });
+        } catch(error) {
+            setStatus({ type: 'error', message: `خطا در ایجاد پشتیبان: ${error instanceof Error ? error.message : String(error)}` });
+        } finally {
+            setTimeout(() => setStatus(null), 5000);
+        }
+    };
+
+    const handleRestoreBackup = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const confirmation = window.prompt('این عمل تمام اطلاعات فعلی سیستم را با اطلاعات فایل پشتیبان جایگزین می‌کند و قابل بازگشت نیست. برای تایید، عبارت "بازیابی" را وارد کنید.');
+        if (confirmation !== 'بازیابی') {
+            if (backupInputRef.current) backupInputRef.current.value = "";
+            return;
+        }
+
+        setStatus({ type: 'info', message: 'در حال خواندن فایل پشتیبان...' });
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+            try {
+                const backupData = JSON.parse(event.target?.result as string);
+                setStatus({ type: 'info', message: 'در حال ارسال اطلاعات به سرور برای بازیابی... لطفاً منتظر بمانید.' });
+                const response = await fetch('/api/backup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(backupData)
+                });
+                const result = await response.json();
+                if (!response.ok) {
+                    throw new Error(result.details || result.error);
+                }
+                setStatus({ type: 'success', message: 'بازیابی اطلاعات با موفقیت انجام شد. صفحه مجدداً بارگذاری می‌شود.' });
+                setTimeout(() => window.location.reload(), 2000);
+            } catch (error) {
+                 setStatus({ type: 'error', message: `خطا در بازیابی اطلاعات: ${error instanceof Error ? error.message : String(error)}` });
+            } finally {
+                if (backupInputRef.current) backupInputRef.current.value = "";
+                setTimeout(() => setStatus(null), 8000);
+            }
+        };
+        reader.readAsText(file);
+    };
+
+     const handleDeleteAllData = async () => {
+        const confirmation = window.prompt('این عمل تمام اطلاعات پایگاه داده را حذف می‌کند و قابل بازگشت نیست. برای تایید، عبارت "حذف کلی" را وارد کنید.');
+        if (confirmation !== 'حذف کلی') return;
+
+        setStatus({ type: 'info', message: 'در حال حذف تمام اطلاعات...' });
+        try {
+            const response = await fetch('/api/backup', { method: 'DELETE' });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.details || result.error);
+            setStatus({ type: 'success', message: 'تمام اطلاعات با موفقیت حذف شد. صفحه مجدداً بارگذاری می‌شود.' });
+            setTimeout(() => window.location.reload(), 2000);
+        } catch(error) {
+            setStatus({ type: 'error', message: `خطا در حذف اطلاعات: ${error instanceof Error ? error.message : String(error)}` });
+        } finally {
+            setTimeout(() => setStatus(null), 5000);
+        }
+    };
+
+    // --- User Management Functions ---
     const fetchUsers = useCallback(async () => {
-        if (!userPermissions.user_management) return;
-        setLoadingUsers(true);
+        setUsersLoading(true);
         try {
             const response = await fetch('/api/users');
             if (!response.ok) throw new Error('Failed to fetch users');
             const data = await response.json();
             setUsers(data.users || []);
         } catch (error) {
-            setStatus({ type: 'error', message: 'خطا در دریافت لیست کاربران' });
-        } finally { setLoadingUsers(false); }
-    }, [userPermissions.user_management]);
-
-    useEffect(() => { fetchUsers(); }, [fetchUsers]);
-    useEffect(() => { if (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches) setTheme('dark'); }, []);
-
-    const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file && file.type.startsWith('image/')) {
-            const reader = new FileReader();
-            reader.onloadend = () => setAppLogo(reader.result as string);
-            reader.readAsDataURL(file);
+            setStatus({ type: 'error', message: error instanceof Error ? error.message : 'Error fetching users' });
+        } finally {
+            setUsersLoading(false);
         }
-    };
+    }, []);
 
-    const handleDeleteLogo = () => {
-        setAppLogo(null);
-        localStorage.removeItem('appLogo');
-    };
-
-    const handleSaveSettings = () => {
-        localStorage.setItem('appName', appName);
-        if (appLogo) localStorage.setItem('appLogo', appLogo);
-        else localStorage.removeItem('appLogo');
-        setStatus({ type: 'success', message: 'تنظیمات ذخیره شد. صفحه برای اعمال کامل تغییرات مجدداً بارگذاری می‌شود...' });
-        setTimeout(() => window.location.reload(), 1500);
-    };
-
-    const handleThemeChange = (newTheme: 'light' | 'dark') => {
-        setTheme(newTheme);
-        localStorage.setItem('theme', newTheme);
-        document.documentElement.classList.toggle('dark', newTheme === 'dark');
-    };
-
-    const handleExportAllData = async () => {
-        setStatus({ type: 'info', message: 'در حال ایجاد نسخه پشتیبان کامل...' });
-        try {
-            const response = await fetch('/api/backup');
-            if (!response.ok) throw new Error((await response.json()).details || 'خطا در دریافت داده‌ها');
-            const data = await response.json();
-            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `backup-${new Date().toISOString().split('T')[0]}.json`;
-            a.click();
-            URL.revokeObjectURL(url);
-            setStatus({ type: 'success', message: 'فایل پشتیبان کامل با موفقیت دانلود شد.' });
-        } catch (err) {
-            setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در ایجاد پشتیبان' });
-        } finally { setTimeout(() => setStatus(null), 5000); }
-    };
-    
-    const handleImportAllData = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-            setStatus({ type: 'info', message: 'در حال پردازش و بازیابی اطلاعات...' });
-            try {
-                const content = event.target?.result;
-                const response = await fetch('/api/backup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: content });
-                const data = await response.json();
-                if (!response.ok) throw new Error(data.details || data.error);
-                setStatus({ type: 'success', message: 'اطلاعات با موفقیت بازیابی شد. لطفاً برای مشاهده تغییرات از سیستم خارج و دوباره وارد شوید.' });
-            } catch (err) {
-                setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در بازیابی اطلاعات' });
-            } finally { if(backupInputRef.current) backupInputRef.current.value = ""; setTimeout(() => setStatus(null), 5000); }
-        };
-        reader.readAsText(file);
-    };
-
-    const handleDeleteAllData = async () => {
-        if (window.prompt('این عمل تمام داده‌های سیستم را پاک می‌کند و قابل بازگشت نیست. برای تایید، عبارت "حذف کلی" را وارد کنید.') !== 'حذف کلی') {
-            setStatus({ type: 'info', message: 'عملیات پاک کردن لغو شد.' });
-            return;
+    useEffect(() => {
+        if (userPermissions.user_management) {
+            fetchUsers();
         }
-        setStatus({ type: 'info', message: 'در حال پاک کردن تمام داده‌ها...' });
-        try {
-            const response = await fetch('/api/backup', { method: 'DELETE' });
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.details || data.error);
-            setStatus({ type: 'success', message: 'تمام اطلاعات با موفقیت پاک شد. لطفاً از سیستم خارج شوید.' });
-        } catch(err) {
-            setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در پاک کردن داده‌ها' });
-        }
+    }, [userPermissions.user_management, fetchUsers]);
+
+    const handleOpenUserModal = (user: AppUser | null) => {
+        setEditingUser(user);
+        setIsUserModalOpen(true);
     };
-    
-    const handleSaveUser = async (user: Partial<AppUser>) => {
+
+    const handleCloseUserModal = () => {
+        setEditingUser(null);
+        setIsUserModalOpen(false);
+    };
+
+    const handleSaveUser = async (user: AppUser) => {
         const isNew = !user.id;
         const method = isNew ? 'POST' : 'PUT';
-        const url = '/api/users';
-
-        if (isNew && (!user.username || !user.password)) {
-            setStatus({ type: 'error', message: 'نام کاربری و رمز عبور برای کاربر جدید الزامی است.' });
-            return;
-        }
-
+        
         try {
-            const response = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(user) });
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.error);
-
-            setStatus({ type: 'success', message: data.message });
-            if (isNew) {
-                setShowAddUserForm(false);
-                setNewUser({ username: '', password: '', permissions: {} });
-            } else {
-                setIsUserModalOpen(false);
-                setEditingUser(null);
+            const response = await fetch('/api/users', {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(user)
+            });
+            if (!response.ok) {
+                 const errorData = await response.json();
+                 throw new Error(errorData.error || `Failed to ${isNew ? 'create' : 'update'} user`);
             }
+            setStatus({ type: 'success', message: `User ${isNew ? 'created' : 'updated'} successfully.` });
+            handleCloseUserModal();
             fetchUsers();
-        } catch (err) {
-            setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در ذخیره کاربر' });
+        } catch (error) {
+             setStatus({ type: 'error', message: error instanceof Error ? error.message : 'An unknown error occurred' });
+        } finally {
+            setTimeout(() => setStatus(null), 3000);
         }
     };
 
-    const handleDeleteUser = async (userId: number) => {
-        if (window.confirm('آیا از حذف این کاربر اطمینان دارید؟')) {
+    const handleDeleteUser = async (id: number) => {
+        if (window.confirm('Are you sure you want to delete this user?')) {
             try {
-                const response = await fetch('/api/users', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: userId }) });
-                const data = await response.json();
-                if (!response.ok) throw new Error(data.error);
-                setStatus({ type: 'success', message: data.message });
+                const response = await fetch('/api/users', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: id })
+                });
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to delete user');
+                }
+                setStatus({ type: 'success', message: 'User deleted successfully.' });
                 fetchUsers();
-            } catch (err) {
-                setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در حذف کاربر' });
+            } catch (error) {
+                setStatus({ type: 'error', message: error instanceof Error ? error.message : 'An unknown error occurred' });
+            } finally {
+                setTimeout(() => setStatus(null), 3000);
             }
         }
     };
 
-    const handleUserExcelSample = () => {
-        const persianHeaders = ['نام کاربری', 'رمز عبور', ...PERMISSION_KEYS.map(p => p.label)];
-        const sampleRow = ['کاربر-جدید', 'رمز۱۲۳۴۵', ...PERMISSION_KEYS.map(() => 'FALSE')];
-        const ws = XLSX.utils.aoa_to_sheet([persianHeaders, sampleRow]);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Users');
-        XLSX.writeFile(wb, 'Sample_Users.xlsx');
-    };
-
-    const handleUserExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleUserImport = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
-        setStatus({ type: 'info', message: 'در حال پردازش فایل کاربران...' });
+
         const reader = new FileReader();
         reader.onload = async (event) => {
             try {
                 const workbook = XLSX.read(new Uint8Array(event.target?.result as ArrayBuffer), { type: 'array' });
                 const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
                 
-                const permissionLabelToKeyMap = PERMISSION_KEYS.reduce((acc, p) => {
-                    acc[p.label] = p.key;
-                    return acc;
-                }, {} as { [label: string]: string });
+                const mappedUsers: Omit<AppUser, 'id'>[] = json.map((row: any) => ({
+                    username: String(row['نام کاربری'] || ''),
+                    password: String(row['رمز عبور'] || ''),
+                    permissions: JSON.parse(row['دسترسی‌ها (JSON)'] || '{}')
+                }));
 
-                const usersToImport = json.map((row: any) => {
-                    const permissions: UserPermissions = {};
-                    for (const persianLabel in row) {
-                         if (persianLabel === 'نام کاربری' || persianLabel === 'رمز عبور') continue;
-                         const permissionKey = permissionLabelToKeyMap[persianLabel];
-                         if (permissionKey) {
-                             permissions[permissionKey as keyof UserPermissions] = String(row[persianLabel]).toUpperCase() === 'TRUE';
-                         }
-                    }
-
-                    // FIX: Explicitly convert username and password from Excel to strings to avoid type errors and creating "undefined" users.
-                    // This prevents issues where a numeric username/password is read as a number instead of a string.
-                    return { 
-                        username: String(row['نام کاربری'] || ''), 
-                        password: String(row['رمز عبور'] || ''), 
-                        permissions 
-                    };
-                }).filter(u => u.username && u.password);
-                
-                if (usersToImport.length === 0) throw new Error('هیچ کاربر معتبری در فایل یافت نشد.');
-
-                const response = await fetch('/api/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(usersToImport) });
-                const data = await response.json();
-                if (!response.ok) throw new Error(data.error);
-                setStatus({ type: 'success', message: data.message });
+                const response = await fetch('/api/users', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(mappedUsers)
+                });
+                 if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to import users');
+                }
+                setStatus({ type: 'success', message: 'Users imported successfully.' });
                 fetchUsers();
-            } catch (err) {
-                setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در ورود اطلاعات کاربران' });
-            } finally { if (userImportRef.current) userImportRef.current.value = ""; }
+
+            } catch (error) {
+                 setStatus({ type: 'error', message: `Error importing users: ${error instanceof Error ? error.message : 'Unknown error'}` });
+            } finally {
+                if(userImportRef.current) userImportRef.current.value = "";
+                 setTimeout(() => setStatus(null), 5000);
+            }
         };
         reader.readAsArrayBuffer(file);
     };
 
-    const handleNewUserFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const { name, value } = e.target;
-        setNewUser(prev => ({ ...prev, [name]: value }));
-    };
-
-    const handleNewUserPermissionChange = (key: keyof UserPermissions) => {
-        setNewUser(prev => ({
-            ...prev,
-            permissions: {
-                ...prev.permissions,
-                [key]: !prev.permissions?.[key],
-            },
+    const handleUserExport = () => {
+         const dataToExport = users.map(user => ({
+            'نام کاربری': user.username,
+            'رمز عبور': '', // Don't export passwords
+            'دسترسی‌ها (JSON)': JSON.stringify(user.permissions, null, 2)
         }));
+        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Users');
+        XLSX.writeFile(workbook, 'Users_Export.xlsx');
     };
     
-    const handleRoleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-        const roleKey = e.target.value;
-        if (roleKey && PERMISSION_ROLES[roleKey]) {
-            setNewUser(prev => ({
-                ...prev,
-                permissions: PERMISSION_ROLES[roleKey].permissions,
-            }));
-        }
-    };
-
-    const handleAddNewUserSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-        handleSaveUser(newUser);
-    };
-    
-    const statusColor = { info: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300', success: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300', error: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' };
-    const inputClass = "w-full px-3 py-2 text-gray-700 bg-gray-50 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-slate-700 dark:border-slate-600 dark:text-gray-200";
+    const statusColor = { info: 'bg-blue-100 text-blue-800', success: 'bg-green-100 text-green-800', error: 'bg-red-100 text-red-800' };
 
     return (
         <div className="space-y-8">
-            <div>
-                <h1 className="text-3xl font-bold text-gray-800 dark:text-gray-100">تنظیمات برنامه</h1>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">شخصی‌سازی، مدیریت کاربران، ظاهر و داده‌های برنامه</p>
-            </div>
-            {status && <div className={`p-4 mb-4 text-sm rounded-lg ${statusColor[status.type]}`}>{status.message}</div>}
-
-            <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-lg">
-                <h2 className="text-xl font-bold text-gray-700 dark:text-gray-200 border-b dark:border-slate-700 pb-3 mb-4">تنظیمات اصلی</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-start">
+             {status && (
+                <div className={`p-4 mb-4 text-sm rounded-lg ${statusColor[status.type]}`} role="alert">
+                    {status.message}
+                </div>
+            )}
+            <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-lg p-6 rounded-xl shadow-xl">
+                <h2 className="text-xl font-bold mb-4">تنظیمات ظاهری</h2>
+                <div className="space-y-4">
                     <div>
-                        <label htmlFor="app-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">نام برنامه</label>
-                        <input type="text" id="app-name" value={appName} onChange={e => setAppName(e.target.value)} className={inputClass} />
-                    </div>
-                    <div className="flex items-center gap-4">
-                        <div className="w-16 h-16 bg-slate-100 dark:bg-slate-700 rounded-md flex items-center justify-center overflow-hidden">
-                            {appLogo ? <img src={appLogo} alt="پیش‌نمایش لوگو" className="w-full h-full object-cover"/> : <span className="text-xs text-gray-400">لوگو</span>}
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">نام برنامه</label>
+                        <div className="flex items-center gap-2">
+                            <input type="text" value={appName} onChange={handleAppNameChange} className="mt-1 block w-full md:w-1/3 p-2 border rounded-md" />
+                            <button onClick={saveAppName} className="px-4 py-2 bg-blue-600 text-white rounded-md">ذخیره</button>
                         </div>
-                        <div className="flex-1 space-y-2">
-                            <label htmlFor="app-logo-upload" className="block text-sm font-medium text-gray-700 dark:text-gray-300">لوگوی برنامه</label>
-                            <div className="flex items-center gap-2">
-                                <input type="file" id="app-logo-upload" accept="image/*" ref={logoInputRef} onChange={handleLogoChange} className="hidden" />
-                                <label htmlFor="app-logo-upload" className="px-4 py-2 text-sm bg-gray-100 text-gray-800 border border-gray-300 rounded-lg hover:bg-gray-200 cursor-pointer dark:bg-slate-600 dark:text-gray-200 dark:border-slate-500">انتخاب فایل</label>
-                                {appLogo && <button onClick={handleDeleteLogo} className="px-4 py-2 text-sm bg-red-100 text-red-700 rounded-lg hover:bg-red-200">حذف لوگو</button>}
-                            </div>
+                    </div>
+                     <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">لوگو برنامه</label>
+                        <div className="flex items-center gap-4 mt-1">
+                            {appLogo && <img src={appLogo} alt="App Logo" className="w-12 h-12 rounded-md object-cover" />}
+                            <input type="file" ref={logoInputRef} onChange={handleLogoChange} className="hidden" id="logo-upload" accept="image/*" />
+                            <label htmlFor="logo-upload" className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md cursor-pointer hover:bg-gray-300">انتخاب فایل</label>
+                            {appLogo && <button onClick={removeLogo} className="px-4 py-2 bg-red-100 text-red-700 rounded-md">حذف لوگو</button>}
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">پوسته</label>
+                        <div className="mt-2 flex items-center gap-4">
+                            <button onClick={() => setTheme('light')} className={`px-4 py-2 rounded-md ${theme === 'light' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}>روشن</button>
+                            <button onClick={() => setTheme('dark')} className={`px-4 py-2 rounded-md ${theme === 'dark' ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}>تاریک</button>
                         </div>
                     </div>
                 </div>
-                <div className="mt-6 flex justify-end">
-                    <button onClick={handleSaveSettings} className="px-6 py-2 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors">ذخیره تنظیمات</button>
+            </div>
+
+             <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-lg p-6 rounded-xl shadow-xl">
+                <h2 className="text-xl font-bold mb-4">پشتیبان‌گیری و بازیابی</h2>
+                 <div className="flex flex-wrap gap-4 items-center">
+                     <button onClick={handleCreateBackup} className="px-4 py-2 bg-blue-600 text-white rounded-md">ایجاد فایل پشتیبان</button>
+                     <input type="file" ref={backupInputRef} onChange={handleRestoreBackup} className="hidden" id="backup-restore" accept=".json" />
+                     <label htmlFor="backup-restore" className="px-4 py-2 bg-green-600 text-white rounded-md cursor-pointer">بازیابی از فایل</label>
+                     <button onClick={handleDeleteAllData} className="px-4 py-2 bg-red-600 text-white rounded-md">حذف تمام اطلاعات سیستم</button>
                 </div>
             </div>
 
             {userPermissions.user_management && (
-                <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-lg">
-                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b dark:border-slate-700 pb-3 mb-4">
-                        <h2 className="text-xl font-bold text-gray-700 dark:text-gray-200">مدیریت کاربران</h2>
-                        <div className="flex items-center gap-2 flex-wrap">
-                            <button onClick={() => setShowAddUserForm(prev => !prev)} className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
-                                {showAddUserForm ? 'انصراف' : 'افزودن کاربر'}
-                            </button>
-                            <button onClick={handleUserExcelSample} className="px-4 py-2 text-sm bg-gray-100 dark:bg-slate-600 dark:text-gray-200 border border-gray-300 dark:border-slate-500 rounded-lg hover:bg-gray-200 dark:hover:bg-slate-500">دانلود نمونه</button>
-                            <input type="file" ref={userImportRef} onChange={handleUserExcelImport} accept=".xlsx, .xls" className="hidden" id="user-import"/>
-                            <label htmlFor="user-import" className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 cursor-pointer">ورود از اکسل</label>
-                        </div>
+                 <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-lg p-6 rounded-xl shadow-xl">
+                    <h2 className="text-xl font-bold mb-4">مدیریت کاربران</h2>
+                     <div className="flex flex-wrap gap-4 items-center mb-4">
+                        <button onClick={() => handleOpenUserModal(null)} className="px-4 py-2 bg-blue-600 text-white rounded-md">افزودن کاربر جدید</button>
+                        <input type="file" ref={userImportRef} onChange={handleUserImport} className="hidden" id="user-import" accept=".xlsx, .xls" />
+                        <label htmlFor="user-import" className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 cursor-pointer"><UploadIcon className="w-4 h-4"/> ورود کاربران از اکسل</label>
+                        <button onClick={handleUserExport} className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700"><DownloadIcon className="w-4 h-4"/> خروجی کاربران</button>
                     </div>
-                    
-                    {showAddUserForm && (
-                        <form onSubmit={handleAddNewUserSubmit} className="p-4 mb-4 border rounded-lg bg-slate-50 dark:bg-slate-700/50 space-y-4 transition-all duration-300 ease-in-out">
-                            <h3 className="text-lg font-bold text-gray-700 dark:text-gray-200">افزودن کاربر جدید</h3>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                                <div>
-                                    <label htmlFor="new-username" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">نام کاربری</label>
-                                    <input type="text" id="new-username" name="username" value={newUser.username} onChange={handleNewUserFormChange} className={inputClass} required />
-                                </div>
-                                <div>
-                                    <label htmlFor="new-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">رمز عبور</label>
-                                    <input type="password" id="new-password" name="password" value={newUser.password || ''} onChange={handleNewUserFormChange} className={inputClass} required />
-                                </div>
-                                <div className="sm:col-span-2">
-                                    <label htmlFor="role-select" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">اعمال دسترسی گروهی (اختیاری)</label>
-                                    <select id="role-select" onChange={handleRoleChange} className={inputClass}>
-                                        <option value="">-- انتخاب گروه دسترسی --</option>
-                                        {Object.entries(PERMISSION_ROLES).map(([key, role]) => (
-                                            <option key={key} value={key}>{role.label}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
-                            <div>
-                                <h4 className="text-md font-semibold text-gray-700 dark:text-gray-300 mb-2">دسترسی‌ها</h4>
-                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 p-4 border rounded-lg bg-white dark:bg-slate-700 dark:border-slate-600">
-                                    {PERMISSION_KEYS.map(perm => (
-                                        <label key={perm.key} className="flex items-center space-x-2 space-x-reverse cursor-pointer">
-                                            <input type="checkbox" checked={!!newUser.permissions?.[perm.key]} onChange={() => handleNewUserPermissionChange(perm.key)} className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"/>
-                                            <span className="text-sm text-gray-700 dark:text-gray-200">{perm.label}</span>
-                                        </label>
-                                    ))}
-                                </div>
-                            </div>
-                            <div className="flex justify-end">
-                                <button type="submit" className="px-6 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700">افزودن</button>
-                            </div>
-                        </form>
-                    )}
-
                     <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700">
-                            <thead className="bg-gray-50 dark:bg-slate-700">
-                                <tr>
-                                    <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 dark:text-gray-300 uppercase">نام کاربری</th>
-                                    <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 dark:text-gray-300 uppercase">دسترسی‌ها</th>
-                                    <th className="px-4 py-3 text-center text-xs font-bold text-gray-600 dark:text-gray-300 uppercase">عملیات</th>
-                                </tr>
-                            </thead>
-                            <tbody className="bg-white dark:bg-slate-800 divide-y divide-gray-200 dark:divide-slate-700">
-                                {loadingUsers ? (
-                                    <tr><td colSpan={3} className="text-center p-4">در حال بارگذاری...</td></tr>
-                                ) : (
-                                    users.map(user => (
-                                        <tr key={user.id}>
-                                            <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-800 dark:text-gray-100">{user.username}</td>
-                                            <td className="px-4 py-3 whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">
-                                                {PERMISSION_KEYS.filter(p => user.permissions[p.key]).map(p => p.label).join('، ')}
-                                            </td>
-                                            <td className="px-4 py-3 whitespace-nowrap text-sm text-center">
-                                                <button onClick={() => { setEditingUser(user); setIsUserModalOpen(true); }} className="p-1 text-blue-600 hover:text-blue-800" title="ویرایش"><PencilIcon className="w-5 h-5"/></button>
-                                                <button onClick={() => handleDeleteUser(user.id)} className="p-1 text-red-600 hover:text-red-800 mr-2" title="حذف"><TrashIcon className="w-5 h-5"/></button>
-                                            </td>
-                                        </tr>
-                                    ))
-                                )}
+                        <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-50"><tr><th className="px-6 py-3 text-right">نام کاربری</th><th className="px-6 py-3 text-center">عملیات</th></tr></thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                                {usersLoading ? <tr><td colSpan={2} className="text-center p-4">Loading...</td></tr> :
+                                 users.map(user => (
+                                     <tr key={user.id}>
+                                         <td className="px-6 py-4 whitespace-nowrap">{user.username}</td>
+                                         <td className="px-6 py-4 whitespace-nowrap text-center">
+                                             <button onClick={() => handleOpenUserModal(user)} className="p-1 text-blue-600"><PencilIcon className="w-5 h-5"/></button>
+                                             <button onClick={() => handleDeleteUser(user.id)} className="p-1 text-red-600 mr-2"><TrashIcon className="w-5 h-5"/></button>
+                                         </td>
+                                     </tr>
+                                 ))}
                             </tbody>
                         </table>
                     </div>
                 </div>
             )}
-             {isUserModalOpen && editingUser && <UserEditModal user={editingUser} onClose={() => { setIsUserModalOpen(false); setEditingUser(null); }} onSave={handleSaveUser} />}
-
-            <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-lg">
-                <h2 className="text-xl font-bold text-gray-700 dark:text-gray-200 border-b dark:border-slate-700 pb-3 mb-4">تغییر ظاهر</h2>
-                 <div className="flex items-center gap-4">
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">حالت نمایش:</span>
-                    <div className="flex items-center gap-2 p-1 bg-slate-200 dark:bg-slate-700 rounded-lg">
-                        <button onClick={() => handleThemeChange('light')} className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-colors ${theme === 'light' ? 'bg-white dark:bg-slate-600 text-blue-600 dark:text-white shadow' : 'text-gray-600 dark:text-gray-300'}`}>روشن</button>
-                        <button onClick={() => handleThemeChange('dark')} className={`px-4 py-1.5 text-sm font-semibold rounded-md transition-colors ${theme === 'dark' ? 'bg-white dark:bg-slate-600 text-blue-600 dark:text-white shadow' : 'text-gray-600 dark:text-gray-300'}`}>تیره</button>
-                    </div>
-                </div>
-            </div>
-            
-            <div className="bg-white dark:bg-slate-800 p-6 rounded-lg shadow-lg">
-                <h2 className="text-xl font-bold text-gray-700 dark:text-gray-200 border-b dark:border-slate-700 pb-3 mb-4">پشتیبان‌گیری و بازیابی جامع</h2>
-                <div className="flex flex-col md:flex-row items-center justify-between gap-4 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg">
-                    <p className="text-sm text-gray-600 dark:text-gray-300 max-w-lg">
-                        از کل اطلاعات سیستم (شامل پرسنل، ترددها، کاربران و تنظیمات) یک فایل پشتیبان با فرمت JSON تهیه کنید یا اطلاعات را از یک فایل پشتیبان بازیابی نمایید.
-                    </p>
-                    <div className="flex items-center gap-2">
-                        <button onClick={handleExportAllData} className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700">
-                           <DownloadIcon className="w-5 h-5"/> تهیه پشتیبان
-                        </button>
-                        <input type="file" ref={backupInputRef} onChange={handleImportAllData} accept=".json" className="hidden" id="backup-import"/>
-                        <label htmlFor="backup-import" className="flex items-center gap-2 px-4 py-2 text-sm bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 cursor-pointer">
-                           <UploadIcon className="w-5 h-5"/> بازیابی از فایل
-                        </label>
-                    </div>
-                </div>
-            </div>
-
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-6 rounded-lg shadow-lg">
-                <h2 className="text-xl font-bold text-red-800 dark:text-red-300">منطقه خطر</h2>
-                <p className="text-sm text-red-700 dark:text-red-300 mt-2 mb-4">عملیات زیر غیرقابل بازگشت هستند. لطفاً با احتیاط کامل اقدام کنید.</p>
-                <button onClick={handleDeleteAllData} className="px-6 py-2 bg-red-600 text-white font-semibold rounded-lg hover:bg-red-700">پاک کردن تمام اطلاعات</button>
-            </div>
+            {isUserModalOpen && <UserEditModal user={editingUser} onClose={handleCloseUserModal} onSave={handleSaveUser} />}
         </div>
     );
 };

@@ -141,7 +141,6 @@ const CommuteReportPage: React.FC = () => {
     const hourlyBackupRef = useRef<HTMLInputElement>(null);
 
     const filterOptions = useMemo(() => {
-        // FIX: Added explicit types to sort callback arguments to resolve 'localeCompare does not exist on type unknown' error.
         const departments = [...new Set(commutingMembers.map(m => m.department).filter(Boolean))].sort((a: string,b: string) => a.localeCompare(b, 'fa'));
         const positions = [...new Set(commutingMembers.map(m => m.position).filter(Boolean))].sort((a: string,b: string) => a.localeCompare(b, 'fa'));
         return { departments, positions };

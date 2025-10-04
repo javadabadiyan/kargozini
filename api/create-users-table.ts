@@ -232,12 +232,29 @@ export default async function handler(
         last_name VARCHAR(100),
         "position" VARCHAR(255),
         monthly_data JSONB,
+        submitted_by_user VARCHAR(255),
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        UNIQUE (personnel_code, "year")
+        UNIQUE (personnel_code, "year", submitted_by_user)
       );
     `;
     messages.push('جدول "bonuses" با موفقیت ایجاد یا تایید شد.');
+    
+    await client.sql`
+      CREATE TABLE IF NOT EXISTS submitted_bonuses (
+        id SERIAL PRIMARY KEY,
+        personnel_code VARCHAR(50) NOT NULL,
+        "year" INTEGER NOT NULL,
+        first_name VARCHAR(100),
+        last_name VARCHAR(100),
+        "position" VARCHAR(255),
+        monthly_data JSONB,
+        submitted_by_user TEXT,
+        submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        UNIQUE (personnel_code, "year")
+      );
+    `;
+    messages.push('جدول "submitted_bonuses" با موفقیت ایجاد یا تایید شد.');
 
     await client.sql`COMMIT`;
     messages.push('تراکنش اصلی ایجاد جداول با موفقیت انجام شد.');
@@ -347,7 +364,8 @@ export default async function handler(
     await client.sql`CREATE INDEX IF NOT EXISTS personnel_last_first_name_idx ON personnel (last_name, first_name);`;
     await client.sql`CREATE INDEX IF NOT EXISTS commitment_letters_guarantor_code_idx ON commitment_letters (guarantor_personnel_code);`;
     await client.sql`CREATE INDEX IF NOT EXISTS performance_reviews_personnel_code_idx ON performance_reviews (personnel_code);`;
-    await client.sql`CREATE INDEX IF NOT EXISTS bonuses_personnel_code_year_idx ON bonuses (personnel_code, "year");`;
+    await client.sql`CREATE INDEX IF NOT EXISTS bonuses_user_year_idx ON bonuses (submitted_by_user, "year");`;
+    await client.sql`CREATE INDEX IF NOT EXISTS submitted_bonuses_year_idx ON submitted_bonuses ("year");`;
     messages.push('ایندکس‌های ضروری برای جستجوی سریع ایجاد شدند.');
 
     await (client as any).query(`
@@ -403,6 +421,7 @@ export default async function handler(
       job_group: true,
       bonus_management: true,
       enter_bonus: true,
+      submitted_bonuses: true,
       bonus_analyzer: true,
       security: true,
       commuting_members: true,

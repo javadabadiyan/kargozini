@@ -213,9 +213,11 @@ export interface PerformanceReview {
 }
 
 export interface BonusData {
+    id: number;
     personnel_code: string;
     first_name: string;
     last_name: string;
     position: string | null;
     monthly_data: { [month: string]: { bonus: number; department: string; } } | null;
+    submitted_by_user?: string;
 }

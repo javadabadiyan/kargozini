@@ -8,10 +8,11 @@ const toPersianDigits = (s: string | number | null | undefined): string => {
     return String(s).replace(/[0-9]/g, (w) => '۰۱۲۳۴۵۶۷۸۹'[parseInt(w, 10)]);
 };
 
+// FIX: Explicitly type score objects to prevent them from being inferred as `never[]`.
 const initialFormData = {
-    scores_functional: {},
-    scores_behavioral: {},
-    scores_ethical: {},
+    scores_functional: {} as { [key: string]: number },
+    scores_behavioral: {} as { [key: string]: number },
+    scores_ethical: {} as { [key: string]: number },
     reviewer_comment: '',
     strengths: '',
     weaknesses_and_improvements: '',
@@ -63,7 +64,6 @@ const SendPerformanceReviewPage: React.FC = () => {
 
     const departments = useMemo(() => {
         const uniqueDepartments = [...new Set(personnelList.map(p => p.department).filter(Boolean))];
-        // FIX: Added explicit types to sort callback arguments to resolve 'localeCompare does not exist on type unknown' error.
         return uniqueDepartments.sort((a: string, b: string) => a.localeCompare(b, 'fa'));
     }, [personnelList]);
 
@@ -89,10 +89,10 @@ const SendPerformanceReviewPage: React.FC = () => {
     };
 
     const totals = useMemo(() => {
-        // FIX: Added explicit types to reduce callback arguments to resolve "Operator '+' cannot be applied to types 'unknown' and 'unknown'".
-        const total_score_functional = Object.values(formData.scores_functional).reduce((sum: number, val: number) => sum + (val || 0), 0);
-        const total_score_behavioral = Object.values(formData.scores_behavioral).reduce((sum: number, val: number) => sum + (val || 0), 0);
-        const total_score_ethical = Object.values(formData.scores_ethical).reduce((sum: number, val: number) => sum + (val || 0), 0);
+        // FIX: Remove redundant `|| 0` as `val` will always be a number.
+        const total_score_functional = Object.values(formData.scores_functional).reduce((sum: number, val: number) => sum + val, 0);
+        const total_score_behavioral = Object.values(formData.scores_behavioral).reduce((sum: number, val: number) => sum + val, 0);
+        const total_score_ethical = Object.values(formData.scores_ethical).reduce((sum: number, val: number) => sum + val, 0);
         const overall_score = total_score_functional + total_score_behavioral + total_score_ethical;
         return { total_score_functional, total_score_behavioral, total_score_ethical, overall_score };
     }, [formData.scores_functional, formData.scores_behavioral, formData.scores_ethical]);

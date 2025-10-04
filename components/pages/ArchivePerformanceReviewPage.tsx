@@ -61,9 +61,9 @@ const ArchivePerformanceReviewPage: React.FC = () => {
                 const allReviews: PerformanceReview[] = data.reviews || [];
                 setReviews(allReviews);
                 
-                const uniqueYears = [...new Set(allReviews.map(r => r.review_period_start.split('/')[0]).filter(Boolean))].sort((a, b) => b.localeCompare(a));
-                const uniqueDepartments = [...new Set(allReviews.map(r => r.department).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fa'));
-                const uniqueSupervisors = [...new Set(allReviews.map(r => r.reviewer_name_and_signature).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fa'));
+                const uniqueYears = [...new Set(allReviews.map(r => r.review_period_start.split('/')[0]).filter(Boolean))].sort((a: string, b: string) => b.localeCompare(a));
+                const uniqueDepartments = [...new Set(allReviews.map(r => r.department).filter(Boolean))].sort((a: string, b: string) => a.localeCompare(b, 'fa'));
+                const uniqueSupervisors = [...new Set(allReviews.map(r => r.reviewer_name_and_signature).filter(Boolean))].sort((a: string, b: string) => a.localeCompare(b, 'fa'));
                 setFilterOptions({ years: uniqueYears, departments: uniqueDepartments, supervisors: uniqueSupervisors });
             } catch (err) {
                 setError(err instanceof Error ? err.message : 'An error occurred');

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import type { BonusData, Personnel } from '../../types';
-import { DownloadIcon, UploadIcon, DocumentReportIcon, SearchIcon, UserPlusIcon } from '../icons/Icons';
+import type { BonusData } from '../../types';
+import { DownloadIcon, UploadIcon, DocumentReportIcon, UserPlusIcon, PencilIcon, TrashIcon } from '../icons/Icons';
+import EditBonusModal from '../EditBonusModal';
 
 declare const XLSX: any;
 
@@ -22,7 +23,7 @@ const toEnglishDigits = (str: string): string => {
 };
 
 const formatCurrency = (value: string | number): string => {
-    if (!value) return '';
+    if (!value && value !== 0) return '';
     const num = String(value).replace(/,/g, '');
     if (isNaN(Number(num))) return String(value);
     return num.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
@@ -31,6 +32,7 @@ const formatCurrency = (value: string | number): string => {
 const EnterBonusPage: React.FC = () => {
     const currentUser = useMemo(() => JSON.parse(sessionStorage.getItem('currentUser') || '{}'), []);
     const canView = useMemo(() => currentUser.permissions?.enter_bonus, [currentUser]);
+    const username = useMemo(() => currentUser.full_name || currentUser.username, [currentUser]);
 
     const [selectedYear, setSelectedYear] = useState<number>(YEARS[0]);
     const [selectedMonth, setSelectedMonth] = useState<string>(PERSIAN_MONTHS[0]);
@@ -40,14 +42,15 @@ const EnterBonusPage: React.FC = () => {
     const [status, setStatus] = useState<{ type: 'info' | 'success' | 'error'; message: string } | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    // Edit Modal State
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [editingBonusInfo, setEditingBonusInfo] = useState<{ person: BonusData, month: string } | null>(null);
+
     // Manual entry states
-    const [personnelList, setPersonnelList] = useState<Personnel[]>([]);
-    const [personnelLoading, setPersonnelLoading] = useState(true);
     const [showManualForm, setShowManualForm] = useState(false);
-    const [personnelSearchTerm, setPersonnelSearchTerm] = useState('');
-    const [selectedPersonnel, setSelectedPersonnel] = useState<Personnel | null>(null);
-    const [manualBonusAmount, setManualBonusAmount] = useState('');
-    const [manualDepartment, setManualDepartment] = useState('');
+    const [manualEntry, setManualEntry] = useState({
+        personnel_code: '', first_name: '', last_name: '', position: '', department: '', bonus_amount: '',
+    });
 
     const fetchBonuses = useCallback(async (year: number) => {
         if (!canView) {
@@ -57,7 +60,7 @@ const EnterBonusPage: React.FC = () => {
         setLoading(true);
         setError(null);
         try {
-            const response = await fetch(`/api/personnel?type=bonuses&year=${year}`);
+            const response = await fetch(`/api/personnel?type=bonuses&year=${year}&user=${encodeURIComponent(username)}`);
             if (!response.ok) {
                 const errorData = await response.json();
                 throw new Error(errorData.error || 'خطا در دریافت اطلاعات کارانه');
@@ -69,61 +72,12 @@ const EnterBonusPage: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    }, [canView]);
-
-    useEffect(() => {
-        const fetchAllPersonnel = async () => {
-            if (!canView) {
-                setPersonnelLoading(false);
-                return;
-            }
-            setPersonnelLoading(true);
-            try {
-                const response = await fetch('/api/personnel?type=personnel&pageSize=100000');
-                if (!response.ok) throw new Error('Failed to fetch personnel list');
-                const data = await response.json();
-                setPersonnelList(data.personnel || []);
-            } catch (err) {
-                 setStatus({ type: 'error', message: err instanceof Error ? err.message : 'Could not load personnel list' });
-            } finally {
-                setPersonnelLoading(false);
-            }
-        };
-
-        fetchAllPersonnel();
-    }, [canView]);
+    }, [canView, username]);
 
     useEffect(() => {
         fetchBonuses(selectedYear);
     }, [selectedYear, fetchBonuses]);
     
-    const getLatestDepartment = (monthlyData: BonusData['monthly_data']): string => {
-        if (!monthlyData) return '---';
-        for (const month of [...PERSIAN_MONTHS].reverse()) {
-            if (monthlyData[month] && monthlyData[month].department) {
-                return monthlyData[month].department;
-            }
-        }
-        return '---';
-    };
-
-    useEffect(() => {
-        if (selectedPersonnel) {
-            const existingData = bonusData.find(b => b.personnel_code === selectedPersonnel.personnel_code);
-            setManualDepartment(getLatestDepartment(existingData?.monthly_data) || selectedPersonnel.department || '');
-            setManualBonusAmount('');
-        }
-    }, [selectedPersonnel, bonusData]);
-
-    const filteredPersonnel = useMemo(() => {
-        if (!personnelSearchTerm) return [];
-        const lowercasedTerm = personnelSearchTerm.toLowerCase().trim();
-        return personnelList.filter(p =>
-            `${p.first_name} ${p.last_name}`.toLowerCase().includes(lowercasedTerm) ||
-            p.personnel_code.toLowerCase().includes(lowercasedTerm)
-        ).slice(0, 5);
-    }, [personnelList, personnelSearchTerm]);
-
     const handleDownloadSample = () => {
         if (!selectedMonth) {
             setStatus({ type: 'error', message: 'لطفاً ابتدا یک ماه را برای تهیه فایل نمونه انتخاب کنید.' });
@@ -170,11 +124,7 @@ const EnterBonusPage: React.FC = () => {
                 const response = await fetch('/api/personnel?type=bonuses', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        year: selectedYear,
-                        month: selectedMonth,
-                        data: dataToUpload,
-                    }),
+                    body: JSON.stringify({ year: selectedYear, month: selectedMonth, data: dataToUpload, submitted_by_user: username }),
                 });
 
                 const result = await response.json();
@@ -194,52 +144,58 @@ const EnterBonusPage: React.FC = () => {
     };
 
     const handleExport = () => {
-        const headers = ['کد پرسنلی', 'نام و نام خانوادگی', 'پست', 'آخرین واحد', ...PERSIAN_MONTHS];
-        const dataToExport = bonusData.map(person => {
-            const row: any = {
-                'کد پرسنلی': person.personnel_code,
-                'نام و نام خانوادگی': `${person.first_name} ${person.last_name}`,
-                'پست': person.position || '',
-                'آخرین واحد': getLatestDepartment(person.monthly_data),
-            };
-            PERSIAN_MONTHS.forEach(month => {
-                row[month] = person.monthly_data?.[month]?.bonus ?? '';
-            });
-            return row;
+        // Explicitly type `dataAsArray` as `any[][]` to resolve type inference issues.
+        const headers: string[] = ['کد پرسنلی', 'نام و نام خانوادگی', 'پست', 'کاربر ثبت کننده'];
+        PERSIAN_MONTHS.forEach(month => {
+            headers.push(`کارانه ${month}`);
+            headers.push(`واحد ${month}`);
         });
-        const worksheet = XLSX.utils.json_to_sheet(dataToExport, { header: headers });
+        
+        const dataAsArray: any[][] = [headers];
+        bonusData.forEach(person => {
+            const row: (string | number | undefined)[] = [
+                person.personnel_code,
+                `${person.first_name} ${person.last_name}`,
+                person.position || '',
+                person.submitted_by_user
+            ];
+            PERSIAN_MONTHS.forEach(month => {
+                const monthData = person.monthly_data?.[month];
+                row.push(monthData?.bonus ?? '');
+                row.push(monthData?.department ?? '');
+            });
+            dataAsArray.push(row);
+        });
+
+        const worksheet = XLSX.utils.aoa_to_sheet(dataAsArray);
         const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, `کارانه سال ${selectedYear}`);
+        XLSX.utils.book_append_sheet(workbook, worksheet, `کارانه سال ${toPersianDigits(selectedYear)}`);
         XLSX.writeFile(workbook, `Bonus_Report_${selectedYear}.xlsx`);
+    };
+
+    const handleManualEntryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        setManualEntry(prev => ({ ...prev, [name]: value }));
     };
 
     const handleManualSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!selectedPersonnel || !manualBonusAmount || !manualDepartment) {
-            setStatus({ type: 'error', message: 'لطفاً پرسنل، مبلغ کارانه و واحد را مشخص کنید.' });
+        const { personnel_code, first_name, last_name, bonus_amount, department } = manualEntry;
+
+        if (!personnel_code || !first_name || !last_name || !bonus_amount || !department) {
+            setStatus({ type: 'error', message: 'لطفاً تمام فیلدهای الزامی را پر کنید.' });
             return;
         }
 
-        setStatus({ type: 'info', message: `در حال ثبت کارانه برای ${selectedPersonnel.first_name} ${selectedPersonnel.last_name}...` });
+        setStatus({ type: 'info', message: `در حال ثبت کارانه برای ${first_name} ${last_name}...` });
 
-        const dataToUpload = [{
-            personnel_code: selectedPersonnel.personnel_code,
-            first_name: selectedPersonnel.first_name,
-            last_name: selectedPersonnel.last_name,
-            position: selectedPersonnel.position,
-            department: manualDepartment,
-            bonus_value: Number(toEnglishDigits(manualBonusAmount).replace(/,/g, '')),
-        }];
+        const dataToUpload = [{ ...manualEntry, bonus_value: Number(toEnglishDigits(manualEntry.bonus_amount).replace(/,/g, '')), }];
 
         try {
             const response = await fetch('/api/personnel?type=bonuses', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    year: selectedYear,
-                    month: selectedMonth,
-                    data: dataToUpload,
-                }),
+                body: JSON.stringify({ year: selectedYear, month: selectedMonth, data: dataToUpload, submitted_by_user: username }),
             });
 
             const result = await response.json();
@@ -247,11 +203,7 @@ const EnterBonusPage: React.FC = () => {
             
             setStatus({ type: 'success', message: result.message });
             fetchBonuses(selectedYear);
-            // Reset part of the form
-            setSelectedPersonnel(null);
-            setPersonnelSearchTerm('');
-            setManualBonusAmount('');
-            setManualDepartment('');
+            setManualEntry({ personnel_code: '', first_name: '', last_name: '', position: '', department: '', bonus_amount: '' });
 
         } catch (err) {
             setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در ثبت کارانه' });
@@ -260,13 +212,73 @@ const EnterBonusPage: React.FC = () => {
         }
     };
     
-    const handleBonusAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const val = toEnglishDigits(e.target.value).replace(/,/g, '');
-        if (/^\d*$/.test(val)) {
-            setManualBonusAmount(val);
+    const handleEditClick = (person: BonusData, month: string) => {
+        setEditingBonusInfo({ person, month });
+        setIsEditModalOpen(true);
+    };
+
+    const handleDeleteClick = async (id: number, month: string) => {
+        if(window.confirm(`آیا از حذف کارانه ماه ${month} برای این پرسنل اطمینان دارید؟`)) {
+            setStatus({ type: 'info', message: 'در حال حذف...'});
+            try {
+                const response = await fetch('/api/personnel?type=bonuses', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id, month }),
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.error);
+                setStatus({ type: 'success', message: result.message });
+                fetchBonuses(selectedYear);
+            } catch (err) {
+                setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در حذف' });
+            } finally {
+                setTimeout(() => setStatus(null), 5000);
+            }
+        }
+    };
+
+    const handleSaveEdit = async (id: number, month: string, bonus_value: number, department: string) => {
+        setStatus({ type: 'info', message: 'در حال ذخیره تغییرات...' });
+        try {
+             const response = await fetch('/api/personnel?type=bonuses', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id, month, bonus_value, department }),
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error);
+            setStatus({ type: 'success', message: result.message });
+            fetchBonuses(selectedYear);
+            setIsEditModalOpen(false);
+        } catch (err) {
+            setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در ذخیره' });
+        } finally {
+            setTimeout(() => setStatus(null), 5000);
         }
     };
     
+    const handleFinalize = async () => {
+        if (window.confirm(`آیا از ارسال نهایی کارانه سال ${toPersianDigits(selectedYear)} اطمینان دارید؟ پس از ارسال، داده‌های شما از این صفحه حذف و به بایگانی منتقل می‌شود.`)) {
+            setStatus({ type: 'info', message: 'در حال ارسال نهایی...'});
+            try {
+                const response = await fetch('/api/personnel?type=finalize_bonuses', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ year: selectedYear, user: username })
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.error);
+                setStatus({ type: 'success', message: result.message });
+                fetchBonuses(selectedYear); 
+            } catch (err) {
+                setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در ارسال نهایی' });
+            } finally {
+                setTimeout(() => setStatus(null), 5000);
+            }
+        }
+    }
+
     if (!canView) {
         return (
             <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-lg p-6 rounded-xl shadow-xl flex items-center justify-center h-full">
@@ -278,25 +290,28 @@ const EnterBonusPage: React.FC = () => {
         );
     }
 
+    const headers = ['کد پرسنلی', 'نام و نام خانوادگی', 'پست', 'کاربر ثبت کننده', ...PERSIAN_MONTHS];
     const statusColor = { info: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300', success: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300', error: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' };
+    const inputClass = "w-full p-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 rounded-md";
 
     return (
         <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-lg p-6 rounded-xl shadow-xl">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 border-b-2 border-slate-200/50 dark:border-slate-700/50 pb-4">
                 <h2 className="text-2xl font-bold text-gray-800 dark:text-slate-100">ثبت و مدیریت کارانه</h2>
                  <div className="flex items-center gap-2 flex-wrap">
+                    <button onClick={handleFinalize} className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700">ارسال نهایی کارانه {toPersianDigits(selectedYear)}</button>
                     <button onClick={() => setShowManualForm(prev => !prev)} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
-                        <UserPlusIcon className="w-4 h-4" /> {showManualForm ? 'بستن فرم' : 'افزودن دستی کارانه'}
+                        <UserPlusIcon className="w-4 h-4" /> {showManualForm ? 'بستن فرم' : 'افزودن دستی'}
                     </button>
                     <button onClick={handleDownloadSample} className="flex items-center gap-2 px-4 py-2 bg-gray-100 text-gray-700 border border-gray-300 text-sm rounded-lg hover:bg-gray-200 dark:bg-slate-600 dark:text-slate-200 dark:border-slate-500 dark:hover:bg-slate-500">
-                        <DownloadIcon className="w-4 h-4" /> دانلود نمونه
+                        <DownloadIcon className="w-4 h-4" /> نمونه
                     </button>
                     <input type="file" ref={fileInputRef} onChange={handleFileImport} className="hidden" id="excel-import-bonus" accept=".xlsx, .xls" />
                     <label htmlFor="excel-import-bonus" className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 cursor-pointer">
                         <UploadIcon className="w-4 h-4" /> ورود از اکسل
                     </label>
                     <button onClick={handleExport} disabled={bonusData.length === 0} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400">
-                        <DownloadIcon className="w-4 h-4" /> خروجی اکسل
+                        <DownloadIcon className="w-4 h-4" /> خروجی
                     </button>
                 </div>
             </div>
@@ -306,61 +321,30 @@ const EnterBonusPage: React.FC = () => {
             {showManualForm && (
                 <div className="p-4 my-4 border rounded-lg bg-indigo-50 dark:bg-indigo-900/20 dark:border-indigo-800 transition-all duration-300">
                     <h3 className="text-lg font-bold text-indigo-800 dark:text-indigo-200 mb-4">ثبت دستی کارانه برای ماه {selectedMonth} سال {toPersianDigits(selectedYear)}</h3>
-                    {!selectedPersonnel ? (
-                        <div>
-                            <label htmlFor="personnel-search" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">۱. جستجوی پرسنل</label>
-                            <div className="relative">
-                                <input type="text" id="personnel-search" value={personnelSearchTerm} onChange={e => setPersonnelSearchTerm(e.target.value)} className="w-full p-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 rounded-md" placeholder="نام یا کد پرسنلی را وارد کنید..."/>
-                                <SearchIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                            </div>
-                            {personnelLoading && <p className="text-sm mt-2">در حال بارگذاری پرسنل...</p>}
-                            {personnelSearchTerm && filteredPersonnel.length > 0 && (
-                                <ul className="mt-2 border rounded-md bg-white dark:bg-slate-600 max-h-48 overflow-y-auto z-10">
-                                    {filteredPersonnel.map(p => (
-                                        <li key={p.id} onClick={() => { setSelectedPersonnel(p); setPersonnelSearchTerm(''); }} className="p-2 hover:bg-gray-100 dark:hover:bg-slate-500 cursor-pointer text-sm">
-                                            {p.first_name} {p.last_name} ({toPersianDigits(p.personnel_code)})
-                                        </li>
-                                    ))}
-                                </ul>
-                            )}
+                    <form onSubmit={handleManualSubmit} className="space-y-4">
+                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            <div><label className="block text-sm mb-1">کد پرسنلی*</label><input name="personnel_code" value={manualEntry.personnel_code} onChange={handleManualEntryChange} className={inputClass} required /></div>
+                            <div><label className="block text-sm mb-1">نام*</label><input name="first_name" value={manualEntry.first_name} onChange={handleManualEntryChange} className={inputClass} required /></div>
+                            <div><label className="block text-sm mb-1">نام خانوادگی*</label><input name="last_name" value={manualEntry.last_name} onChange={handleManualEntryChange} className={inputClass} required /></div>
+                            <div><label className="block text-sm mb-1">پست سازمانی</label><input name="position" value={manualEntry.position} onChange={handleManualEntryChange} className={inputClass} /></div>
+                            <div><label className="block text-sm mb-1">واحد*</label><input name="department" value={manualEntry.department} onChange={handleManualEntryChange} className={inputClass} required /></div>
+                            <div><label className="block text-sm mb-1">مبلغ کارانه (ریال)*</label><input name="bonus_amount" value={toPersianDigits(formatCurrency(manualEntry.bonus_amount))} onChange={handleManualEntryChange} className={`${inputClass} font-sans text-left`} required /></div>
                         </div>
-                    ) : (
-                        <form onSubmit={handleManualSubmit}>
-                            <div className="flex justify-between items-center mb-4 p-2 bg-white dark:bg-slate-600 rounded-md">
-                                <div>
-                                    <p className="text-sm font-semibold">{selectedPersonnel.first_name} {selectedPersonnel.last_name}</p>
-                                    <p className="text-xs text-gray-500 dark:text-gray-300">کد: {toPersianDigits(selectedPersonnel.personnel_code)}</p>
-                                </div>
-                                <button type="button" onClick={() => setSelectedPersonnel(null)} className="text-xs text-red-600 dark:text-red-400 hover:underline">تغییر پرسنل</button>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <label htmlFor="manual-bonus" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">مبلغ کارانه (ریال)</label>
-                                    <input id="manual-bonus" type="text" value={toPersianDigits(formatCurrency(manualBonusAmount))} onChange={handleBonusAmountChange} className="w-full p-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 rounded-md font-sans text-left" required />
-                                </div>
-                                <div>
-                                    <label htmlFor="manual-department" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">واحد</label>
-                                    <input id="manual-department" type="text" value={manualDepartment} onChange={e => setManualDepartment(e.target.value)} className="w-full p-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 rounded-md" required />
-                                </div>
-                            </div>
-                            <div className="flex justify-end mt-4">
-                                <button type="submit" className="px-6 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700">ثبت کارانه</button>
-                            </div>
-                        </form>
-                    )}
+                        <div className="flex justify-end mt-4"><button type="submit" className="px-6 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700">ثبت کارانه</button></div>
+                    </form>
                 </div>
             )}
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 p-4 bg-slate-50 dark:bg-slate-700/50 rounded-lg border dark:border-slate-700">
                 <div>
-                    <label htmlFor="year-select" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">انتخاب سال برای نمایش و ورود اطلاعات:</label>
-                    <select id="year-select" value={selectedYear} onChange={e => setSelectedYear(Number(e.target.value))} className="w-full p-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 rounded-md">
+                    <label htmlFor="year-select" className="block text-sm font-medium mb-2">انتخاب سال برای نمایش و ورود اطلاعات:</label>
+                    <select id="year-select" value={selectedYear} onChange={e => setSelectedYear(Number(e.target.value))} className="w-full p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600">
                         {YEARS.map(y => <option key={y} value={y}>{toPersianDigits(y)}</option>)}
                     </select>
                 </div>
                 <div>
-                    <label htmlFor="month-select" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">انتخاب ماه برای فایل نمونه/ورود اطلاعات:</label>
-                    <select id="month-select" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} className="w-full p-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 rounded-md">
+                    <label htmlFor="month-select" className="block text-sm font-medium mb-2">انتخاب ماه برای فایل نمونه/ورود اطلاعات:</label>
+                    <select id="month-select" value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} className="w-full p-2 border rounded-md dark:bg-slate-700 dark:border-slate-600">
                         {PERSIAN_MONTHS.map(m => <option key={m} value={m}>{m}</option>)}
                     </select>
                 </div>
@@ -369,11 +353,7 @@ const EnterBonusPage: React.FC = () => {
              <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700 border dark:border-slate-700">
                     <thead className="bg-gray-100 dark:bg-slate-700/50">
-                        <tr>
-                            {['کد پرسنلی', 'نام و نام خانوادگی', 'پست', 'آخرین واحد', ...PERSIAN_MONTHS].map(header => (
-                                <th key={header} scope="col" className="px-4 py-3 text-right text-xs font-bold text-gray-600 dark:text-slate-300 uppercase tracking-wider whitespace-nowrap">{header}</th>
-                            ))}
-                        </tr>
+                        <tr>{headers.map(h => <th key={h} className="px-4 py-3 text-right text-xs font-bold uppercase">{h}</th>)}</tr>
                     </thead>
                     <tbody className="bg-white dark:bg-slate-800/50 divide-y divide-gray-200 dark:divide-slate-700">
                         {loading && <tr><td colSpan={16} className="text-center p-4">در حال بارگذاری...</td></tr>}
@@ -382,21 +362,42 @@ const EnterBonusPage: React.FC = () => {
                             <tr><td colSpan={16} className="text-center p-8 text-gray-500 dark:text-gray-400"><DocumentReportIcon className="w-12 h-12 mx-auto mb-2 text-gray-300" />هیچ داده‌ای برای سال انتخاب شده یافت نشد.</td></tr>
                         )}
                         {!loading && !error && bonusData.map((person) => (
-                            <tr key={person.personnel_code} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
-                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-slate-300">{toPersianDigits(person.personnel_code)}</td>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-gray-800 dark:text-slate-200">{person.first_name} {person.last_name}</td>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-slate-300">{person.position || '---'}</td>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-slate-300">{getLatestDepartment(person.monthly_data)}</td>
-                                {PERSIAN_MONTHS.map(month => (
-                                    <td key={month} className="px-4 py-3 whitespace-nowrap text-sm text-center text-gray-700 dark:text-slate-300">
-                                        {toPersianDigits(person.monthly_data?.[month]?.bonus?.toLocaleString('fa-IR')) || '-'}
-                                    </td>
-                                ))}
+                            <tr key={person.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                                <td className="px-4 py-3 whitespace-nowrap text-sm">{toPersianDigits(person.personnel_code)}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold">{person.first_name} {person.last_name}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm">{person.position || '---'}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm">{person.submitted_by_user}</td>
+                                {PERSIAN_MONTHS.map(month => {
+                                    const monthData = person.monthly_data?.[month];
+                                    return (
+                                        <td key={month} className="px-2 py-3 whitespace-nowrap text-sm text-center">
+                                            {monthData ? (
+                                                <div className="flex flex-col items-center justify-center group relative p-1">
+                                                    <span className="font-sans font-bold text-base">{toPersianDigits(formatCurrency(monthData.bonus))}</span>
+                                                    <span className="block text-xs text-slate-500 dark:text-slate-400 mt-1">{monthData.department}</span>
+                                                    <div className="absolute -top-1 right-0 flex items-center opacity-0 group-hover:opacity-100 transition-opacity bg-slate-100 dark:bg-slate-900/80 p-1 rounded-md shadow-lg border dark:border-slate-600">
+                                                        <button onClick={() => handleEditClick(person, month)} className="p-1 text-blue-600 hover:text-blue-500" title="ویرایش"><PencilIcon className="w-4 h-4" /></button>
+                                                        <button onClick={() => handleDeleteClick(person.id, month)} className="p-1 text-red-600 hover:text-red-500" title="حذف"><TrashIcon className="w-4 h-4" /></button>
+                                                    </div>
+                                                </div>
+                                            ) : ('-')}
+                                        </td>
+                                    );
+                                })}
                             </tr>
                         ))}
                     </tbody>
                 </table>
             </div>
+             {isEditModalOpen && editingBonusInfo && (
+                <EditBonusModal 
+                    isOpen={isEditModalOpen}
+                    onClose={() => setIsEditModalOpen(false)}
+                    onSave={handleSaveEdit}
+                    person={editingBonusInfo.person}
+                    month={editingBonusInfo.month}
+                />
+            )}
         </div>
     );
 };

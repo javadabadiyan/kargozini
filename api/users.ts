@@ -22,6 +22,7 @@ async function handlePostUsers(request: VercelRequest, response: VercelResponse,
 
   const client = await pool.connect();
   try {
+    // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
     await client.sql`BEGIN`;
     let processedCount = 0;
     for (const user of usersData) {
@@ -38,6 +39,7 @@ async function handlePostUsers(request: VercelRequest, response: VercelResponse,
         `;
         processedCount++;
     }
+    // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
     await client.sql`COMMIT`;
     return response.status(201).json({ message: `${processedCount} کاربر با موفقیت افزوده/به‌روزرسانی شد.` });
   } catch (error) {

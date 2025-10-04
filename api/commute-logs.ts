@@ -141,12 +141,13 @@ async function handlePostHourly(request: VercelRequest, response: VercelResponse
 async function handlePutHourly(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
     const { id } = request.query;
     if (!id || typeof id !== 'string') return response.status(400).json({ error: 'شناسه رکورد برای ویرایش الزامی است.' });
-    const { rows: existingLog } = await pool.sql`SELECT * FROM hourly_commute_logs WHERE id = ${id}`;
+    const logId = parseInt(id, 10);
+    const { rows: existingLog } = await pool.sql`SELECT * FROM hourly_commute_logs WHERE id = ${logId}`;
     if (existingLog.length === 0) return response.status(404).json({ error: 'رکوردی برای ویرایش یافت نشد.' });
     const updatedLog = { ...existingLog[0], ...request.body };
     const { rows } = await pool.sql`
       UPDATE hourly_commute_logs SET exit_time = ${updatedLog.exit_time}, entry_time = ${updatedLog.entry_time}, reason = ${updatedLog.reason}, guard_name = ${updatedLog.guard_name}
-      WHERE id = ${id} RETURNING *;
+      WHERE id = ${logId} RETURNING *;
     `;
     return response.status(200).json({ message: 'رکورد با موفقیت ویرایش شد.', log: rows[0] });
 }
@@ -154,7 +155,8 @@ async function handlePutHourly(request: VercelRequest, response: VercelResponse,
 async function handleDeleteHourly(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
     const { id } = request.query;
     if (!id || typeof id !== 'string') return response.status(400).json({ error: 'شناسه رکورد برای حذف مورد نیاز است.' });
-    const result = await pool.sql`DELETE FROM hourly_commute_logs WHERE id = ${id};`;
+    const logId = parseInt(id, 10);
+    const result = await pool.sql`DELETE FROM hourly_commute_logs WHERE id = ${logId};`;
     if (result.rowCount === 0) return response.status(404).json({ error: 'رکوردی برای حذف یافت نشد.' });
     return response.status(200).json({ message: 'رکورد با موفقیت حذف شد.' });
 }

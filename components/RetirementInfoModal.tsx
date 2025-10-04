@@ -21,11 +21,10 @@ const formatCurrency = (value: string | number): string => {
     return num.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 };
 
-const DetailsModal: React.FC<DetailsModalProps> = ({ isOpen, onClose, title, data, mode = 'general' }) => {
+const RetirementInfoModal: React.FC<DetailsModalProps> = ({ isOpen, onClose, title, data, mode = 'general' }) => {
   if (!isOpen) return null;
 
   let headers: string[] = [];
-  // FIX: Changed JSX.Element[] to React.ReactElement[] to resolve 'Cannot find namespace JSX' error.
   let bodyContent: React.ReactElement[] = [];
 
   switch(mode) {
@@ -131,4 +130,14 @@ const DetailsModal: React.FC<DetailsModalProps> = ({ isOpen, onClose, title, dat
           <button
             type="button"
             onClick={onClose}
-            className="px-6 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded
+            className="px-6 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 dark:bg-slate-600 dark:text-gray-200 dark:border-slate-500 dark:hover:bg-slate-500"
+          >
+            بستن
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default RetirementInfoModal;
