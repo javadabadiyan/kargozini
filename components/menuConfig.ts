@@ -47,12 +47,12 @@ export const ALL_MENU_ITEMS: MenuItem[] = [
       { id: 'personnel_documents', label: 'مدارک پرسنل', icon: DocumentUploadPage, page: DocumentUploadPage },
     ],
   },
-    {
+  {
     id: 'bonuses',
-    label: 'کارانه',
+    label: 'ارسال کارانه',
     icon: DocumentReportIcon,
     children: [
-        { id: 'enter_bonus', label: 'ورود اطلاعات کارانه', icon: DocumentPlusIcon, page: EnterBonusPage },
+        { id: 'enter_bonus', label: 'ارسال کارانه', icon: DocumentPlusIcon, page: EnterBonusPage },
         { id: 'submitted_bonuses', label: 'بایگانی کارانه', icon: DocumentIcon, page: SubmittedBonusesPage },
     ]
   },

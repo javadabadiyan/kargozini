@@ -292,6 +292,7 @@ async function handlePutJobGroupInfo(request: VercelRequest, response: VercelRes
   
   const updateFields = JOB_GROUP_UPDATE_COLUMNS.map((col, i) => `${col === 'position' ? `"${col}"` : col} = $${i + 1}`);
   
+  // FIX: Changed type to any[] to resolve a strange TypeScript error on the `push` method later. The runtime behavior is unaffected as node-postgres accepts mixed types.
   const updateValues: any[] = JOB_GROUP_UPDATE_COLUMNS.map(col => {
       const val = p[col as keyof Personnel];
       return val ?? null;
