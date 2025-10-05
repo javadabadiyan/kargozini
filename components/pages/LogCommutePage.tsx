@@ -1,5 +1,7 @@
+
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import type { CommutingMember, CommuteLog } from '../../types';
+// FIX: Changed import from `import type` to `import` to correctly load types from the module.
+import { CommutingMember, CommuteLog } from '../../types';
 import { PencilIcon, TrashIcon, ClockIcon, ChevronDownIcon, SearchIcon, RefreshIcon, DownloadIcon } from '../icons/Icons';
 import EditCommuteLogModal from '../EditCommuteLogModal';
 import HourlyCommuteModal from '../HourlyCommuteModal';
@@ -169,14 +171,15 @@ const LogCommutePage: React.FC = () => {
             )
             : commutingMembers;
 
-        const groups = filtered.reduce((acc, member) => {
+// FIX: Add explicit generic type to reduce to prevent `acc` from being inferred as `any`.
+        const groups = filtered.reduce<Record<string, CommutingMember[]>>((acc, member) => {
             const department = member.department || 'بدون واحد';
             if (!acc[department]) {
                 acc[department] = [];
             }
             acc[department].push(member);
             return acc;
-        }, {} as Record<string, CommutingMember[]>);
+        }, {});
         return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b, 'fa'));
     }, [personnelSearch, commutingMembers]);
 

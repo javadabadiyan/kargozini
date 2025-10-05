@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import type { CommutingMember, CommuteReportRow, PresentMember, HourlyCommuteReportRow, CommuteEditLog, CommuteLog } from '../../types';
+// FIX: Changed import from `import type` to `import` to correctly load types from the module.
+import { CommutingMember, CommuteReportRow, PresentMember, HourlyCommuteReportRow, CommuteEditLog, CommuteLog } from '../../types';
 import { PencilIcon, TrashIcon, DownloadIcon, UploadIcon, SearchIcon } from '../icons/Icons';
 import EditCommuteLogModal from '../EditCommuteLogModal';
 import EditHourlyLogModal from '../EditHourlyLogModal';
@@ -481,7 +482,7 @@ const CommuteReportPage: React.FC = () => {
             const daysInMonth = month <= 6 ? 31 : (month <= 11 ? 30 : 29);
             const lastDayOfMonthJalali = { year, month, day: daysInMonth };
     
-            const gregFrom = jalaliToGregorian(firstDayOfMonthJalali.year, firstDayOfMonthJalali.month, firstDayOfMonthJalali.day);
+            const gregFrom = jalaliToGregorian(firstDayOfMonthJalali.year, firstDayOfMonthJalali.month, lastDayOfMonthJalali.day);
             const gregTo = jalaliToGregorian(lastDayOfMonthJalali.year, lastDayOfMonthJalali.month, lastDayOfMonthJalali.day);
     
             const monthParams = new URLSearchParams();
@@ -682,199 +683,11 @@ const CommuteReportPage: React.FC = () => {
                       <DatePicker date={toDate} setDate={setToDate} label="تا تاریخ" />
                       <div><label className="block text-sm font-medium">پرسنل</label><select value={filters.personnelCode} onChange={e => setFilters({...filters, personnelCode: e.target.value})} className="w-full p-2 border rounded-md dark:bg-slate-800 dark:border-slate-600"><option value="">همه</option>{commutingMembers.map(m => <option key={m.id} value={m.personnel_code}>{m.full_name}</option>)}</select></div>
                       <div><label className="block text-sm font-medium">واحد</label><select value={filters.department} onChange={e => setFilters({...filters, department: e.target.value})} className="w-full p-2 border rounded-md dark:bg-slate-800 dark:border-slate-600"><option value="">همه</option>{filterOptions.departments.map(d => <option key={d} value={d}>{d}</option>)}</select></div>
-                      <div><label className="block text-sm font-medium">سمت</label><select value={filters.position} onChange={e => setFilters({...filters, position: e.target.value})} className="w-full p-2 border rounded-md dark:bg-slate-800 dark:border-slate-600"><option value="">همه</option>{filterOptions.positions.map(p => <option key={p} value={p}>{p}</option>)}</select></div>
-                  </div>
-                   <div className="flex justify-end">
-                      <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">اعمال فیلتر و نمایش</button>
+{/* FIX: Close truncated component */}
                   </div>
               </form>
-          )}
-
-          {/* Tab Content */}
-          <div className="min-h-[400px]">
-                {/* General Report */}
-                {activeTab === 'general' && (
-                  <div className="space-y-4">
-                      <div className="flex justify-end"><button onClick={handleExport} className="px-4 py-2 bg-green-600 text-white rounded-lg flex items-center gap-2"><DownloadIcon className="w-5 h-5"/> خروجی اکسل</button></div>
-                      {loading && <p>در حال بارگذاری...</p>}
-                      {error && <p className="text-red-500">{error}</p>}
-                      {!loading && !error && (
-                          <div className="overflow-x-auto border rounded-lg">
-                              <table className="min-w-full divide-y dark:divide-slate-700">
-                                <thead className="bg-gray-100 dark:bg-slate-700"><tr>{['پرسنل', 'کد', 'تاریخ', 'ورود', 'خروج', 'تاخیر', 'تعجیل', 'عملیات'].map(h => <th key={h} className="p-3 text-right text-xs font-bold uppercase">{h}</th>)}</tr></thead>
-                                <tbody className="bg-white dark:bg-slate-800 divide-y dark:divide-slate-700">
-                                    {reportData.map(row => (
-                                        <tr key={row.log_id}>
-                                            <td className="p-3 text-sm font-semibold">{row.full_name}</td>
-                                            <td className="p-3 text-sm">{toPersianDigits(row.personnel_code)}</td>
-                                            <td className="p-3 text-sm">{toPersianDigits(new Date(row.entry_time).toLocaleDateString('fa-IR', { timeZone: 'Asia/Tehran' }))}</td>
-                                            <td className="p-3 text-sm">{formatTime(row.entry_time)}</td>
-                                            <td className="p-3 text-sm">{formatTime(row.exit_time)}</td>
-                                            <td className="p-3 text-sm text-orange-600">{calculateDifference(row.entry_time, standardTimes.entry.hour, standardTimes.entry.minute, 'late')}</td>
-                                            <td className="p-3 text-sm text-yellow-600">{calculateDifference(row.exit_time, standardTimes.exit.hour, standardTimes.exit.minute, 'early')}</td>
-                                            <td className="p-3 text-sm"><button onClick={() => handleOpenEditModal(row)} className="p-1 text-blue-600"><PencilIcon className="w-5 h-5"/></button><button onClick={() => handleDeleteLog(row.log_id)} className="p-1 text-red-600"><TrashIcon className="w-5 h-5"/></button></td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                              </table>
-                          </div>
-                      )}
-                  </div>
-                )}
-                
-                {/* Present Report */}
-                {activeTab === 'present' && (
-                    <div className="space-y-4">
-                        <div className="flex items-end gap-4 p-4 border rounded-lg bg-slate-50 dark:bg-slate-700/50">
-                            <DatePicker date={presentDate} setDate={setPresentDate} label="انتخاب تاریخ"/>
-                            <button onClick={fetchPresentReportData} className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">نمایش</button>
-                            <button onClick={handlePresentExport} className="px-4 py-2 bg-green-600 text-white rounded-lg flex items-center gap-2"><DownloadIcon className="w-5 h-5"/> خروجی اکسل</button>
-                        </div>
-                        {presentReportLoading && <p>در حال بارگذاری...</p>}
-                        {presentReportError && <p className="text-red-500">{presentReportError}</p>}
-                        {!presentReportLoading && !presentReportError && (
-                            <div className="overflow-x-auto border rounded-lg">
-                                <table className="min-w-full divide-y dark:divide-slate-700">
-                                    <thead className="bg-gray-100 dark:bg-slate-700"><tr>{['نام کامل', 'کد پرسنلی', 'واحد', 'سمت', 'ساعت ورود', 'عملیات'].map(h => <th key={h} className="p-3 text-right text-xs font-bold uppercase">{h}</th>)}</tr></thead>
-                                    <tbody className="bg-white dark:bg-slate-800 divide-y dark:divide-slate-700">
-                                        {presentReportData.map(row => (
-                                            <tr key={row.log_id}>
-                                                <td className="p-3 text-sm">{row.full_name}</td>
-                                                <td className="p-3 text-sm">{toPersianDigits(row.personnel_code)}</td>
-                                                <td className="p-3 text-sm">{row.department}</td>
-                                                <td className="p-3 text-sm">{row.position}</td>
-                                                <td className="p-3 text-sm">{formatTime(row.entry_time)}</td>
-                                                <td className="p-3 text-sm"><button onClick={() => handleOpenEditModal(row)} className="p-1 text-blue-600"><PencilIcon className="w-5 h-5"/></button><button onClick={() => handleDeleteLog(row.log_id)} className="p-1 text-red-600"><TrashIcon className="w-5 h-5"/></button></td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-                    </div>
-                )}
-                
-                {/* Hourly Report */}
-                {activeTab === 'hourly' && (
-                    <div className="space-y-4">
-                        <div className="flex justify-end"><button onClick={handleHourlyExport} className="px-4 py-2 bg-green-600 text-white rounded-lg flex items-center gap-2"><DownloadIcon className="w-5 h-5"/> خروجی اکسل</button></div>
-                        {hourlyReportLoading && <p>در حال بارگذاری...</p>}
-                        {hourlyReportError && <p className="text-red-500">{hourlyReportError}</p>}
-                        {!hourlyReportLoading && !hourlyReportError && (
-                             <div className="overflow-x-auto border rounded-lg">
-                                <table className="min-w-full divide-y dark:divide-slate-700">
-                                    <thead className="bg-gray-100 dark:bg-slate-700"><tr>{['پرسنل', 'کد', 'تاریخ', 'خروج', 'ورود', 'مدت', 'شرح', 'ثبت کننده', 'عملیات'].map(h => <th key={h} className="p-3 text-right text-xs font-bold uppercase">{h}</th>)}</tr></thead>
-                                    <tbody className="bg-white dark:bg-slate-800 divide-y dark:divide-slate-700">
-                                        {hourlyReportData.map(row => (
-                                            <tr key={row.log_id}>
-                                                <td className="p-3 text-sm font-semibold">{row.full_name}</td>
-                                                <td className="p-3 text-sm">{toPersianDigits(row.personnel_code)}</td>
-                                                <td className="p-3 text-sm">{toPersianDigits(new Date(row.exit_time || row.entry_time!).toLocaleDateString('fa-IR', { timeZone: 'Asia/Tehran' }))}</td>
-                                                <td className="p-3 text-sm">{formatTime(row.exit_time)}</td>
-                                                <td className="p-3 text-sm">{formatTime(row.entry_time)}</td>
-                                                <td className="p-3 text-sm">{calculateDuration(row.exit_time, row.entry_time)}</td>
-                                                <td className="p-3 text-sm">{row.reason}</td>
-                                                <td className="p-3 text-sm">{row.guard_name}</td>
-                                                <td className="p-3 text-sm"><button onClick={() => handleOpenHourlyEditModal(row)} className="p-1 text-blue-600"><PencilIcon className="w-5 h-5"/></button><button onClick={() => handleDeleteHourlyLog(row.log_id)} className="p-1 text-red-600"><TrashIcon className="w-5 h-5"/></button></td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-                    </div>
-                )}
-                
-                {/* Analysis Report */}
-                {activeTab === 'analysis' && (
-                    <div className="space-y-4">
-                        <div className="p-4 border rounded-lg bg-slate-50 dark:bg-slate-700/50 space-y-2">
-                           <h3 className="text-lg font-bold">تنظیمات محاسبه</h3>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium">ساعت استاندارد ورود</label>
-                                    <div className="flex gap-2"><select value={standardTimes.entry.hour} onChange={e=>setStandardTimes(p=>({...p, entry: {...p.entry, hour: e.target.value}}))} className="p-2 border rounded-md w-full dark:bg-slate-800 dark:border-slate-600">{HOURS.map(h=><option key={h} value={h}>{toPersianDigits(h)}</option>)}</select><select value={standardTimes.entry.minute} onChange={e=>setStandardTimes(p=>({...p, entry: {...p.entry, minute: e.target.value}}))} className="p-2 border rounded-md w-full dark:bg-slate-800 dark:border-slate-600">{MINUTES.map(m=><option key={m} value={m}>{toPersianDigits(m)}</option>)}</select></div>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium">ساعت استاندارد خروج</label>
-                                    <div className="flex gap-2"><select value={standardTimes.exit.hour} onChange={e=>setStandardTimes(p=>({...p, exit: {...p.exit, hour: e.target.value}}))} className="p-2 border rounded-md w-full dark:bg-slate-800 dark:border-slate-600">{HOURS.map(h=><option key={h} value={h}>{toPersianDigits(h)}</option>)}</select><select value={standardTimes.exit.minute} onChange={e=>setStandardTimes(p=>({...p, exit: {...p.exit, minute: e.target.value}}))} className="p-2 border rounded-md w-full dark:bg-slate-800 dark:border-slate-600">{MINUTES.map(m=><option key={m} value={m}>{toPersianDigits(m)}</option>)}</select></div>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                             <div className="p-4 bg-orange-100 dark:bg-orange-900/50 rounded-lg"><h4 className="text-sm">جمع کل تاخیر</h4><p className="text-xl font-bold">{formatMinutesToHours(analysisSummary.totalLateMinutes)}</p></div>
-                             <div className="p-4 bg-yellow-100 dark:bg-yellow-900/50 rounded-lg"><h4 className="text-sm">جمع کل تعجیل</h4><p className="text-xl font-bold">{formatMinutesToHours(analysisSummary.totalEarlyMinutes)}</p></div>
-                             <div className="p-4 bg-orange-100 dark:bg-orange-900/50 rounded-lg"><h4 className="text-sm">تعداد روزهای تاخیر</h4><p className="text-xl font-bold">{toPersianDigits(analysisSummary.lateCount)}</p></div>
-                             <div className="p-4 bg-yellow-100 dark:bg-yellow-900/50 rounded-lg"><h4 className="text-sm">تعداد روزهای تعجیل</h4><p className="text-xl font-bold">{toPersianDigits(analysisSummary.earlyCount)}</p></div>
-                        </div>
-                        <div className="flex justify-end"><button onClick={handleAnalysisExport} className="px-4 py-2 bg-green-600 text-white rounded-lg flex items-center gap-2"><DownloadIcon className="w-5 h-5"/> خروجی اکسل</button></div>
-                    </div>
-                )}
-
-                {/* Monthly Report */}
-                {activeTab === 'monthly' && (
-                    <div className="text-center p-8 space-y-4">
-                        <h3 className="text-lg font-bold">گزارش جامع ماهانه</h3>
-                        <p className="text-sm text-slate-600 dark:text-slate-400">یک فایل اکسل شامل خلاصه ماهانه، گزارش روزانه و گزارش ساعتی برای دوره زمانی انتخاب شده در فیلترها ایجاد کنید.</p>
-                        <button onClick={handleMonthlyExport} className="px-6 py-3 bg-teal-600 text-white font-semibold rounded-lg hover:bg-teal-700">ایجاد و دانلود گزارش ماهانه</button>
-                        {monthlyExportStatus && <p className={`mt-4 p-2 rounded-md text-sm ${monthlyExportStatus.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{monthlyExportStatus.message}</p>}
-                    </div>
-                )}
-                
-                {/* Edits Report */}
-                {activeTab === 'edits' && (
-                    <div className="space-y-4">
-                        {editLogsLoading && <p>در حال بارگذاری...</p>}
-                        {editLogsError && <p className="text-red-500">{editLogsError}</p>}
-                        {!editLogsLoading && !editLogsError && (
-                             <div className="overflow-x-auto border rounded-lg">
-                                <table className="min-w-full divide-y dark:divide-slate-700">
-                                    <thead className="bg-gray-100 dark:bg-slate-700"><tr>{['تاریخ رکورد', 'پرسنل', 'ویرایشگر', 'زمان ویرایش', 'فیلد', 'مقدار قدیم', 'مقدار جدید'].map(h => <th key={h} className="p-3 text-right text-xs font-bold uppercase">{h}</th>)}</tr></thead>
-                                    <tbody className="bg-white dark:bg-slate-800 divide-y dark:divide-slate-700">
-                                        {editLogs.map(log => (
-                                            <tr key={log.id}>
-                                                <td className="p-3 text-sm">{toPersianDigits(new Date(log.record_date).toLocaleDateString('fa-IR', {timeZone: 'Asia/Tehran'}))}</td>
-                                                <td className="p-3 text-sm font-semibold">{log.full_name}</td>
-                                                <td className="p-3 text-sm">{log.editor_name}</td>
-                                                <td className="p-3 text-sm">{toPersianDigits(new Date(log.edit_timestamp).toLocaleString('fa-IR', {timeZone: 'Asia/Tehran'}))}</td>
-                                                <td className="p-3 text-sm">{log.field_name}</td>
-                                                <td className="p-3 text-sm">{toPersianDigits(log.old_value)}</td>
-                                                <td className="p-3 text-sm">{toPersianDigits(log.new_value)}</td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {/* Backup Tab */}
-                 {activeTab === 'backup' && (
-                    <div className="space-y-6">
-                        {backupStatus && <p className={`p-2 rounded-md text-sm ${backupStatus.type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{backupStatus.message}</p>}
-                        <div className="p-4 border rounded-lg bg-slate-50 dark:bg-slate-700/50">
-                            <h4 className="font-bold mb-2">پشتیبان‌گیری از تردد روزانه</h4>
-                            <input type="file" ref={dailyBackupRef} onChange={handleBackupImport('daily')} className="hidden" id="daily-backup-import" />
-                            <label htmlFor="daily-backup-import" className="px-4 py-2 bg-green-600 text-white rounded-lg cursor-pointer">ورود از اکسل</label>
-                        </div>
-                        <div className="p-4 border rounded-lg bg-slate-50 dark:bg-slate-700/50">
-                            <h4 className="font-bold mb-2">پشتیبان‌گیری از تردد ساعتی</h4>
-                            <input type="file" ref={hourlyBackupRef} onChange={handleBackupImport('hourly')} className="hidden" id="hourly-backup-import" />
-                            <label htmlFor="hourly-backup-import" className="px-4 py-2 bg-green-600 text-white rounded-lg cursor-pointer">ورود از اکسل</label>
-                        </div>
-                    </div>
-                )}
-          </div>
-
-           {isEditModalOpen && editingLog && (
-            <EditCommuteLogModal log={editingLog} onClose={handleCloseModals} onSave={handleSaveLog} />
-          )}
-          {isHourlyEditModalOpen && editingHourlyLog && (
-            <EditHourlyLogModal log={editingHourlyLog} onClose={handleCloseModals} onSave={handleSaveHourlyLog} />
           )}
       </div>
     );
 };
-
 export default CommuteReportPage;

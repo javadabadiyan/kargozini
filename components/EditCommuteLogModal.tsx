@@ -1,5 +1,7 @@
+
 import React, { useState, useEffect } from 'react';
-import type { CommuteLog } from '../types';
+// FIX: Changed import from `import type` to `import` to correctly load types from the module.
+import { CommuteLog } from '../types';
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const MINUTES = Array.from({ length: 60 }, (_, i) => i);

@@ -1,7 +1,9 @@
+
 import React, { useState, useCallback } from 'react';
 import LoginPage from './components/LoginPage';
 import DashboardLayout from './components/DashboardLayout';
-import type { UserPermissions } from './types';
+// FIX: Changed import from `import type` to `import` to correctly load types from the module.
+import { UserPermissions } from './types';
 
 interface CurrentUser {
   username: string;

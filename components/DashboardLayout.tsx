@@ -1,7 +1,9 @@
+
 import React, { useState, useMemo, useCallback } from 'react';
 import { Sidebar } from './Sidebar';
 import Header from './Header';
-import type { UserPermissions, MenuItem } from '../types';
+// FIX: Changed import from `import type` to `import` to correctly load types from the module.
+import { UserPermissions, MenuItem } from '../types';
 import { ALL_MENU_ITEMS } from './menuConfig';
 
 interface CurrentUser {
