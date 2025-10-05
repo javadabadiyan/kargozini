@@ -53,7 +53,7 @@ export const ALL_MENU_ITEMS: MenuItem[] = [
       {
         id: 'bonus_management', label: 'مدیریت کارانه', icon: DocumentReportIcon,
         children: [
-            { id: 'enter_bonus', label: 'وارد کردن کارانه', icon: CircleIcon, page: EnterBonusPage },
+            { id: 'enter_bonus', label: 'ارسال کارانه', icon: CircleIcon, page: EnterBonusPage },
             { id: 'submitted_bonuses', label: 'بایگانی کارانه', icon: CircleIcon, page: SubmittedBonusesPage },
             { id: 'bonus_analyzer', label: 'تحلیلگر هوشمند کارانه', icon: CircleIcon, page: BonusAnalyzerPage }
         ]

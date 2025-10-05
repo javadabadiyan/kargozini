@@ -45,6 +45,8 @@ const EnterBonusPage: React.FC = () => {
     // Search and Filter State
     const [searchTerm, setSearchTerm] = useState('');
     const [departmentFilter, setDepartmentFilter] = useState('');
+    const [currentPage, setCurrentPage] = useState(1);
+    const PAGE_SIZE = 20;
 
     // Edit Modal State
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -97,6 +99,10 @@ const EnterBonusPage: React.FC = () => {
         return Array.from(allDepartments).sort((a, b) => a.localeCompare(b, 'fa'));
     }, [bonusData]);
 
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, departmentFilter]);
+
     const filteredBonusData = useMemo(() => {
         const lowercasedSearchTerm = searchTerm.toLowerCase();
         return bonusData.filter(person => {
@@ -110,6 +116,15 @@ const EnterBonusPage: React.FC = () => {
             return nameMatch && departmentMatch;
         });
     }, [bonusData, searchTerm, departmentFilter]);
+
+    const paginatedBonusData = useMemo(() => {
+        const startIndex = (currentPage - 1) * PAGE_SIZE;
+        return filteredBonusData.slice(startIndex, startIndex + PAGE_SIZE);
+    }, [filteredBonusData, currentPage]);
+
+    const totalPages = useMemo(() => {
+        return Math.ceil(filteredBonusData.length / PAGE_SIZE);
+    }, [filteredBonusData]);
     
     const handleDownloadSample = () => {
         if (!selectedMonth) {
@@ -329,9 +344,8 @@ const EnterBonusPage: React.FC = () => {
     return (
         <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-lg p-6 rounded-xl shadow-xl">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 border-b-2 border-slate-200/50 dark:border-slate-700/50 pb-4">
-                <h2 className="text-2xl font-bold text-gray-800 dark:text-slate-100">ثبت و مدیریت کارانه</h2>
+                <h2 className="text-2xl font-bold text-gray-800 dark:text-slate-100">ارسال کارانه</h2>
                  <div className="flex items-center gap-2 flex-wrap">
-                    <button onClick={handleFinalize} className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700">ارسال نهایی کارانه {toPersianDigits(selectedYear)}</button>
                     <button onClick={() => setShowManualForm(prev => !prev)} className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">
                         <UserPlusIcon className="w-4 h-4" /> {showManualForm ? 'بستن فرم' : 'افزودن دستی'}
                     </button>
@@ -419,15 +433,15 @@ const EnterBonusPage: React.FC = () => {
                         <tr>{headers.map(h => <th key={h} className="px-4 py-3 text-right text-xs font-bold uppercase">{h}</th>)}</tr>
                     </thead>
                     <tbody className="bg-white dark:bg-slate-800/50 divide-y divide-gray-200 dark:divide-slate-700">
-                        {loading && <tr><td colSpan={16} className="text-center p-4">در حال بارگذاری...</td></tr>}
-                        {error && <tr><td colSpan={16} className="text-center p-4 text-red-500">{error}</td></tr>}
+                        {loading && <tr><td colSpan={17} className="text-center p-4">در حال بارگذاری...</td></tr>}
+                        {error && <tr><td colSpan={17} className="text-center p-4 text-red-500">{error}</td></tr>}
                         {!loading && !error && bonusData.length > 0 && filteredBonusData.length === 0 && (
-                            <tr><td colSpan={16} className="text-center p-8 text-gray-500 dark:text-gray-400">هیچ رکوردی مطابق با فیلترهای اعمال شده یافت نشد.</td></tr>
+                            <tr><td colSpan={17} className="text-center p-8 text-gray-500 dark:text-gray-400">هیچ رکوردی مطابق با فیلترهای اعمال شده یافت نشد.</td></tr>
                         )}
                         {!loading && !error && bonusData.length === 0 && (
-                            <tr><td colSpan={16} className="text-center p-8 text-gray-500 dark:text-gray-400"><DocumentReportIcon className="w-12 h-12 mx-auto mb-2 text-gray-300" />هیچ داده‌ای برای سال انتخاب شده یافت نشد.</td></tr>
+                            <tr><td colSpan={17} className="text-center p-8 text-gray-500 dark:text-gray-400"><DocumentReportIcon className="w-12 h-12 mx-auto mb-2 text-gray-300" />هیچ داده‌ای برای سال انتخاب شده یافت نشد.</td></tr>
                         )}
-                        {!loading && !error && filteredBonusData.map((person) => (
+                        {!loading && !error && paginatedBonusData.map((person) => (
                             <tr key={person.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
                                 <td className="px-4 py-3 whitespace-nowrap text-sm">{toPersianDigits(person.personnel_code)}</td>
                                 <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold">{person.first_name} {person.last_name}</td>
@@ -454,6 +468,37 @@ const EnterBonusPage: React.FC = () => {
                         ))}
                     </tbody>
                 </table>
+            </div>
+             {/* Pagination and Finalize Button */}
+             <div className="flex flex-col md:flex-row justify-between items-center mt-6 gap-4">
+                <button
+                    onClick={handleFinalize}
+                    className="flex items-center gap-2 px-6 py-3 bg-teal-600 text-white font-semibold rounded-lg hover:bg-teal-700 order-1 md:order-2"
+                    disabled={bonusData.length === 0}
+                >
+                    ارسال نهایی کارانه
+                </button>
+                {!loading && !error && totalPages > 1 && (
+                    <div className="flex justify-center items-center gap-4 order-2 md:order-1">
+                        <button
+                            onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+                            disabled={currentPage === 1}
+                            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 dark:bg-slate-600 dark:text-slate-200 dark:border-slate-500 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-500 disabled:opacity-50"
+                        >
+                            قبلی
+                        </button>
+                        <span className="text-sm text-gray-600 dark:text-slate-300">
+                            صفحه {toPersianDigits(currentPage)} از {toPersianDigits(totalPages)}
+                        </span>
+                        <button
+                            onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
+                            disabled={currentPage === totalPages}
+                            className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 dark:bg-slate-600 dark:text-slate-200 dark:border-slate-500 rounded-lg hover:bg-gray-100 dark:hover:bg-slate-500 disabled:opacity-50"
+                        >
+                            بعدی
+                        </button>
+                    </div>
+                )}
             </div>
              {isEditModalOpen && editingBonusInfo && (
                 <EditBonusModal 
