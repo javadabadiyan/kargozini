@@ -140,7 +140,7 @@ async function handlePutPersonnel(request: VercelRequest, response: VercelRespon
         p.personnel_code, p.first_name, p.last_name, p.father_name, p.national_id, p.id_number, p.birth_year, p.birth_date,
         p.birth_place, p.issue_date, p.issue_place, p.marital_status, p.military_status, p.job_title, p.position,
         p.employment_type, p.department, p.service_location, p.hire_date, p.education_level, p.field_of_study,
-        p.job_group, p.sum_of_decree_factors, p.status, p.id
+        p.job_group, p.sum_of_decree_factors, p.status, String(p.id)
     ];
     const { rows } = await (client as any).query(query, values);
     if (rows.length === 0) return response.status(404).json({ error: 'پرسنلی با این شناسه یافت نشد.' });
@@ -157,7 +157,6 @@ async function handleDeletePersonnel(request: VercelRequest, response: VercelRes
   if (id && typeof id === 'string') {
     const personId = parseInt(id, 10);
     if (isNaN(personId)) return response.status(400).json({ error: 'شناسه پرسنل نامعتبر است.' });
-    // FIX: Convert personId to string for the query.
     const result = await (client as any).query('DELETE FROM personnel WHERE id = $1;', [String(personId)]);
     if (result.rowCount === 0) return response.status(404).json({ error: 'پرسنلی با این شناسه یافت نشد.' });
     return response.status(200).json({ message: 'پرسنل با موفقیت حذف شد.' });
@@ -305,11 +304,9 @@ async function handleGetDependents(request: VercelRequest, response: VercelRespo
         const countQuery = `SELECT COUNT(*) FROM dependents WHERE first_name ILIKE $1 OR last_name ILIKE $1 OR (first_name || ' ' || last_name) ILIKE $1 OR national_id ILIKE $1 OR guardian_national_id ILIKE $1 OR personnel_code ILIKE $1;`;
         countResult = await (client as any).query(countQuery, [searchQuery]);
         const dataQuery = `SELECT * FROM dependents WHERE first_name ILIKE $1 OR last_name ILIKE $1 OR (first_name || ' ' || last_name) ILIKE $1 OR national_id ILIKE $1 OR guardian_national_id ILIKE $1 OR personnel_code ILIKE $1 ORDER BY personnel_code, last_name, first_name LIMIT $2 OFFSET $3;`;
-        // FIX: Convert pageSize and offset to strings for the query.
         dataResult = await (client as any).query(dataQuery, [searchQuery, String(pageSize), String(offset)]);
     } else {
         countResult = await (client as any).query('SELECT COUNT(*) FROM dependents;');
-        // FIX: Convert pageSize and offset to strings for the query.
         dataResult = await (client as any).query('SELECT * FROM dependents ORDER BY personnel_code, last_name, first_name LIMIT $1 OFFSET $2;', [String(pageSize), String(offset)]);
     }
     const totalCount = parseInt(countResult.rows[0].count, 10);
@@ -395,7 +392,6 @@ async function handleDeleteDependent(request: VercelRequest, response: VercelRes
     if (!id || typeof id !== 'string') return response.status(400).json({ error: 'شناسه وابسته برای حذف الزامی است.' });
     const dependentId = parseInt(id, 10);
     if (isNaN(dependentId)) return response.status(400).json({ error: 'شناسه نامعتبر است.' });
-    // FIX: Convert dependentId to string for the query.
     const result = await (client as any).query('DELETE FROM dependents WHERE id = $1;', [String(dependentId)]);
     if (result.rowCount === 0) return response.status(404).json({ error: 'وابسته‌ای با این شناسه یافت نشد.' });
     return response.status(200).json({ message: 'وابسته با موفقیت حذف شد.' });
@@ -465,7 +461,6 @@ async function handleGetDocuments(request: VercelRequest, response: VercelRespon
 async function handleGetDocumentData(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
     const { id } = request.query;
     if (!id || typeof id !== 'string') return response.status(400).json({ error: 'شناسه مدرک الزامی است.' });
-    // FIX: Pass id as string to the query.
     const { rows } = await (client as any).query('SELECT file_name, file_type, file_data FROM personnel_documents WHERE id = $1;', [id]);
     if (rows.length === 0) return response.status(404).json({ error: 'مدرک یافت نشد.' });
     return response.status(200).json({ document: rows[0] });
@@ -482,7 +477,6 @@ async function handlePostDocument(request: VercelRequest, response: VercelRespon
 async function handleDeleteDocument(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
     const { id } = request.query;
     if (!id || typeof id !== 'string') return response.status(400).json({ error: 'شناسه مدرک الزامی است.' });
-    // FIX: Pass id as string to the query.
     const result = await (client as any).query('DELETE FROM personnel_documents WHERE id = $1;', [id]);
     if (result.rowCount === 0) return response.status(404).json({ error: 'مدرک یافت نشد.' });
     return response.status(200).json({ message: 'مدرک با موفقیت حذف شد.' });
@@ -529,7 +523,6 @@ async function handlePutCommitmentLetter(request: VercelRequest, response: Verce
 async function handleDeleteCommitmentLetter(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
     const { id } = request.query;
     if (!id || typeof id !== 'string') return response.status(400).json({ error: 'شناسه نامه الزامی است.' });
-    // FIX: Pass id as string to the query.
     const result = await (client as any).query('DELETE FROM commitment_letters WHERE id = $1;', [id]);
     if (result.rowCount === 0) return response.status(404).json({ error: 'نامه یافت نشد.' });
     return response.status(200).json({ message: 'نامه با موفقیت حذف شد.' });
@@ -592,7 +585,6 @@ async function handlePutDisciplinaryRecord(request: VercelRequest, response: Ver
 async function handleDeleteDisciplinaryRecord(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
     const { id } = request.query;
     if (!id || typeof id !== 'string') return response.status(400).json({ error: 'شناسه رکورد الزامی است.' });
-    // FIX: Pass id as string to the query.
     const result = await (client as any).query('DELETE FROM disciplinary_records WHERE id = $1;', [id]);
     if (result.rowCount === 0) return response.status(404).json({ error: 'رکورد یافت نشد.' });
     return response.status(200).json({ message: 'رکورد با موفقیت حذف شد.' });
@@ -641,7 +633,6 @@ async function handlePostPerformanceReview(request: VercelRequest, response: Ver
 async function handleDeletePerformanceReview(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
     const { id } = request.query;
     if (!id || typeof id !== 'string') return response.status(400).json({ error: 'A review ID is required for deletion.' });
-    // FIX: Pass id as string to the query.
     const result = await (client as any).query('DELETE FROM performance_reviews WHERE id = $1;', [id]);
     if (result.rowCount === 0) return response.status(404).json({ error: 'Review not found.' });
     return response.status(200).json({ message: 'Review deleted successfully.' });
@@ -654,7 +645,6 @@ async function handleGetBonuses(request: VercelRequest, response: VercelResponse
     const { year, user } = request.query;
     if (!year || typeof year !== 'string' || !user || typeof user !== 'string') return response.status(400).json({ error: 'سال و کاربر برای دریافت اطلاعات کارانه الزامی است.' });
     const query = `SELECT id, personnel_code, first_name, last_name, "position", service_location, monthly_data, submitted_by_user FROM bonuses WHERE "year" = $1 AND submitted_by_user = $2 ORDER BY last_name, first_name;`;
-    // FIX: Pass year as a string to the query.
     const { rows } = await (client as any).query(query, [year, user]);
     return response.status(200).json({ bonuses: rows });
 }
@@ -747,7 +737,7 @@ async function handleGetSubmittedBonuses(request: VercelRequest, response: Verce
             SELECT personnel_code, first_name, last_name, "position", service_location, monthly_data, submitted_by_user
             FROM submitted_bonuses WHERE "year" = $1 ORDER BY last_name, first_name;
         `;
-        const { rows } = await (client as any).query(query, [parseInt(year as string)]);
+        const { rows } = await (client as any).query(query, [year]);
         return response.status(200).json({ bonuses: rows });
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -760,7 +750,7 @@ async function handleFinalizeBonuses(request: VercelRequest, response: VercelRes
     if (!year || !user) return response.status(400).json({ error: 'سال و کاربر برای ارسال نهایی الزامی است.' });
     try {
         await client.query('BEGIN');
-        const { rows: userBonuses } = await (client as any).query('SELECT * FROM bonuses WHERE "year" = $1 AND submitted_by_user = $2;', [year, user]);
+        const { rows: userBonuses } = await (client as any).query('SELECT * FROM bonuses WHERE "year" = $1 AND submitted_by_user = $2;', [String(year), user]);
         if (userBonuses.length === 0) { await client.query('ROLLBACK'); return response.status(404).json({ error: 'هیچ داده‌ای برای ارسال نهایی یافت نشد.' }); }
         for (const bonus of userBonuses) {
              await (client as any).query(
@@ -771,7 +761,7 @@ async function handleFinalizeBonuses(request: VercelRequest, response: VercelRes
                 [bonus.personnel_code, bonus.year, bonus.first_name, bonus.last_name, bonus.position, bonus.service_location, JSON.stringify(bonus.monthly_data), bonus.submitted_by_user]
             );
         }
-        await (client as any).query('DELETE FROM bonuses WHERE "year" = $1 AND submitted_by_user = $2;', [year, user]);
+        await (client as any).query('DELETE FROM bonuses WHERE "year" = $1 AND submitted_by_user = $2;', [String(year), user]);
         await client.query('COMMIT');
         return response.status(200).json({ message: 'کارانه با موفقیت ارسال نهایی و در بایگانی ثبت شد. اطلاعات از صفحه فعلی پاک شد.' });
     } catch (error) {
@@ -877,7 +867,6 @@ export default async function handler(request: VercelRequest, response: VercelRe
                 const { deleteAllForUser, year, user } = request.query;
                 if (deleteAllForUser === 'true') {
                     if (!year || typeof year !== 'string' || !user || typeof user !== 'string') return response.status(400).json({ error: 'Year and user are required to delete all data.' });
-                    // FIX: Pass year as a string to the query.
                     await (client as any).query('DELETE FROM bonuses WHERE "year" = $1 AND submitted_by_user = $2;', [year, user]);
                     return response.status(200).json({ message: 'تمام اطلاعات کارانه این کاربر برای سال انتخاب شده حذف شد.' });
                 } else {
