@@ -26,24 +26,20 @@ async function handleGetPersonnel(request: VercelRequest, response: VercelRespon
             SELECT COUNT(*) FROM personnel
             WHERE first_name ILIKE ${searchQuery} OR last_name ILIKE ${searchQuery} OR personnel_code ILIKE ${searchQuery} OR national_id ILIKE ${searchQuery};
         `;
-        // FIX: Switched to client.query to correctly handle LIMIT/OFFSET parameters, which are not supported by the `sql` tag.
         const query = `
             SELECT * FROM personnel
             WHERE first_name ILIKE $1 OR last_name ILIKE $1 OR personnel_code ILIKE $1 OR national_id ILIKE $1
             ORDER BY last_name, first_name
             LIMIT $2 OFFSET $3;
         `;
-        // FIX: Convert pageSize and offset to string for client.query parameters.
         dataResult = await (client as any).query(query, [searchQuery, String(pageSize), String(offset)]);
     } else {
         countResult = await client.sql`SELECT COUNT(*) FROM personnel;`;
-        // FIX: Switched to client.query to correctly handle LIMIT/OFFSET parameters, which are not supported by the `sql` tag.
         const query = `
             SELECT * FROM personnel
             ORDER BY last_name, first_name
             LIMIT $1 OFFSET $2;
         `;
-        // FIX: Convert pageSize and offset to string for client.query parameters.
         dataResult = await (client as any).query(query, [String(pageSize), String(offset)]);
     }
     const totalCount = parseInt(countResult.rows[0].count, 10);
@@ -58,14 +54,12 @@ async function handleGetPersonnel(request: VercelRequest, response: VercelRespon
   }
 }
 
-async function handlePostPersonnel(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+async function handlePostPersonnel(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
     const body = request.body;
-    const client = await pool.connect();
     try {
         if (Array.isArray(body)) { // Bulk insert
             const allPersonnel: NewPersonnel[] = body;
             
-            // Data sanitization on the backend as a safety measure
             for (const p of allPersonnel) {
                 for (const key in p) {
                     const typedKey = key as keyof NewPersonnel;
@@ -107,7 +101,7 @@ async function handlePostPersonnel(request: VercelRequest, response: VercelRespo
         } else { // Single insert
             const p: NewPersonnel = body;
             if (!p || !p.personnel_code || !p.first_name || !p.last_name) return response.status(400).json({ error: 'کد پرسنلی، نام و نام خانوادگی الزامی هستند.' });
-            const { rows } = await pool.sql`
+            const { rows } = await client.sql`
               INSERT INTO personnel (personnel_code, first_name, last_name, father_name, national_id, id_number, birth_year, birth_date, birth_place, issue_date, issue_place, marital_status, military_status, job_title, "position", employment_type, department, service_location, hire_date, education_level, field_of_study, job_group, sum_of_decree_factors, status)
               VALUES (${p.personnel_code}, ${p.first_name}, ${p.last_name}, ${p.father_name}, ${p.national_id}, ${p.id_number}, ${p.birth_year}, ${p.birth_date}, ${p.birth_place}, ${p.issue_date}, ${p.issue_place}, ${p.marital_status}, ${p.military_status}, ${p.job_title}, ${p.position}, ${p.employment_type}, ${p.department}, ${p.service_location}, ${p.hire_date}, ${p.education_level}, ${p.field_of_study}, ${p.job_group}, ${p.sum_of_decree_factors}, ${p.status})
               RETURNING *;`;
@@ -136,15 +130,13 @@ async function handlePostPersonnel(request: VercelRequest, response: VercelRespo
             error: 'خطا در عملیات پایگاه داده. لطفاً فرمت فایل اکسل و مقادیر داخل آن را بررسی کنید.',
             details: `جزئیات فنی: ${errorMessage}` 
         });
-    } finally {
-        client.release();
     }
 }
 
-async function handlePutPersonnel(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+async function handlePutPersonnel(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
   const p = request.body as Personnel;
   if (!p || !p.id) return response.status(400).json({ error: 'شناسه پرسنل نامعتبر است.' });
-  const { rows } = await pool.sql`
+  const { rows } = await client.sql`
     UPDATE personnel SET 
       personnel_code = ${p.personnel_code}, first_name = ${p.first_name}, last_name = ${p.last_name}, father_name = ${p.father_name}, 
       national_id = ${p.national_id}, id_number = ${p.id_number}, birth_year = ${p.birth_year}, birth_date = ${p.birth_date}, birth_place = ${p.birth_place}, 
@@ -158,12 +150,12 @@ async function handlePutPersonnel(request: VercelRequest, response: VercelRespon
   return response.status(200).json({ message: 'اطلاعات پرسنل به‌روزرسانی شد.', personnel: rows[0] });
 }
 
-async function handleDeletePersonnel(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+async function handleDeletePersonnel(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
   const { id, deleteAll } = request.query;
 
   if (deleteAll === 'true') {
     try {
-      await pool.sql`TRUNCATE TABLE personnel RESTART IDENTITY CASCADE;`;
+      await client.sql`TRUNCATE TABLE personnel RESTART IDENTITY CASCADE;`;
       return response.status(200).json({ message: 'تمام اطلاعات پرسنل با موفقیت حذف شد.' });
     } catch (error) {
        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -177,7 +169,7 @@ async function handleDeletePersonnel(request: VercelRequest, response: VercelRes
       return response.status(400).json({ error: 'شناسه پرسنل نامعتبر است.' });
     }
     try {
-      const result = await pool.sql`DELETE FROM personnel WHERE id = ${personId};`;
+      const result = await client.sql`DELETE FROM personnel WHERE id = ${personId};`;
       if (result.rowCount === 0) {
         return response.status(404).json({ error: 'پرسنلی با این شناسه یافت نشد.' });
       }
@@ -219,7 +211,6 @@ async function handleGetJobGroupInfo(request: VercelRequest, response: VercelRes
       SELECT COUNT(*) FROM personnel
       WHERE first_name ILIKE ${searchQuery} OR last_name ILIKE ${searchQuery} OR personnel_code ILIKE ${searchQuery} OR national_id ILIKE ${searchQuery};
     `;
-    // FIX: Convert pageSize and offset to string for client.query parameters.
     dataResult = await (client as any).query(`
       SELECT ${columnNames} FROM personnel
       WHERE first_name ILIKE $1 OR last_name ILIKE $1 OR personnel_code ILIKE $1 OR national_id ILIKE $1
@@ -228,7 +219,6 @@ async function handleGetJobGroupInfo(request: VercelRequest, response: VercelRes
     `, [searchQuery, String(pageSize), String(offset)]);
   } else {
     countResult = await client.sql`SELECT COUNT(*) FROM personnel;`;
-    // FIX: Convert pageSize and offset to string for client.query parameters.
     dataResult = await (client as any).query(`
       SELECT ${columnNames} FROM personnel
       ORDER BY last_name, first_name
@@ -295,21 +285,23 @@ async function handlePostJobGroupInfo(request: VercelRequest, response: VercelRe
   }
 }
 
-async function handlePutJobGroupInfo(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+async function handlePutJobGroupInfo(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
   const p = request.body as Personnel;
   if (!p || !p.id) return response.status(400).json({ error: 'شناسه رکورد نامعتبر است.' });
   
   const updateFields = JOB_GROUP_UPDATE_COLUMNS.map((col, i) => `${col === 'position' ? `"${col}"` : col} = $${i + 1}`);
   
-  const updateValues: any[] = JOB_GROUP_UPDATE_COLUMNS.map(col => {
+  const updateValues: (string | null)[] = JOB_GROUP_UPDATE_COLUMNS.map(col => {
       const val = p[col as keyof Personnel];
-      return val ?? null;
+      return val === null || val === undefined ? null : String(val);
   });
-  updateValues.push(p.id); // Add id for WHERE clause
+  // FIX: All values for parameterized queries with this driver setup should be strings or null.
+  // The `p.id` is a number, so it needs to be cast to a string.
+  updateValues.push(String(p.id)); // Add id for WHERE clause
 
   const query = `UPDATE personnel SET ${updateFields.join(', ')} WHERE id = $${updateValues.length} RETURNING *;`;
   
-  const { rows } = await (pool as any).query(query, updateValues);
+  const { rows } = await (client as any).query(query, updateValues);
 
   if (rows.length === 0) return response.status(404).json({ error: 'رکورد یافت نشد.'});
   return response.status(200).json({ message: 'اطلاعات به‌روزرسانی شد.', record: rows[0] });
@@ -319,11 +311,11 @@ async function handlePutJobGroupInfo(request: VercelRequest, response: VercelRes
 // =================================================================================
 // DEPENDENTS HANDLERS
 // =================================================================================
-async function handleGetDependents(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+async function handleGetDependents(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
     const { personnel_code } = request.query;
 
     if (personnel_code && typeof personnel_code === 'string') {
-        const result = await pool.sql`SELECT * FROM dependents WHERE personnel_code = ${personnel_code} ORDER BY last_name, first_name;`;
+        const result = await client.sql`SELECT * FROM dependents WHERE personnel_code = ${personnel_code} ORDER BY last_name, first_name;`;
         return response.status(200).json({ dependents: result.rows });
     }
     
@@ -337,7 +329,7 @@ async function handleGetDependents(request: VercelRequest, response: VercelRespo
     let dataResult;
   
     if (searchTerm) {
-      countResult = await pool.sql`
+      countResult = await client.sql`
           SELECT COUNT(*) FROM dependents 
           WHERE 
               first_name ILIKE ${searchQuery} OR 
@@ -347,7 +339,7 @@ async function handleGetDependents(request: VercelRequest, response: VercelRespo
               guardian_national_id ILIKE ${searchQuery} OR
               personnel_code ILIKE ${searchQuery};
       `;
-      dataResult = await pool.sql`
+      dataResult = await client.sql`
           SELECT * FROM dependents 
           WHERE 
               first_name ILIKE ${searchQuery} OR 
@@ -360,8 +352,8 @@ async function handleGetDependents(request: VercelRequest, response: VercelRespo
           LIMIT ${pageSize} OFFSET ${offset};
       `;
     } else {
-      countResult = await pool.sql`SELECT COUNT(*) FROM dependents;`;
-      dataResult = await pool.sql`
+      countResult = await client.sql`SELECT COUNT(*) FROM dependents;`;
+      dataResult = await client.sql`
           SELECT * FROM dependents
           ORDER BY personnel_code, last_name, first_name
           LIMIT ${pageSize} OFFSET ${offset};
@@ -376,7 +368,6 @@ async function handlePostDependents(request: VercelRequest, response: VercelResp
   const bodyData = request.body;
 
   try {
-    // Handle single object for manual entry
     if (!Array.isArray(bodyData)) {
         const d = bodyData as NewDependent;
         if (!d.personnel_code || !d.national_id) {
@@ -399,7 +390,6 @@ async function handlePostDependents(request: VercelRequest, response: VercelResp
         return response.status(201).json({ message: 'وابسته با موفقیت اضافه شد.', dependent: rows[0] });
     }
 
-    // Handle bulk insert (Excel)
     const allDependents = bodyData as NewDependent[];
     allDependents.forEach(d => {
         for (const key in d) {
@@ -475,13 +465,13 @@ async function handlePostDependents(request: VercelRequest, response: VercelResp
   }
 }
 
-async function handlePutDependent(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+async function handlePutDependent(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
     const d = request.body as Dependent;
     if (!d || !d.id) {
         return response.status(400).json({ error: 'شناسه وابسته برای ویرایش الزامی است.' });
     }
     try {
-        const { rows } = await pool.sql`
+        const { rows } = await client.sql`
             UPDATE dependents SET 
                 first_name = ${d.first_name},
                 last_name = ${d.last_name},
@@ -508,7 +498,7 @@ async function handlePutDependent(request: VercelRequest, response: VercelRespon
     }
 }
 
-async function handleDeleteDependent(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+async function handleDeleteDependent(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
     const { id } = request.query;
     if (!id || typeof id !== 'string') {
         return response.status(400).json({ error: 'شناسه وابسته برای حذف الزامی است.' });
@@ -518,7 +508,7 @@ async function handleDeleteDependent(request: VercelRequest, response: VercelRes
         return response.status(400).json({ error: 'شناسه نامعتبر است.' });
     }
     try {
-        const result = await pool.sql`DELETE FROM dependents WHERE id = ${dependentId};`;
+        const result = await client.sql`DELETE FROM dependents WHERE id = ${dependentId};`;
         if (result.rowCount === 0) {
             return response.status(404).json({ error: 'وابسته‌ای با این شناسه یافت نشد.' });
         }
@@ -533,8 +523,8 @@ async function handleDeleteDependent(request: VercelRequest, response: VercelRes
 // =================================================================================
 // COMMUTING MEMBERS HANDLERS
 // =================================================================================
-async function handleGetCommutingMembers(response: VercelResponse, pool: VercelPool) {
-    const result = await pool.sql`SELECT * FROM commuting_members ORDER BY full_name;`;
+async function handleGetCommutingMembers(response: VercelResponse, client: VercelPoolClient) {
+    const result = await client.sql`SELECT * FROM commuting_members ORDER BY full_name;`;
     return response.status(200).json({ members: result.rows });
 }
 
@@ -585,12 +575,12 @@ async function handlePostCommutingMembers(body: any, response: VercelResponse, c
 // =================================================================================
 // DOCUMENT HANDLERS
 // =================================================================================
-async function handleGetDocuments(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+async function handleGetDocuments(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
     const { personnel_code } = request.query;
     if (!personnel_code || typeof personnel_code !== 'string') {
         return response.status(400).json({ error: 'کد پرسنلی الزامی است.' });
     }
-    const { rows } = await pool.sql`
+    const { rows } = await client.sql`
         SELECT id, personnel_code, title, file_name, file_type, uploaded_at 
         FROM personnel_documents WHERE personnel_code = ${personnel_code} 
         ORDER BY uploaded_at DESC;
@@ -598,12 +588,12 @@ async function handleGetDocuments(request: VercelRequest, response: VercelRespon
     return response.status(200).json({ documents: rows });
 }
 
-async function handleGetDocumentData(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+async function handleGetDocumentData(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
     const { id } = request.query;
     if (!id || typeof id !== 'string') {
         return response.status(400).json({ error: 'شناسه مدرک الزامی است.' });
     }
-    const { rows } = await pool.sql`
+    const { rows } = await client.sql`
         SELECT file_name, file_type, file_data FROM personnel_documents WHERE id = ${parseInt(id, 10)};
     `;
     if (rows.length === 0) {
@@ -612,12 +602,12 @@ async function handleGetDocumentData(request: VercelRequest, response: VercelRes
     return response.status(200).json({ document: rows[0] });
 }
 
-async function handlePostDocument(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+async function handlePostDocument(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
     const { personnel_code, title, file_name, file_type, file_data } = request.body;
     if (!personnel_code || !title || !file_name || !file_type || !file_data) {
         return response.status(400).json({ error: 'اطلاعات ارسالی ناقص است.' });
     }
-    const { rows } = await pool.sql`
+    const { rows } = await client.sql`
         INSERT INTO personnel_documents (personnel_code, title, file_name, file_type, file_data)
         VALUES (${personnel_code}, ${title}, ${file_name}, ${file_type}, ${file_data})
         RETURNING id, personnel_code, title, file_name, file_type, uploaded_at;
@@ -625,12 +615,12 @@ async function handlePostDocument(request: VercelRequest, response: VercelRespon
     return response.status(201).json({ message: 'مدرک با موفقیت آپلود شد.', document: rows[0] });
 }
 
-async function handleDeleteDocument(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+async function handleDeleteDocument(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
     const { id } = request.query;
     if (!id || typeof id !== 'string') {
         return response.status(400).json({ error: 'شناسه مدرک الزامی است.' });
     }
-    const result = await pool.sql`DELETE FROM personnel_documents WHERE id = ${parseInt(id, 10)};`;
+    const result = await client.sql`DELETE FROM personnel_documents WHERE id = ${parseInt(id, 10)};`;
     if (result.rowCount === 0) {
         return response.status(404).json({ error: 'مدرک یافت نشد.' });
     }
@@ -641,17 +631,17 @@ async function handleDeleteDocument(request: VercelRequest, response: VercelResp
 // =================================================================================
 // COMMITMENT LETTER HANDLERS
 // =================================================================================
-async function handleGetCommitmentLetters(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+async function handleGetCommitmentLetters(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
     const { guarantorCode, searchTerm } = request.query;
 
     if (guarantorCode && typeof guarantorCode === 'string') {
-        const result = await pool.sql`SELECT COALESCE(SUM(loan_amount), 0) as total FROM commitment_letters WHERE guarantor_personnel_code = ${guarantorCode};`;
+        const result = await client.sql`SELECT COALESCE(SUM(loan_amount), 0) as total FROM commitment_letters WHERE guarantor_personnel_code = ${guarantorCode};`;
         return response.status(200).json({ totalCommitted: result.rows[0].total });
     }
     
     if (searchTerm && typeof searchTerm === 'string' && searchTerm.trim() !== '') {
         const searchQuery = `%${searchTerm.trim()}%`;
-        const { rows } = await pool.sql`
+        const { rows } = await client.sql`
             SELECT * FROM commitment_letters WHERE
             recipient_name ILIKE ${searchQuery} OR
             recipient_national_id ILIKE ${searchQuery} OR
@@ -663,16 +653,16 @@ async function handleGetCommitmentLetters(request: VercelRequest, response: Verc
         return response.status(200).json({ letters: rows });
     }
     
-    const { rows } = await pool.sql`SELECT * FROM commitment_letters ORDER BY created_at DESC;`;
+    const { rows } = await client.sql`SELECT * FROM commitment_letters ORDER BY created_at DESC;`;
     return response.status(200).json({ letters: rows });
 }
 
-async function handlePostCommitmentLetter(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+async function handlePostCommitmentLetter(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
     const letter = request.body;
     if (!letter.guarantor_personnel_code || !letter.recipient_name) {
         return response.status(400).json({ error: 'اطلاعات ضامن و وام گیرنده الزامی است.'});
     }
-    const { rows } = await pool.sql`
+    const { rows } = await client.sql`
         INSERT INTO commitment_letters (recipient_name, recipient_national_id, guarantor_personnel_code, guarantor_name, guarantor_national_id, loan_amount, sum_of_decree_factors, bank_name, branch_name, reference_number)
         VALUES (${letter.recipient_name}, ${letter.recipient_national_id}, ${letter.guarantor_personnel_code}, ${letter.guarantor_name}, ${letter.guarantor_national_id}, ${letter.loan_amount}, ${letter.sum_of_decree_factors}, ${letter.bank_name}, ${letter.branch_name}, ${letter.reference_number || null})
         RETURNING *;
@@ -680,10 +670,10 @@ async function handlePostCommitmentLetter(request: VercelRequest, response: Verc
     return response.status(201).json({ message: 'نامه با موفقیت ثبت شد.', letter: rows[0] });
 }
 
-async function handlePutCommitmentLetter(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+async function handlePutCommitmentLetter(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
     const letter = request.body;
     if (!letter.id) return response.status(400).json({ error: 'شناسه نامه الزامی است.' });
-    const { rows } = await pool.sql`
+    const { rows } = await client.sql`
         UPDATE commitment_letters SET
             recipient_name = ${letter.recipient_name}, recipient_national_id = ${letter.recipient_national_id},
             loan_amount = ${letter.loan_amount}, bank_name = ${letter.bank_name}, branch_name = ${letter.branch_name},
@@ -693,10 +683,10 @@ async function handlePutCommitmentLetter(request: VercelRequest, response: Verce
     return response.status(200).json({ message: 'نامه با موفقیت ویرایش شد.', letter: rows[0] });
 }
 
-async function handleDeleteCommitmentLetter(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+async function handleDeleteCommitmentLetter(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
     const { id } = request.query;
     if (!id || typeof id !== 'string') return response.status(400).json({ error: 'شناسه نامه الزامی است.' });
-    const result = await pool.sql`DELETE FROM commitment_letters WHERE id = ${parseInt(id, 10)};`;
+    const result = await client.sql`DELETE FROM commitment_letters WHERE id = ${parseInt(id, 10)};`;
     if (result.rowCount === 0) return response.status(404).json({ error: 'نامه یافت نشد.' });
     return response.status(200).json({ message: 'نامه با موفقیت حذف شد.' });
 }
@@ -704,8 +694,8 @@ async function handleDeleteCommitmentLetter(request: VercelRequest, response: Ve
 // =================================================================================
 // DISCIPLINARY RECORDS HANDLERS
 // =================================================================================
-async function handleGetDisciplinaryRecords(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
-    const { rows } = await pool.sql`SELECT * FROM disciplinary_records ORDER BY created_at DESC;`;
+async function handleGetDisciplinaryRecords(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
+    const { rows } = await client.sql`SELECT * FROM disciplinary_records ORDER BY created_at DESC;`;
     return response.status(200).json({ records: rows });
 }
 
@@ -755,10 +745,10 @@ async function handlePostDisciplinaryRecords(request: VercelRequest, response: V
     }
 }
 
-async function handlePutDisciplinaryRecord(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+async function handlePutDisciplinaryRecord(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
     const record = request.body as DisciplinaryRecord;
     if (!record || !record.id) return response.status(400).json({ error: 'شناسه رکورد الزامی است.' });
-    const { rows } = await pool.sql`
+    const { rows } = await client.sql`
         UPDATE disciplinary_records SET
             full_name = ${record.full_name}, personnel_code = ${record.personnel_code}, meeting_date = ${record.meeting_date},
             letter_description = ${record.letter_description}, final_decision = ${record.final_decision}
@@ -767,10 +757,10 @@ async function handlePutDisciplinaryRecord(request: VercelRequest, response: Ver
     return response.status(200).json({ message: 'رکورد با موفقیت ویرایش شد.', record: rows[0] });
 }
 
-async function handleDeleteDisciplinaryRecord(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+async function handleDeleteDisciplinaryRecord(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
     const { id } = request.query;
     if (!id || typeof id !== 'string') return response.status(400).json({ error: 'شناسه رکورد الزامی است.' });
-    const result = await pool.sql`DELETE FROM disciplinary_records WHERE id = ${parseInt(id, 10)};`;
+    const result = await client.sql`DELETE FROM disciplinary_records WHERE id = ${parseInt(id, 10)};`;
     if (result.rowCount === 0) return response.status(404).json({ error: 'رکورد یافت نشد.' });
     return response.status(200).json({ message: 'رکورد با موفقیت حذف شد.' });
 }
@@ -778,7 +768,7 @@ async function handleDeleteDisciplinaryRecord(request: VercelRequest, response: 
 // =================================================================================
 // PERFORMANCE REVIEW HANDLERS
 // =================================================================================
-async function handleGetPerformanceReviews(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+async function handleGetPerformanceReviews(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
     const { personnel_code, department, supervisor, year } = request.query;
 
     let query = `
@@ -813,18 +803,18 @@ async function handleGetPerformanceReviews(request: VercelRequest, response: Ver
 
     query += ` ORDER BY pr.review_date DESC;`;
     
-    const { rows } = await (pool as any).query(query, params);
+    const { rows } = await (client as any).query(query, params);
     
     const reviews = rows.map(r => ({ ...r, full_name: `${r.first_name || ''} ${r.last_name || ''}`.trim() }));
     return response.status(200).json({ reviews });
 }
 
-async function handlePostPerformanceReview(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+async function handlePostPerformanceReview(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
     const r = request.body as PerformanceReview;
     if (!r || !r.personnel_code) {
         return response.status(400).json({ error: 'کد پرسنلی الزامی است.' });
     }
-    const { rows } = await pool.sql`
+    const { rows } = await client.sql`
         INSERT INTO performance_reviews (
             personnel_code, review_period_start, review_period_end,
             scores_functional, scores_behavioral, scores_ethical,
@@ -844,13 +834,13 @@ async function handlePostPerformanceReview(request: VercelRequest, response: Ver
     return response.status(201).json({ message: 'ارزیابی با موفقیت ثبت شد.', review: rows[0] });
 }
 
-async function handleDeletePerformanceReview(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+async function handleDeletePerformanceReview(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
     const { id } = request.query;
     if (!id || typeof id !== 'string') {
         return response.status(400).json({ error: 'A review ID is required for deletion.' });
     }
     try {
-        const result = await pool.sql`DELETE FROM performance_reviews WHERE id = ${parseInt(id, 10)};`;
+        const result = await client.sql`DELETE FROM performance_reviews WHERE id = ${parseInt(id, 10)};`;
         if (result.rowCount === 0) {
             return response.status(404).json({ error: 'Review not found.' });
         }
@@ -864,14 +854,14 @@ async function handleDeletePerformanceReview(request: VercelRequest, response: V
 // =================================================================================
 // BONUS HANDLERS
 // =================================================================================
-async function handleGetBonuses(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+async function handleGetBonuses(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
     const { year, user } = request.query;
     if (!year || typeof year !== 'string' || !user || typeof user !== 'string') {
         return response.status(400).json({ error: 'سال و کاربر برای دریافت اطلاعات کارانه الزامی است.' });
     }
 
     try {
-        const { rows } = await pool.sql`
+        const { rows } = await client.sql`
             SELECT 
                 id,
                 personnel_code,
@@ -893,13 +883,12 @@ async function handleGetBonuses(request: VercelRequest, response: VercelResponse
 }
 
 
-async function handlePostBonuses(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+async function handlePostBonuses(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
     const { year, month, data, submitted_by_user } = request.body;
     if (!year || !month || !Array.isArray(data) || data.length === 0 || !submitted_by_user) {
         return response.status(400).json({ error: 'اطلاعات ارسالی برای ثبت کارانه ناقص یا نامعتبر است.' });
     }
 
-    const client = await pool.connect();
     try {
         await client.query('BEGIN');
         for (const record of data) {
@@ -936,18 +925,15 @@ async function handlePostBonuses(request: VercelRequest, response: VercelRespons
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         console.error("Error in handlePostBonuses:", error);
         return response.status(500).json({ error: 'Failed to save bonus data.', details: errorMessage });
-    } finally {
-        client.release();
     }
 }
 
-async function handlePutBonuses(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+async function handlePutBonuses(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
     const { id, month, bonus_value, department, editor_name } = request.body;
     if (!id || !month || bonus_value === undefined || !department || !editor_name) {
         return response.status(400).json({ error: 'اطلاعات برای ویرایش ناقص است (شامل نام ویرایشگر).' });
     }
     
-    const client = await pool.connect();
     try {
         await client.query('BEGIN');
 
@@ -994,17 +980,14 @@ async function handlePutBonuses(request: VercelRequest, response: VercelResponse
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         console.error("Error in handlePutBonuses:", error);
         return response.status(500).json({ error: 'خطا در ویرایش کارانه.', details: errorMessage });
-    } finally {
-        client.release();
     }
 }
 
-async function handleDeleteSingleBonus(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+async function handleDeleteSingleBonus(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
     const { id, month, editor_name } = request.body;
     if (!id || !month || !editor_name) {
         return response.status(400).json({ error: 'اطلاعات برای حذف ناقص است (شامل نام ویرایشگر).' });
     }
-    const client = await pool.connect();
     try {
         await client.query('BEGIN');
 
@@ -1039,19 +1022,17 @@ async function handleDeleteSingleBonus(request: VercelRequest, response: VercelR
         await client.query('ROLLBACK');
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         return response.status(500).json({ error: 'خطا در حذف کارانه.', details: errorMessage });
-    } finally {
-        client.release();
     }
 }
 
-async function handleGetSubmittedBonuses(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+async function handleGetSubmittedBonuses(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
     const { year } = request.query;
     if (!year || typeof year !== 'string') {
         return response.status(400).json({ error: 'سال الزامی است.' });
     }
 
     try {
-        const { rows } = await pool.sql`
+        const { rows } = await client.sql`
             SELECT 
                 personnel_code,
                 first_name,
@@ -1061,7 +1042,7 @@ async function handleGetSubmittedBonuses(request: VercelRequest, response: Verce
                 monthly_data,
                 submitted_by_user
             FROM submitted_bonuses
-            WHERE "year" = ${parseInt(year)}
+            WHERE "year" = ${parseInt(year as string)}
             ORDER BY last_name, first_name;
         `;
         return response.status(200).json({ bonuses: rows });
@@ -1071,12 +1052,11 @@ async function handleGetSubmittedBonuses(request: VercelRequest, response: Verce
     }
 }
 
-async function handleFinalizeBonuses(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+async function handleFinalizeBonuses(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
     const { year, user } = request.body;
     if (!year || !user) {
         return response.status(400).json({ error: 'سال و کاربر برای ارسال نهایی الزامی است.' });
     }
-    const client = await pool.connect();
     try {
         await client.query('BEGIN');
 
@@ -1106,7 +1086,6 @@ async function handleFinalizeBonuses(request: VercelRequest, response: VercelRes
             );
         }
 
-        // After successfully moving data, delete it from the source table for this user.
         await client.query(
             'DELETE FROM bonuses WHERE "year" = $1 AND submitted_by_user = $2;',
             [year, user]
@@ -1118,14 +1097,12 @@ async function handleFinalizeBonuses(request: VercelRequest, response: VercelRes
         await client.query('ROLLBACK');
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         return response.status(500).json({ error: 'خطا در عملیات ارسال نهایی.', details: errorMessage });
-    } finally {
-        client.release();
     }
 }
 
-async function handleGetBonusEditLogs(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+async function handleGetBonusEditLogs(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
     try {
-        const { rows } = await pool.sql`
+        const { rows } = await client.sql`
             SELECT 
                 bel.*,
                 COALESCE(b.first_name, sb.first_name, p.first_name) || ' ' || COALESCE(b.last_name, sb.last_name, p.last_name) as full_name
@@ -1156,71 +1133,71 @@ export default async function handler(request: VercelRequest, response: VercelRe
     if (type === 'personnel') {
         switch (request.method) {
             case 'GET': return await handleGetPersonnel(request, response, client);
-            case 'POST': return await handlePostPersonnel(request, response, pool);
-            case 'PUT': return await handlePutPersonnel(request, response, pool);
-            case 'DELETE': return await handleDeletePersonnel(request, response, pool);
+            case 'POST': return await handlePostPersonnel(request, response, client);
+            case 'PUT': return await handlePutPersonnel(request, response, client);
+            case 'DELETE': return await handleDeletePersonnel(request, response, client);
             default: response.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']); return response.status(405).end();
         }
     } else if (type === 'job_group_info') {
         switch (request.method) {
             case 'GET': return await handleGetJobGroupInfo(request, response, client);
             case 'POST': return await handlePostJobGroupInfo(request, response, client);
-            case 'PUT': return await handlePutJobGroupInfo(request, response, pool);
-            case 'DELETE': return await handleDeletePersonnel(request, response, pool); // Uses the same logic as deleting a personnel
+            case 'PUT': return await handlePutJobGroupInfo(request, response, client);
+            case 'DELETE': return await handleDeletePersonnel(request, response, client);
             default: response.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']); return response.status(405).end();
         }
     } else if (type === 'dependents') {
         switch (request.method) {
-            case 'GET': return await handleGetDependents(request, response, pool);
+            case 'GET': return await handleGetDependents(request, response, client);
             case 'POST': return await handlePostDependents(request, response, client);
-            case 'PUT': return await handlePutDependent(request, response, pool);
-            case 'DELETE': return await handleDeleteDependent(request, response, pool);
+            case 'PUT': return await handlePutDependent(request, response, client);
+            case 'DELETE': return await handleDeleteDependent(request, response, client);
             default: response.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']); return response.status(405).end();
         }
     } else if (type === 'commuting_members') {
          switch (request.method) {
-            case 'GET': return await handleGetCommutingMembers(response, pool);
+            case 'GET': return await handleGetCommutingMembers(response, client);
             case 'POST': return await handlePostCommutingMembers(request.body, response, client);
             default: response.setHeader('Allow', ['GET', 'POST']); return response.status(405).end();
         }
     } else if (type === 'documents') {
         switch (request.method) {
-            case 'GET': return await handleGetDocuments(request, response, pool);
-            case 'POST': return await handlePostDocument(request, response, pool);
-            case 'DELETE': return await handleDeleteDocument(request, response, pool);
+            case 'GET': return await handleGetDocuments(request, response, client);
+            case 'POST': return await handlePostDocument(request, response, client);
+            case 'DELETE': return await handleDeleteDocument(request, response, client);
             default: response.setHeader('Allow', ['GET', 'POST', 'DELETE']); return response.status(405).end();
         }
     } else if (type === 'document_data') {
-        if (request.method === 'GET') return await handleGetDocumentData(request, response, pool);
+        if (request.method === 'GET') return await handleGetDocumentData(request, response, client);
         else { response.setHeader('Allow', ['GET']); return response.status(405).end(); }
     } else if (type === 'commitment_letters') {
         switch (request.method) {
-            case 'GET': return await handleGetCommitmentLetters(request, response, pool);
-            case 'POST': return await handlePostCommitmentLetter(request, response, pool);
-            case 'PUT': return await handlePutCommitmentLetter(request, response, pool);
-            case 'DELETE': return await handleDeleteCommitmentLetter(request, response, pool);
+            case 'GET': return await handleGetCommitmentLetters(request, response, client);
+            case 'POST': return await handlePostCommitmentLetter(request, response, client);
+            case 'PUT': return await handlePutCommitmentLetter(request, response, client);
+            case 'DELETE': return await handleDeleteCommitmentLetter(request, response, client);
             default: response.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']); return response.status(405).end();
         }
     } else if (type === 'disciplinary_records') {
         switch (request.method) {
-            case 'GET': return await handleGetDisciplinaryRecords(request, response, pool);
+            case 'GET': return await handleGetDisciplinaryRecords(request, response, client);
             case 'POST': return await handlePostDisciplinaryRecords(request, response, client);
-            case 'PUT': return await handlePutDisciplinaryRecord(request, response, pool);
-            case 'DELETE': return await handleDeleteDisciplinaryRecord(request, response, pool);
+            case 'PUT': return await handlePutDisciplinaryRecord(request, response, client);
+            case 'DELETE': return await handleDeleteDisciplinaryRecord(request, response, client);
             default: response.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']); return response.status(405).end();
         }
     } else if (type === 'performance_reviews') {
         switch (request.method) {
-            case 'GET': return await handleGetPerformanceReviews(request, response, pool);
-            case 'POST': return await handlePostPerformanceReview(request, response, pool);
-            case 'DELETE': return await handleDeletePerformanceReview(request, response, pool);
+            case 'GET': return await handleGetPerformanceReviews(request, response, client);
+            case 'POST': return await handlePostPerformanceReview(request, response, client);
+            case 'DELETE': return await handleDeletePerformanceReview(request, response, client);
             default: response.setHeader('Allow', ['GET', 'POST', 'DELETE']); return response.status(405).end();
         }
     } else if (type === 'bonuses') {
         switch (request.method) {
-            case 'GET': return await handleGetBonuses(request, response, pool);
-            case 'POST': return await handlePostBonuses(request, response, pool);
-            case 'PUT': return await handlePutBonuses(request, response, pool);
+            case 'GET': return await handleGetBonuses(request, response, client);
+            case 'POST': return await handlePostBonuses(request, response, client);
+            case 'PUT': return await handlePutBonuses(request, response, client);
             case 'DELETE': 
                 const { deleteAllForUser, year, user } = request.query;
                 if (deleteAllForUser === 'true') {
@@ -1228,25 +1205,25 @@ export default async function handler(request: VercelRequest, response: VercelRe
                         return response.status(400).json({ error: 'Year and user are required to delete all data.' });
                     }
                     try {
-                        await pool.sql`DELETE FROM bonuses WHERE "year" = ${parseInt(year)} AND submitted_by_user = ${user};`;
+                        await client.sql`DELETE FROM bonuses WHERE "year" = ${parseInt(year)} AND submitted_by_user = ${user};`;
                         return response.status(200).json({ message: 'تمام اطلاعات کارانه این کاربر برای سال انتخاب شده حذف شد.' });
                     } catch (error) {
                         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
                         return response.status(500).json({ error: 'Failed to delete all bonus data.', details: errorMessage });
                     }
                 } else {
-                    return await handleDeleteSingleBonus(request, response, pool);
+                    return await handleDeleteSingleBonus(request, response, client);
                 }
             default: response.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']); return response.status(405).end();
         }
     } else if (type === 'submitted_bonuses') {
-        if (request.method === 'GET') return await handleGetSubmittedBonuses(request, response, pool);
+        if (request.method === 'GET') return await handleGetSubmittedBonuses(request, response, client);
         else { response.setHeader('Allow', ['GET']); return response.status(405).end(); }
     } else if (type === 'finalize_bonuses') {
-        if (request.method === 'POST') return await handleFinalizeBonuses(request, response, pool);
+        if (request.method === 'POST') return await handleFinalizeBonuses(request, response, client);
         else { response.setHeader('Allow', ['POST']); return response.status(405).end(); }
     } else if (type === 'bonus_edit_logs') {
-        if (request.method === 'GET') return await handleGetBonusEditLogs(request, response, pool);
+        if (request.method === 'GET') return await handleGetBonusEditLogs(request, response, client);
         else { response.setHeader('Allow', ['GET']); return response.status(405).end(); }
     }
 
