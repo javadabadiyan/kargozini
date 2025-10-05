@@ -67,7 +67,7 @@ const SubmittedBonusesPage: React.FC = () => {
         );
     }
 
-    const headers = ['کد پرسنلی', 'نام و نام خانوادگی', 'پست', 'کاربران ثبت کننده', ...PERSIAN_MONTHS];
+    const headers = ['کد پرسنلی', 'نام و نام خانوادگی', 'پست', 'محل خدمت', 'کاربران ثبت کننده', ...PERSIAN_MONTHS];
 
     return (
         <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-lg p-6 rounded-xl shadow-xl">
@@ -93,15 +93,16 @@ const SubmittedBonusesPage: React.FC = () => {
                         </tr>
                     </thead>
                     <tbody className="bg-white dark:bg-slate-800/50 divide-y divide-gray-200 dark:divide-slate-700">
-                        {loading && <tr><td colSpan={17} className="text-center p-4">در حال بارگذاری...</td></tr>}
+                        {loading && <tr><td colSpan={18} className="text-center p-4">در حال بارگذاری...</td></tr>}
                         {!loading && !error && bonusData.length === 0 && (
-                            <tr><td colSpan={17} className="text-center p-8 text-gray-500 dark:text-gray-400"><DocumentReportIcon className="w-12 h-12 mx-auto mb-2 text-gray-300" />هیچ کارانه ارسال شده‌ای برای این سال یافت نشد.</td></tr>
+                            <tr><td colSpan={18} className="text-center p-8 text-gray-500 dark:text-gray-400"><DocumentReportIcon className="w-12 h-12 mx-auto mb-2 text-gray-300" />هیچ کارانه ارسال شده‌ای برای این سال یافت نشد.</td></tr>
                         )}
                         {!loading && !error && bonusData.map((person) => (
                             <tr key={person.personnel_code} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
                                 <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-slate-300">{toPersianDigits(person.personnel_code)}</td>
                                 <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-gray-800 dark:text-slate-200">{person.first_name} {person.last_name}</td>
                                 <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-slate-300">{person.position || '---'}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-slate-300">{person.service_location || '---'}</td>
                                 <td className="px-4 py-3 whitespace-pre-wrap text-sm text-gray-700 dark:text-slate-300 max-w-xs">{person.submitted_by_user}</td>
                                 {PERSIAN_MONTHS.map(month => {
                                     const monthData = person.monthly_data?.[month];

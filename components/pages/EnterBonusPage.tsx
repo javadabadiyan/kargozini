@@ -55,7 +55,7 @@ const EnterBonusPage: React.FC = () => {
     // Manual entry states
     const [showManualForm, setShowManualForm] = useState(false);
     const [manualEntry, setManualEntry] = useState({
-        personnel_code: '', first_name: '', last_name: '', position: '', department: '', bonus_amount: '',
+        personnel_code: '', first_name: '', last_name: '', position: '', service_location: '', department: '', bonus_amount: '',
     });
 
     const fetchBonuses = useCallback(async (year: number) => {
@@ -131,7 +131,7 @@ const EnterBonusPage: React.FC = () => {
             setStatus({ type: 'error', message: 'لطفاً ابتدا یک ماه را برای تهیه فایل نمونه انتخاب کنید.' });
             return;
         }
-        const headers = ['کد پرسنلی', 'نام', 'نام خانوادگی', 'پست', `واحد ${selectedMonth}`, `کارانه ${selectedMonth}`];
+        const headers = ['کد پرسنلی', 'نام', 'نام خانوادگی', 'پست', 'محل خدمت', `واحد ${selectedMonth}`, `کارانه ${selectedMonth}`];
         const ws = XLSX.utils.aoa_to_sheet([headers]);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'نمونه کارانه');
@@ -161,6 +161,7 @@ const EnterBonusPage: React.FC = () => {
                     first_name: String(row['نام'] || ''),
                     last_name: String(row['نام خانوادگی'] || ''),
                     position: String(row['پست'] || ''),
+                    service_location: String(row['محل خدمت'] || ''),
                     department: String(row[departmentColumnName] || ''),
                     bonus_value: row[bonusColumnName],
                 })).filter(item => item.personnel_code && item.bonus_value !== undefined);
@@ -192,7 +193,7 @@ const EnterBonusPage: React.FC = () => {
     };
 
     const handleExport = () => {
-        const headers: string[] = ['کد پرسنلی', 'نام و نام خانوادگی', 'پست', 'کاربر ثبت کننده'];
+        const headers: string[] = ['کد پرسنلی', 'نام و نام خانوادگی', 'پست', 'محل خدمت', 'کاربر ثبت کننده'];
         PERSIAN_MONTHS.forEach(month => {
             headers.push(`کارانه ${month}`);
             headers.push(`واحد ${month}`);
@@ -200,10 +201,11 @@ const EnterBonusPage: React.FC = () => {
         
         const dataAsArray: any[][] = [headers];
         filteredBonusData.forEach(person => {
-            const row: (string | number | undefined)[] = [
+            const row: (string | number | null | undefined)[] = [
                 person.personnel_code,
                 `${person.first_name} ${person.last_name}`,
                 person.position || '',
+                person.service_location || '',
                 person.submitted_by_user
             ];
             PERSIAN_MONTHS.forEach(month => {
@@ -227,7 +229,7 @@ const EnterBonusPage: React.FC = () => {
 
     const handleManualSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        const { personnel_code, first_name, last_name, bonus_amount, department } = manualEntry;
+        const { personnel_code, first_name, last_name, bonus_amount, department, service_location } = manualEntry;
 
         if (!personnel_code || !first_name || !last_name || !bonus_amount || !department) {
             setStatus({ type: 'error', message: 'لطفاً تمام فیلدهای الزامی را پر کنید.' });
@@ -250,7 +252,7 @@ const EnterBonusPage: React.FC = () => {
             
             setStatus({ type: 'success', message: result.message });
             fetchBonuses(selectedYear);
-            setManualEntry({ personnel_code: '', first_name: '', last_name: '', position: '', department: '', bonus_amount: '' });
+            setManualEntry({ personnel_code: '', first_name: '', last_name: '', position: '', service_location: '', department: '', bonus_amount: '' });
 
         } catch (err) {
             setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در ثبت کارانه' });
@@ -337,7 +339,7 @@ const EnterBonusPage: React.FC = () => {
         );
     }
 
-    const headers = ['کد پرسنلی', 'نام و نام خانوادگی', 'پست', 'کاربر ثبت کننده', ...PERSIAN_MONTHS];
+    const headers = ['کد پرسنلی', 'نام و نام خانوادگی', 'پست', 'محل خدمت', 'کاربر ثبت کننده', ...PERSIAN_MONTHS];
     const statusColor = { info: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300', success: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300', error: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' };
     const inputClass = "w-full p-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 rounded-md";
 
@@ -399,11 +401,12 @@ const EnterBonusPage: React.FC = () => {
                 <div className="p-4 my-4 border rounded-lg bg-indigo-50 dark:bg-indigo-900/20 dark:border-indigo-800 transition-all duration-300">
                     <h3 className="text-lg font-bold text-indigo-800 dark:text-indigo-200 mb-4">ثبت دستی کارانه برای ماه {selectedMonth} سال {toPersianDigits(selectedYear)}</h3>
                     <form onSubmit={handleManualSubmit} className="space-y-4">
-                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                             <div><label className="block text-sm mb-1">کد پرسنلی*</label><input name="personnel_code" value={manualEntry.personnel_code} onChange={handleManualEntryChange} className={inputClass} required /></div>
                             <div><label className="block text-sm mb-1">نام*</label><input name="first_name" value={manualEntry.first_name} onChange={handleManualEntryChange} className={inputClass} required /></div>
                             <div><label className="block text-sm mb-1">نام خانوادگی*</label><input name="last_name" value={manualEntry.last_name} onChange={handleManualEntryChange} className={inputClass} required /></div>
                             <div><label className="block text-sm mb-1">پست سازمانی</label><input name="position" value={manualEntry.position} onChange={handleManualEntryChange} className={inputClass} /></div>
+                            <div><label className="block text-sm mb-1">محل خدمت</label><input name="service_location" value={manualEntry.service_location} onChange={handleManualEntryChange} className={inputClass} /></div>
                             <div><label className="block text-sm mb-1">واحد*</label><input name="department" value={manualEntry.department} onChange={handleManualEntryChange} className={inputClass} required /></div>
                             <div><label className="block text-sm mb-1">مبلغ کارانه (ریال)*</label><input name="bonus_amount" value={toPersianDigits(formatCurrency(manualEntry.bonus_amount))} onChange={handleManualEntryChange} className={`${inputClass} font-sans text-left`} required /></div>
                         </div>
@@ -433,19 +436,20 @@ const EnterBonusPage: React.FC = () => {
                         <tr>{headers.map(h => <th key={h} className="px-4 py-3 text-right text-xs font-bold uppercase">{h}</th>)}</tr>
                     </thead>
                     <tbody className="bg-white dark:bg-slate-800/50 divide-y divide-gray-200 dark:divide-slate-700">
-                        {loading && <tr><td colSpan={17} className="text-center p-4">در حال بارگذاری...</td></tr>}
-                        {error && <tr><td colSpan={17} className="text-center p-4 text-red-500">{error}</td></tr>}
+                        {loading && <tr><td colSpan={18} className="text-center p-4">در حال بارگذاری...</td></tr>}
+                        {error && <tr><td colSpan={18} className="text-center p-4 text-red-500">{error}</td></tr>}
                         {!loading && !error && bonusData.length > 0 && filteredBonusData.length === 0 && (
-                            <tr><td colSpan={17} className="text-center p-8 text-gray-500 dark:text-gray-400">هیچ رکوردی مطابق با فیلترهای اعمال شده یافت نشد.</td></tr>
+                            <tr><td colSpan={18} className="text-center p-8 text-gray-500 dark:text-gray-400">هیچ رکوردی مطابق با فیلترهای اعمال شده یافت نشد.</td></tr>
                         )}
                         {!loading && !error && bonusData.length === 0 && (
-                            <tr><td colSpan={17} className="text-center p-8 text-gray-500 dark:text-gray-400"><DocumentReportIcon className="w-12 h-12 mx-auto mb-2 text-gray-300" />هیچ داده‌ای برای سال انتخاب شده یافت نشد.</td></tr>
+                            <tr><td colSpan={18} className="text-center p-8 text-gray-500 dark:text-gray-400"><DocumentReportIcon className="w-12 h-12 mx-auto mb-2 text-gray-300" />هیچ داده‌ای برای سال انتخاب شده یافت نشد.</td></tr>
                         )}
                         {!loading && !error && paginatedBonusData.map((person) => (
                             <tr key={person.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
                                 <td className="px-4 py-3 whitespace-nowrap text-sm">{toPersianDigits(person.personnel_code)}</td>
                                 <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold">{person.first_name} {person.last_name}</td>
                                 <td className="px-4 py-3 whitespace-nowrap text-sm">{person.position || '---'}</td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm">{person.service_location || '---'}</td>
                                 <td className="px-4 py-3 whitespace-nowrap text-sm">{person.submitted_by_user}</td>
                                 {PERSIAN_MONTHS.map(month => {
                                     const monthData = person.monthly_data?.[month];

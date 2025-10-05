@@ -218,6 +218,7 @@ export interface BonusData {
     first_name: string;
     last_name: string;
     position: string | null;
+    service_location: string | null;
     monthly_data: { [month: string]: { bonus: number; department: string; } } | null;
     submitted_by_user?: string;
 }

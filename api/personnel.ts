@@ -778,8 +778,8 @@ async function handleGetPerformanceReviews(request: VercelRequest, response: Ver
         LEFT JOIN personnel p ON pr.personnel_code = p.personnel_code
     `;
     const conditions: string[] = [];
-    // FIX: Changed params type to any[] to fix a complex type inference error from the linter.
-    const params: any[] = [];
+    // FIX: Changed params type to a more specific type to avoid potential type errors.
+    const params: (string | number)[] = [];
     let paramIndex = 1;
 
     if (personnel_code && typeof personnel_code === 'string') {
@@ -870,6 +870,7 @@ async function handleGetBonuses(request: VercelRequest, response: VercelResponse
                 first_name,
                 last_name,
                 "position",
+                service_location,
                 monthly_data,
                 submitted_by_user
             FROM bonuses
@@ -894,7 +895,7 @@ async function handlePostBonuses(request: VercelRequest, response: VercelRespons
     try {
         await client.sql`BEGIN`;
         for (const record of data) {
-            const { personnel_code, first_name, last_name, position, department, bonus_value } = record;
+            const { personnel_code, first_name, last_name, position, service_location, department, bonus_value } = record;
             if (!personnel_code || bonus_value === undefined) continue;
 
             const bonusValueNumber = Number(bonus_value);
@@ -908,13 +909,14 @@ async function handlePostBonuses(request: VercelRequest, response: VercelRespons
             };
 
             await client.sql`
-                INSERT INTO bonuses (personnel_code, "year", first_name, last_name, "position", monthly_data, submitted_by_user)
-                VALUES (${personnel_code}, ${year}, ${first_name}, ${last_name}, ${position}, ${JSON.stringify(monthlyUpdate)}, ${submitted_by_user})
+                INSERT INTO bonuses (personnel_code, "year", first_name, last_name, "position", service_location, monthly_data, submitted_by_user)
+                VALUES (${personnel_code}, ${year}, ${first_name}, ${last_name}, ${position}, ${service_location}, ${JSON.stringify(monthlyUpdate)}, ${submitted_by_user})
                 ON CONFLICT (personnel_code, "year", submitted_by_user) DO UPDATE
                 SET 
                     first_name = EXCLUDED.first_name,
                     last_name = EXCLUDED.last_name,
                     "position" = EXCLUDED."position",
+                    service_location = EXCLUDED.service_location,
                     monthly_data = bonuses.monthly_data || EXCLUDED.monthly_data;
             `;
         }
@@ -1001,6 +1003,7 @@ async function handleGetSubmittedBonuses(request: VercelRequest, response: Verce
                 first_name,
                 last_name,
                 "position",
+                service_location,
                 monthly_data,
                 submitted_by_user
             FROM submitted_bonuses
@@ -1034,13 +1037,14 @@ async function handleFinalizeBonuses(request: VercelRequest, response: VercelRes
 
         for (const bonus of userBonuses) {
              await client.sql`
-                INSERT INTO submitted_bonuses (personnel_code, "year", first_name, last_name, "position", monthly_data, submitted_by_user)
-                VALUES (${bonus.personnel_code}, ${bonus.year}, ${bonus.first_name}, ${bonus.last_name}, ${bonus.position}, ${JSON.stringify(bonus.monthly_data)}, ${bonus.submitted_by_user})
+                INSERT INTO submitted_bonuses (personnel_code, "year", first_name, last_name, "position", service_location, monthly_data, submitted_by_user)
+                VALUES (${bonus.personnel_code}, ${bonus.year}, ${bonus.first_name}, ${bonus.last_name}, ${bonus.position}, ${bonus.service_location}, ${JSON.stringify(bonus.monthly_data)}, ${bonus.submitted_by_user})
                 ON CONFLICT (personnel_code, "year") DO UPDATE
                 SET 
                     first_name = COALESCE(submitted_bonuses.first_name, EXCLUDED.first_name),
                     last_name = COALESCE(submitted_bonuses.last_name, EXCLUDED.last_name),
                     "position" = COALESCE(submitted_bonuses."position", EXCLUDED."position"),
+                    service_location = COALESCE(submitted_bonuses.service_location, EXCLUDED.service_location),
                     monthly_data = submitted_bonuses.monthly_data || EXCLUDED.monthly_data,
                     submitted_by_user = submitted_bonuses.submitted_by_user || ', ' || EXCLUDED.submitted_by_user;
             `;
