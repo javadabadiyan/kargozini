@@ -1,7 +1,5 @@
-
 import React, { useState, useEffect } from 'react';
-// FIX: Changed import from `import type` to `import` to correctly load types from the module.
-import { Personnel } from '../types';
+import type { Personnel } from '../types';
 
 interface EditPersonnelModalProps {
   personnel: Personnel;
@@ -92,21 +90,18 @@ const EditPersonnelModal: React.FC<EditPersonnelModalProps> = ({ personnel, onCl
           <div className="overflow-y-auto p-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-4">
               {fields.map(field => (
-// FIX: Cast `field.key` to string for the `key` prop to prevent type errors.
-                <div key={field.key as string}>
+                <div key={field.key}>
                   <label htmlFor={field.key} className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">
                     {field.label}
                   </label>
                   <input
-// FIX: Cast `field.key` to string for HTML attributes.
                     type={field.type || 'text'}
-                    id={field.key as string}
-                    name={field.key as string}
+                    id={field.key}
+                    name={field.key}
                     value={String(formData[field.key as keyof typeof formData] ?? '')}
                     onChange={handleChange}
                     className={inputClass}
-// FIX: Cast `field.key` to string for comparison.
-                    readOnly={field.key as string === 'personnel_code' && !isNew} // Make personnel_code readonly on edit
+                    readOnly={field.key === 'personnel_code' && !isNew} // Make personnel_code readonly on edit
                   />
                 </div>
               ))}

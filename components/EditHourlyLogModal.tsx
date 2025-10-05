@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { HourlyCommuteReportRow } from '../types';
+import type { HourlyCommuteReportRow } from '../types';
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const MINUTES = Array.from({ length: 60 }, (_, i) => i);

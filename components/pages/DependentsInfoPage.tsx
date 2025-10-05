@@ -1,8 +1,6 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { SearchIcon, PencilIcon, TrashIcon, UsersIcon, UploadIcon, DownloadIcon } from '../icons/Icons';
-// FIX: Changed import from `import type` to `import` to correctly load types from the module.
-import { Dependent } from '../../types';
+import type { Dependent } from '../../types';
 import EditDependentModal from '../EditDependentModal';
 
 // Type alias for SheetJS, assuming it's loaded from a global script

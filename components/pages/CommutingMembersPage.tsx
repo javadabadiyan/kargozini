@@ -1,7 +1,5 @@
-
 import React, { useState, useEffect, useRef } from 'react';
-// FIX: Changed import from `import type` to `import` to correctly load types from the module.
-import { CommutingMember } from '../../types';
+import type { CommutingMember } from '../../types';
 import AddCommutingMemberModal from '../AddCommutingMemberModal';
 
 declare const XLSX: any;

@@ -1,7 +1,5 @@
-
 import React, { useState, useEffect, useCallback, useRef, memo, useMemo } from 'react';
-// FIX: Changed import from `import type` to `import` to correctly load types from the module.
-import { MenuItem, UserPermissions } from '../types';
+import type { MenuItem, UserPermissions } from '../types';
 import { ChevronDownIcon, ChevronUpIcon, XIcon } from './icons/Icons';
 import { ALL_MENU_ITEMS } from './menuConfig';
 

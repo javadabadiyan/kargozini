@@ -1,7 +1,5 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-// FIX: Changed import from `import type` to `import` to correctly load types from the module.
-import { Personnel } from '../../types';
+import type { Personnel } from '../../types';
 import EditPersonnelModal from '../EditPersonnelModal';
 import { PencilIcon, SearchIcon, TrashIcon, DownloadIcon, UploadIcon } from '../icons/Icons';
 
@@ -462,8 +460,7 @@ const PersonnelListPage: React.FC = () => {
                 {TABLE_HEADERS_KEYS.map(header => {
                     const key = HEADER_MAP[header as keyof typeof HEADER_MAP];
                     return (
-// FIX: Using header as key because `key` can be a duplicated value in HEADER_MAP.
-                        <td key={`${p.id}-${header}`} className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-slate-300">{toPersianDigits(String(p[key] ?? ''))}</td>
+                        <td key={key} className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-slate-300">{toPersianDigits(String(p[key] ?? ''))}</td>
                     );
                 })}
                 <td className="px-4 py-3 whitespace-nowrap text-sm text-center">

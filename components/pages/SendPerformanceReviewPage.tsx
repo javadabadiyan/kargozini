@@ -16,11 +16,6 @@ const initialFormData = {
     strengths: '',
     weaknesses_and_improvements: '',
     supervisor_suggestions: '',
-    // FIX: Add missing properties to satisfy the Omit<PerformanceReview, ...> type.
-    reviewer_name_and_signature: '',
-    supervisor_signature: null,
-    manager_signature: null,
-    submitted_by_user: '',
 };
 
 const initialPersonnelInfo = {
@@ -39,7 +34,7 @@ const getCurrentPersianYear = () => {
 const SendPerformanceReviewPage: React.FC = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [status, setStatus] = useState<{ type: 'info' | 'success' | 'error'; message: string } | null>(null);
-    const [formData, setFormData] = useState(initialFormData);
+    const [formData, setFormData] = useState<Omit<PerformanceReview, 'id' | 'personnel_code' | 'review_date' | 'review_period_start' | 'review_period_end' | 'total_score_functional' | 'total_score_behavioral' | 'total_score_ethical' | 'overall_score'>>(initialFormData);
     const [personnelInfo, setPersonnelInfo] = useState(initialPersonnelInfo);
     const [evaluationYear, setEvaluationYear] = useState('');
     

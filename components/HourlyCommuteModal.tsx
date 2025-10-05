@@ -1,7 +1,5 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
-// FIX: Changed import from `import type` to `import` to correctly load types from the module.
-import { CommuteLog, HourlyCommuteLog } from '../types';
+import type { CommuteLog, HourlyCommuteLog } from '../types';
 import { PencilIcon, TrashIcon, RefreshIcon } from './icons/Icons';
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);

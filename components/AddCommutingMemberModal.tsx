@@ -1,7 +1,5 @@
-
 import React, { useState } from 'react';
-// FIX: Changed import from `import type` to `import` to correctly load types from the module.
-import { CommutingMember } from '../types';
+import type { CommutingMember } from '../types';
 
 interface AddCommutingMemberModalProps {
   onClose: () => void;
