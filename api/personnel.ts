@@ -10,7 +10,7 @@ type NewCommutingMember = Omit<CommutingMember, 'id'>;
 // =================================================================================
 // PERSONNEL HANDLERS
 // =================================================================================
-async function handleGetPersonnel(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+async function handleGetPersonnel(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
   try {
     const page = parseInt(request.query.page as string) || 1;
     const pageSize = parseInt(request.query.pageSize as string) || 20;
@@ -22,23 +22,27 @@ async function handleGetPersonnel(request: VercelRequest, response: VercelRespon
     let dataResult;
 
     if (searchTerm) {
-        countResult = await pool.sql`
+        countResult = await client.sql`
             SELECT COUNT(*) FROM personnel
             WHERE first_name ILIKE ${searchQuery} OR last_name ILIKE ${searchQuery} OR personnel_code ILIKE ${searchQuery} OR national_id ILIKE ${searchQuery};
         `;
-        dataResult = await pool.sql`
+        // FIX: Switched to client.query to correctly handle LIMIT/OFFSET parameters, which are not supported by the `sql` tag.
+        const query = `
             SELECT * FROM personnel
-            WHERE first_name ILIKE ${searchQuery} OR last_name ILIKE ${searchQuery} OR personnel_code ILIKE ${searchQuery} OR national_id ILIKE ${searchQuery}
+            WHERE first_name ILIKE $1 OR last_name ILIKE $1 OR personnel_code ILIKE $1 OR national_id ILIKE $1
             ORDER BY last_name, first_name
-            LIMIT ${pageSize} OFFSET ${offset};
+            LIMIT $2 OFFSET $3;
         `;
+        dataResult = await (client as any).query(query, [searchQuery, pageSize, offset]);
     } else {
-        countResult = await pool.sql`SELECT COUNT(*) FROM personnel;`;
-        dataResult = await pool.sql`
+        countResult = await client.sql`SELECT COUNT(*) FROM personnel;`;
+        // FIX: Switched to client.query to correctly handle LIMIT/OFFSET parameters, which are not supported by the `sql` tag.
+        const query = `
             SELECT * FROM personnel
             ORDER BY last_name, first_name
-            LIMIT ${pageSize} OFFSET ${offset};
+            LIMIT $1 OFFSET $2;
         `;
+        dataResult = await (client as any).query(query, [pageSize, offset]);
     }
     const totalCount = parseInt(countResult.rows[0].count, 10);
     return response.status(200).json({ personnel: dataResult.rows, totalCount });
@@ -52,7 +56,8 @@ async function handleGetPersonnel(request: VercelRequest, response: VercelRespon
   }
 }
 
-async function handlePostPersonnel(body: any, response: VercelResponse, pool: VercelPool) {
+async function handlePostPersonnel(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+    const body = request.body;
     const client = await pool.connect();
     try {
         if (Array.isArray(body)) { // Bulk insert
@@ -82,7 +87,7 @@ async function handlePostPersonnel(body: any, response: VercelResponse, pool: Ve
             for (let i = 0; i < validPersonnelList.length; i += BATCH_SIZE) {
                 const batch = validPersonnelList.slice(i, i + BATCH_SIZE);
                 if (batch.length === 0) continue;
-                await client.sql`BEGIN`;
+                await client.query('BEGIN');
                 const values: (string | null)[] = [];
                 const valuePlaceholders: string[] = [];
                 let paramIndex = 1;
@@ -93,7 +98,7 @@ async function handlePostPersonnel(body: any, response: VercelResponse, pool: Ve
                 }
                 const query = `INSERT INTO personnel (${columnNames}) VALUES ${valuePlaceholders.join(', ')} ON CONFLICT (personnel_code) DO UPDATE SET ${updateSet};`;
                 await (client as any).query(query, values);
-                await client.sql`COMMIT`;
+                await client.query('COMMIT');
                 totalProcessed += batch.length;
             }
             return response.status(200).json({ message: `عملیات موفق. ${totalProcessed} رکورد پردازش شد.` });
@@ -107,7 +112,7 @@ async function handlePostPersonnel(body: any, response: VercelResponse, pool: Ve
             return response.status(201).json({ message: 'پرسنل جدید با موفقیت اضافه شد.', personnel: rows[0] });
         }
     } catch (error) {
-        await client.sql`ROLLBACK`;
+        await client.query('ROLLBACK');
         const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
         console.error("Error in handlePostPersonnel:", error);
 
@@ -195,7 +200,7 @@ const JOB_GROUP_COLUMNS = [
 ];
 const JOB_GROUP_UPDATE_COLUMNS = JOB_GROUP_COLUMNS.filter(c => !['id', 'personnel_code']);
 
-async function handleGetJobGroupInfo(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+async function handleGetJobGroupInfo(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
   const page = parseInt(request.query.page as string) || 1;
   const pageSize = parseInt(request.query.pageSize as string) || 20;
   const searchTerm = (request.query.searchTerm as string) || '';
@@ -208,19 +213,19 @@ async function handleGetJobGroupInfo(request: VercelRequest, response: VercelRes
   let dataResult;
 
   if (searchTerm) {
-    countResult = await pool.sql`
+    countResult = await client.sql`
       SELECT COUNT(*) FROM personnel
       WHERE first_name ILIKE ${searchQuery} OR last_name ILIKE ${searchQuery} OR personnel_code ILIKE ${searchQuery} OR national_id ILIKE ${searchQuery};
     `;
-    dataResult = await (pool as any).query(`
+    dataResult = await (client as any).query(`
       SELECT ${columnNames} FROM personnel
       WHERE first_name ILIKE $1 OR last_name ILIKE $1 OR personnel_code ILIKE $1 OR national_id ILIKE $1
       ORDER BY last_name, first_name
       LIMIT $2 OFFSET $3;
     `, [searchQuery, pageSize, offset]);
   } else {
-    countResult = await pool.sql`SELECT COUNT(*) FROM personnel;`;
-    dataResult = await (pool as any).query(`
+    countResult = await client.sql`SELECT COUNT(*) FROM personnel;`;
+    dataResult = await (client as any).query(`
       SELECT ${columnNames} FROM personnel
       ORDER BY last_name, first_name
       LIMIT $1 OFFSET $2;
@@ -241,7 +246,7 @@ async function handlePostJobGroupInfo(request: VercelRequest, response: VercelRe
           if (validRecords.length === 0) {
               return response.status(400).json({ error: 'هیچ رکورد معتبری یافت نشد.' });
           }
-          await client.sql`BEGIN`;
+          await client.query('BEGIN');
           const allColumns = [...new Set([...Object.keys(validRecords[0]), ...JOB_GROUP_COLUMNS])].filter(c => c !== 'id');
           const columnNames = allColumns.map(c => c === 'position' ? `"${c}"` : c).join(', ');
           const updateSet = allColumns.filter(c => c !== 'personnel_code').map(c => `${c === 'position' ? `"${c}"` : c} = EXCLUDED.${c === 'position' ? `"${c}"` : c}`).join(', ');
@@ -260,7 +265,7 @@ async function handlePostJobGroupInfo(request: VercelRequest, response: VercelRe
           }
           const query = `INSERT INTO personnel (${columnNames}) VALUES ${valuePlaceholders.join(', ')} ON CONFLICT (personnel_code) DO UPDATE SET ${updateSet};`;
           await (client as any).query(query, values);
-          await client.sql`COMMIT`;
+          await client.query('COMMIT');
           return response.status(200).json({ message: `عملیات موفق. ${validRecords.length} رکورد پردازش شد.` });
 
       } else { // Single insert
@@ -279,7 +284,7 @@ async function handlePostJobGroupInfo(request: VercelRequest, response: VercelRe
           return response.status(201).json({ message: 'رکورد با موفقیت اضافه شد.', record: rows[0] });
       }
   } catch (error) {
-      await client.sql`ROLLBACK`;
+      await client.query('ROLLBACK');
       const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
       if (errorMessage.includes('personnel_personnel_code_key')) return response.status(409).json({ error: 'کد پرسنلی تکراری است.' });
       return response.status(500).json({ error: 'خطا در عملیات پایگاه داده.', details: errorMessage });
@@ -408,7 +413,7 @@ async function handlePostDependents(request: VercelRequest, response: VercelResp
         return response.status(400).json({ error: 'هیچ رکورد معتبری برای ورود یافت نشد. لطفاً از وجود ستون‌های کد پرسنلی، نام، نام خانوادگی و کد ملی بستگان اطمینان حاصل کنید.' });
     }
   
-    await client.sql`BEGIN`;
+    await client.query('BEGIN');
     const BATCH_SIZE = 250;
     let totalProcessed = 0;
 
@@ -442,11 +447,11 @@ async function handlePostDependents(request: VercelRequest, response: VercelResp
         totalProcessed += batch.length;
     }
 
-    await client.sql`COMMIT`;
+    await client.query('COMMIT');
     return response.status(200).json({ message: `عملیات موفق. ${totalProcessed} رکورد پردازش شد.` });
 
   } catch (error) {
-    await client.sql`ROLLBACK`;
+    await client.query('ROLLBACK');
     const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
     console.error("Error in handlePostDependents:", error);
 
@@ -536,7 +541,7 @@ async function handlePostCommutingMembers(body: any, response: VercelResponse, c
         if (validList.length === 0) return response.status(400).json({ error: 'هیچ رکورد معتبری یافت نشد.' });
         
         try {
-            await client.sql`BEGIN`;
+            await client.query('BEGIN');
             const columns = ['personnel_code', 'full_name', 'department', 'position'];
             const columnNames = columns.map(c => c === 'position' ? `"${c}"` : c).join(', ');
             const updateSet = columns.filter(c => c !== 'personnel_code').map(c => `${c === 'position' ? `"${c}"` : c} = EXCLUDED.${c === 'position' ? `"${c}"` : c}`).join(', ');
@@ -550,10 +555,10 @@ async function handlePostCommutingMembers(body: any, response: VercelResponse, c
             }
             const query = `INSERT INTO commuting_members (${columnNames}) VALUES ${valuePlaceholders.join(', ')} ON CONFLICT (personnel_code) DO UPDATE SET ${updateSet};`;
             await (client as any).query(query, values);
-            await client.sql`COMMIT`;
+            await client.query('COMMIT');
             return response.status(200).json({ message: `عملیات موفق. ${validList.length} رکورد پردازش شد.` });
         } catch (error) {
-            await client.sql`ROLLBACK`;
+            await client.query('ROLLBACK');
             const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
             if (errorMessage.includes('duplicate key')) return response.status(409).json({ error: 'کد پرسنلی تکراری است.' });
             return response.status(500).json({ error: 'خطا در عملیات پایگاه داده.', details: errorMessage });
@@ -708,7 +713,7 @@ async function handlePostDisciplinaryRecords(request: VercelRequest, response: V
         const validList = allRecords.filter(r => r.full_name && r.personnel_code);
         if (validList.length === 0) return response.status(400).json({ error: 'هیچ رکورد معتبری یافت نشد.' });
         try {
-            await client.sql`BEGIN`;
+            await client.query('BEGIN');
             const columns = ['full_name', 'personnel_code', 'meeting_date', 'letter_description', 'final_decision'];
             const values: (string | null)[] = [];
             const valuePlaceholders: string[] = [];
@@ -720,10 +725,10 @@ async function handlePostDisciplinaryRecords(request: VercelRequest, response: V
             }
             const query = `INSERT INTO disciplinary_records (${columns.join(', ')}) VALUES ${valuePlaceholders.join(', ')}`;
             await (client as any).query(query, values);
-            await client.sql`COMMIT`;
+            await client.query('COMMIT');
             return response.status(200).json({ message: `عملیات موفق. ${validList.length} رکورد پردازش شد.` });
         } catch (error) {
-            await client.sql`ROLLBACK`;
+            await client.query('ROLLBACK');
             const errorMessage = error instanceof Error ? error.message : 'An unknown error occurred';
             return response.status(500).json({ error: 'خطا در عملیات پایگاه داده.', details: errorMessage });
         }
@@ -778,7 +783,6 @@ async function handleGetPerformanceReviews(request: VercelRequest, response: Ver
         LEFT JOIN personnel p ON pr.personnel_code = p.personnel_code
     `;
     const conditions: string[] = [];
-    // FIX: Changed params type to a more specific type to avoid potential type errors.
     const params: (string | number)[] = [];
     let paramIndex = 1;
 
@@ -893,7 +897,7 @@ async function handlePostBonuses(request: VercelRequest, response: VercelRespons
 
     const client = await pool.connect();
     try {
-        await client.sql`BEGIN`;
+        await client.query('BEGIN');
         for (const record of data) {
             const { personnel_code, first_name, last_name, position, service_location, department, bonus_value } = record;
             if (!personnel_code || bonus_value === undefined) continue;
@@ -908,22 +912,23 @@ async function handlePostBonuses(request: VercelRequest, response: VercelRespons
                 }
             };
 
-            await client.sql`
-                INSERT INTO bonuses (personnel_code, "year", first_name, last_name, "position", service_location, monthly_data, submitted_by_user)
-                VALUES (${personnel_code}, ${year}, ${first_name}, ${last_name}, ${position}, ${service_location}, ${JSON.stringify(monthlyUpdate)}, ${submitted_by_user})
-                ON CONFLICT (personnel_code, "year", submitted_by_user) DO UPDATE
-                SET 
-                    first_name = EXCLUDED.first_name,
-                    last_name = EXCLUDED.last_name,
-                    "position" = EXCLUDED."position",
-                    service_location = EXCLUDED.service_location,
-                    monthly_data = bonuses.monthly_data || EXCLUDED.monthly_data;
-            `;
+            await client.query(
+                `INSERT INTO bonuses (personnel_code, "year", first_name, last_name, "position", service_location, monthly_data, submitted_by_user)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                 ON CONFLICT (personnel_code, "year", submitted_by_user) DO UPDATE
+                 SET 
+                     first_name = EXCLUDED.first_name,
+                     last_name = EXCLUDED.last_name,
+                     "position" = EXCLUDED."position",
+                     service_location = EXCLUDED.service_location,
+                     monthly_data = bonuses.monthly_data || EXCLUDED.monthly_data;`,
+                [personnel_code, year, first_name, last_name, position, service_location, JSON.stringify(monthlyUpdate), submitted_by_user]
+            );
         }
-        await client.sql`COMMIT`;
+        await client.query('COMMIT');
         return response.status(200).json({ message: `اطلاعات کارانه ماه '${month}' برای ${data.length} نفر با موفقیت ثبت/به‌روزرسانی شد.` });
     } catch (error) {
-        await client.sql`ROLLBACK`;
+        await client.query('ROLLBACK');
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         console.error("Error in handlePostBonuses:", error);
         return response.status(500).json({ error: 'Failed to save bonus data.', details: errorMessage });
@@ -933,60 +938,105 @@ async function handlePostBonuses(request: VercelRequest, response: VercelRespons
 }
 
 async function handlePutBonuses(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
-    const { id, month, bonus_value, department } = request.body;
-    if (!id || !month || bonus_value === undefined || !department) {
-        return response.status(400).json({ error: 'اطلاعات برای ویرایش ناقص است.' });
+    const { id, month, bonus_value, department, editor_name } = request.body;
+    if (!id || !month || bonus_value === undefined || !department || !editor_name) {
+        return response.status(400).json({ error: 'اطلاعات برای ویرایش ناقص است (شامل نام ویرایشگر).' });
     }
     
+    const client = await pool.connect();
     try {
-        const bonusValueNumber = Number(bonus_value);
-        if (isNaN(bonusValueNumber)) return response.status(400).json({ error: 'مبلغ کارانه نامعتبر است.' });
+        await client.query('BEGIN');
 
-        // This uses a JSONB function to set a specific key in the monthly_data object.
-        // The path is specified as a text array, e.g., '{month_name}'.
-        const { rows } = await pool.sql`
-            UPDATE bonuses
-            SET monthly_data = jsonb_set(
-                monthly_data,
-                ${[month]},
-                ${JSON.stringify({ bonus: bonusValueNumber, department: department })}::jsonb
-            )
-            WHERE id = ${id}
-            RETURNING *;
-        `;
-        if(rows.length === 0) return response.status(404).json({ error: 'رکورد یافت نشد.'});
+        const { rows: oldDataRows } = await client.query('SELECT personnel_code, monthly_data FROM bonuses WHERE id = $1', [id]);
+        if (oldDataRows.length === 0) {
+            await client.query('ROLLBACK');
+            return response.status(404).json({ error: 'رکورد یافت نشد.'});
+        }
+        const oldMonthData = oldDataRows[0].monthly_data?.[month];
+
+        const bonusValueNumber = Number(bonus_value);
+        if (isNaN(bonusValueNumber)) {
+            await client.query('ROLLBACK');
+            return response.status(400).json({ error: 'مبلغ کارانه نامعتبر است.' });
+        }
+
+        const { rows } = await client.query(
+            `UPDATE bonuses
+             SET monthly_data = jsonb_set(
+                 monthly_data,
+                 '{${month}}',
+                 $1::jsonb
+             )
+             WHERE id = $2
+             RETURNING *;`,
+            [JSON.stringify({ bonus: bonusValueNumber, department: department }), id]
+        );
+        
+        const newMonthData = rows[0].monthly_data?.[month];
+
+        if (oldMonthData?.bonus !== newMonthData?.bonus || oldMonthData?.department !== newMonthData?.department) {
+             await client.query(
+                `INSERT INTO bonus_edit_logs (bonus_id, personnel_code, editor_name, month, old_bonus_value, new_bonus_value, old_department, new_department)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8);`,
+                [id, rows[0].personnel_code, editor_name, month, oldMonthData?.bonus || null, newMonthData?.bonus, oldMonthData?.department || null, newMonthData?.department]
+            );
+        }
+
+        await client.query('COMMIT');
         return response.status(200).json({ message: 'کارانه با موفقیت ویرایش شد.' });
 
     } catch(error) {
-         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-         return response.status(500).json({ error: 'خطا در ویرایش کارانه.', details: errorMessage });
+        await client.query('ROLLBACK');
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error("Error in handlePutBonuses:", error);
+        return response.status(500).json({ error: 'خطا در ویرایش کارانه.', details: errorMessage });
+    } finally {
+        client.release();
     }
 }
 
-async function handleDeleteBonuses(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
-    const { id, month } = request.body;
-    if (!id || !month) {
-        return response.status(400).json({ error: 'اطلاعات برای حذف ناقص است.' });
+async function handleDeleteSingleBonus(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+    const { id, month, editor_name } = request.body;
+    if (!id || !month || !editor_name) {
+        return response.status(400).json({ error: 'اطلاعات برای حذف ناقص است (شامل نام ویرایشگر).' });
     }
+    const client = await pool.connect();
     try {
-        // This uses the #- operator to remove a key from a JSONB object.
-        const { rows } = await pool.sql`
-            UPDATE bonuses
-            SET monthly_data = monthly_data - ${month}
-            WHERE id = ${id}
-            RETURNING *;
-        `;
-         if(rows.length === 0) return response.status(404).json({ error: 'رکورد یافت نشد.'});
+        await client.query('BEGIN');
 
-        // Optional: Delete the row if no monthly data is left
+        const { rows: oldDataRows } = await client.query('SELECT personnel_code, monthly_data FROM bonuses WHERE id = $1', [id]);
+        if (oldDataRows.length === 0) {
+            await client.query('ROLLBACK');
+            return response.status(404).json({ error: 'رکورد یافت نشد.' });
+        }
+        const oldData = oldDataRows[0];
+        const oldMonthData = oldData.monthly_data?.[month];
+
+        const { rows } = await client.query(
+            'UPDATE bonuses SET monthly_data = monthly_data - $1 WHERE id = $2 RETURNING *;',
+            [month, id]
+        );
+
+        if (oldMonthData) {
+            await client.query(
+                `INSERT INTO bonus_edit_logs (bonus_id, personnel_code, editor_name, month, old_bonus_value, new_bonus_value, old_department, new_department)
+                 VALUES ($1, $2, $3, $4, $5, NULL, $6, NULL);`,
+                [id, oldData.personnel_code, editor_name, month, oldMonthData.bonus, oldMonthData.department]
+            );
+        }
+        
         if (Object.keys(rows[0].monthly_data || {}).length === 0) {
-            await pool.sql`DELETE FROM bonuses WHERE id = ${id};`;
+            await client.query('DELETE FROM bonuses WHERE id = $1;', [id]);
         }
 
+        await client.query('COMMIT');
         return response.status(200).json({ message: 'کارانه با موفقیت حذف شد.' });
     } catch(error) {
-         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-         return response.status(500).json({ error: 'خطا در حذف کارانه.', details: errorMessage });
+        await client.query('ROLLBACK');
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return response.status(500).json({ error: 'خطا در حذف کارانه.', details: errorMessage });
+    } finally {
+        client.release();
     }
 }
 
@@ -1024,38 +1074,38 @@ async function handleFinalizeBonuses(request: VercelRequest, response: VercelRes
     }
     const client = await pool.connect();
     try {
-        await client.sql`BEGIN`;
+        await client.query('BEGIN');
 
-        const { rows: userBonuses } = await client.sql`
-            SELECT * FROM bonuses WHERE "year" = ${year} AND submitted_by_user = ${user};
-        `;
+        const { rows: userBonuses } = await client.query(
+            'SELECT * FROM bonuses WHERE "year" = $1 AND submitted_by_user = $2;',
+            [year, user]
+        );
         
         if (userBonuses.length === 0) {
-            await client.sql`ROLLBACK`;
+            await client.query('ROLLBACK');
             return response.status(404).json({ error: 'هیچ داده‌ای برای ارسال نهایی یافت نشد.' });
         }
 
         for (const bonus of userBonuses) {
-             await client.sql`
-                INSERT INTO submitted_bonuses (personnel_code, "year", first_name, last_name, "position", service_location, monthly_data, submitted_by_user)
-                VALUES (${bonus.personnel_code}, ${bonus.year}, ${bonus.first_name}, ${bonus.last_name}, ${bonus.position}, ${bonus.service_location}, ${JSON.stringify(bonus.monthly_data)}, ${bonus.submitted_by_user})
-                ON CONFLICT (personnel_code, "year") DO UPDATE
-                SET 
-                    first_name = COALESCE(submitted_bonuses.first_name, EXCLUDED.first_name),
-                    last_name = COALESCE(submitted_bonuses.last_name, EXCLUDED.last_name),
-                    "position" = COALESCE(submitted_bonuses."position", EXCLUDED."position"),
-                    service_location = COALESCE(submitted_bonuses.service_location, EXCLUDED.service_location),
-                    monthly_data = submitted_bonuses.monthly_data || EXCLUDED.monthly_data,
-                    submitted_by_user = submitted_bonuses.submitted_by_user || ', ' || EXCLUDED.submitted_by_user;
-            `;
+             await client.query(
+                `INSERT INTO submitted_bonuses (personnel_code, "year", first_name, last_name, "position", service_location, monthly_data, submitted_by_user)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                 ON CONFLICT (personnel_code, "year") DO UPDATE
+                 SET 
+                     first_name = COALESCE(submitted_bonuses.first_name, EXCLUDED.first_name),
+                     last_name = COALESCE(submitted_bonuses.last_name, EXCLUDED.last_name),
+                     "position" = COALESCE(submitted_bonuses."position", EXCLUDED."position"),
+                     service_location = COALESCE(submitted_bonuses.service_location, EXCLUDED.service_location),
+                     monthly_data = submitted_bonuses.monthly_data || EXCLUDED.monthly_data,
+                     submitted_by_user = submitted_bonuses.submitted_by_user || ', ' || EXCLUDED.submitted_by_user;`,
+                [bonus.personnel_code, bonus.year, bonus.first_name, bonus.last_name, bonus.position, bonus.service_location, JSON.stringify(bonus.monthly_data), bonus.submitted_by_user]
+            );
         }
 
-        // await client.sql`DELETE FROM bonuses WHERE "year" = ${year} AND submitted_by_user = ${user};`;
-
-        await client.sql`COMMIT`;
+        await client.query('COMMIT');
         return response.status(200).json({ message: 'کارانه با موفقیت ارسال نهایی و در بایگانی ثبت شد.' });
     } catch (error) {
-        await client.sql`ROLLBACK`;
+        await client.query('ROLLBACK');
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         return response.status(500).json({ error: 'خطا در عملیات ارسال نهایی.', details: errorMessage });
     } finally {
@@ -1063,6 +1113,24 @@ async function handleFinalizeBonuses(request: VercelRequest, response: VercelRes
     }
 }
 
+async function handleGetBonusEditLogs(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+    try {
+        const { rows } = await pool.sql`
+            SELECT 
+                bel.*,
+                COALESCE(b.first_name, sb.first_name, p.first_name) || ' ' || COALESCE(b.last_name, sb.last_name, p.last_name) as full_name
+            FROM bonus_edit_logs bel
+            LEFT JOIN bonuses b ON bel.bonus_id = b.id
+            LEFT JOIN submitted_bonuses sb ON bel.personnel_code = sb.personnel_code AND sb.year = (SELECT year FROM bonuses WHERE id = bel.bonus_id LIMIT 1)
+            LEFT JOIN personnel p ON bel.personnel_code = p.personnel_code
+            ORDER BY bel.edit_timestamp DESC;
+        `;
+        return response.status(200).json({ logs: rows });
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return response.status(500).json({ error: 'Failed to fetch bonus edit logs.', details: errorMessage });
+    }
+}
 
 // =================================================================================
 // MAIN API HANDLER
@@ -1077,15 +1145,15 @@ export default async function handler(request: VercelRequest, response: VercelRe
 
     if (type === 'personnel') {
         switch (request.method) {
-            case 'GET': return await handleGetPersonnel(request, response, pool);
-            case 'POST': return await handlePostPersonnel(request.body, response, pool);
+            case 'GET': return await handleGetPersonnel(request, response, client);
+            case 'POST': return await handlePostPersonnel(request, response, pool);
             case 'PUT': return await handlePutPersonnel(request, response, pool);
             case 'DELETE': return await handleDeletePersonnel(request, response, pool);
             default: response.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']); return response.status(405).end();
         }
     } else if (type === 'job_group_info') {
         switch (request.method) {
-            case 'GET': return await handleGetJobGroupInfo(request, response, pool);
+            case 'GET': return await handleGetJobGroupInfo(request, response, client);
             case 'POST': return await handlePostJobGroupInfo(request, response, client);
             case 'PUT': return await handlePutJobGroupInfo(request, response, pool);
             case 'DELETE': return await handleDeletePersonnel(request, response, pool); // Uses the same logic as deleting a personnel
@@ -1143,7 +1211,22 @@ export default async function handler(request: VercelRequest, response: VercelRe
             case 'GET': return await handleGetBonuses(request, response, pool);
             case 'POST': return await handlePostBonuses(request, response, pool);
             case 'PUT': return await handlePutBonuses(request, response, pool);
-            case 'DELETE': return await handleDeleteBonuses(request, response, pool);
+            case 'DELETE': 
+                const { deleteAllForUser, year, user } = request.query;
+                if (deleteAllForUser === 'true') {
+                    if (!year || typeof year !== 'string' || !user || typeof user !== 'string') {
+                        return response.status(400).json({ error: 'Year and user are required to delete all data.' });
+                    }
+                    try {
+                        await pool.sql`DELETE FROM bonuses WHERE "year" = ${parseInt(year)} AND submitted_by_user = ${user};`;
+                        return response.status(200).json({ message: 'تمام اطلاعات کارانه این کاربر برای سال انتخاب شده حذف شد.' });
+                    } catch (error) {
+                        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+                        return response.status(500).json({ error: 'Failed to delete all bonus data.', details: errorMessage });
+                    }
+                } else {
+                    return await handleDeleteSingleBonus(request, response, pool);
+                }
             default: response.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']); return response.status(405).end();
         }
     } else if (type === 'submitted_bonuses') {
@@ -1152,6 +1235,9 @@ export default async function handler(request: VercelRequest, response: VercelRe
     } else if (type === 'finalize_bonuses') {
         if (request.method === 'POST') return await handleFinalizeBonuses(request, response, pool);
         else { response.setHeader('Allow', ['POST']); return response.status(405).end(); }
+    } else if (type === 'bonus_edit_logs') {
+        if (request.method === 'GET') return await handleGetBonusEditLogs(request, response, pool);
+        else { response.setHeader('Allow', ['GET']); return response.status(405).end(); }
     }
 
 

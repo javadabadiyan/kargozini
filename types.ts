@@ -222,3 +222,18 @@ export interface BonusData {
     monthly_data: { [month: string]: { bonus: number; department: string; } } | null;
     submitted_by_user?: string;
 }
+
+export interface BonusEditLog {
+    id: number;
+    bonus_id: number | null;
+    personnel_code: string;
+    editor_name: string;
+    edit_timestamp: string; // ISO string
+    month: string;
+    old_bonus_value: number | null;
+    new_bonus_value: number | null;
+    old_department: string | null;
+    new_department: string | null;
+    // For joins
+    full_name?: string;
+}

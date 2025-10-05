@@ -257,6 +257,22 @@ export default async function handler(
       );
     `;
     messages.push('جدول "submitted_bonuses" با موفقیت ایجاد یا تایید شد.');
+    
+    await client.sql`
+      CREATE TABLE IF NOT EXISTS bonus_edit_logs (
+        id SERIAL PRIMARY KEY,
+        bonus_id INTEGER REFERENCES bonuses(id) ON DELETE SET NULL,
+        personnel_code VARCHAR(50) NOT NULL,
+        editor_name VARCHAR(255) NOT NULL,
+        edit_timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        month VARCHAR(50) NOT NULL,
+        old_bonus_value BIGINT,
+        new_bonus_value BIGINT,
+        old_department VARCHAR(255),
+        new_department VARCHAR(255)
+      );
+    `;
+    messages.push('جدول "bonus_edit_logs" برای گزارش تغییرات کارانه ایجاد شد.');
 
     await client.sql`COMMIT`;
     messages.push('تراکنش اصلی ایجاد جداول با موفقیت انجام شد.');
@@ -368,6 +384,7 @@ export default async function handler(
     await client.sql`CREATE INDEX IF NOT EXISTS performance_reviews_personnel_code_idx ON performance_reviews (personnel_code);`;
     await client.sql`CREATE INDEX IF NOT EXISTS bonuses_user_year_idx ON bonuses (submitted_by_user, "year");`;
     await client.sql`CREATE INDEX IF NOT EXISTS submitted_bonuses_year_idx ON submitted_bonuses ("year");`;
+    await client.sql`CREATE INDEX IF NOT EXISTS bonus_edit_logs_timestamp_idx ON bonus_edit_logs (edit_timestamp DESC);`;
     messages.push('ایندکس‌های ضروری برای جستجوی سریع ایجاد شدند.');
 
     await (client as any).query(`

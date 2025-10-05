@@ -22,8 +22,7 @@ async function handlePostUsers(request: VercelRequest, response: VercelResponse,
 
   const client = await pool.connect();
   try {
-    // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
-    await client.sql`BEGIN`;
+    await client.query('BEGIN');
     let processedCount = 0;
     for (const user of usersData) {
         if (!user.username || !user.password) continue;
@@ -39,11 +38,10 @@ async function handlePostUsers(request: VercelRequest, response: VercelResponse,
         `;
         processedCount++;
     }
-    // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
-    await client.sql`COMMIT`;
+    await client.query('COMMIT');
     return response.status(201).json({ message: `${processedCount} کاربر با موفقیت افزوده/به‌روزرسانی شد.` });
   } catch (error) {
-    await client.sql`ROLLBACK`;
+    await client.query('ROLLBACK');
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return response.status(500).json({ error: 'Failed to create/update user.', details: errorMessage });
   } finally {
