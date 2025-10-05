@@ -14,7 +14,9 @@ const TABLES_IN_ORDER = [
     'commitment_letters',
     'disciplinary_records',
     'performance_reviews',
-    'bonuses'
+    'bonuses',
+    'submitted_bonuses',
+    'bonus_edit_logs'
 ];
 
 const TABLE_COLUMNS: Record<string, string[]> = {
@@ -22,7 +24,8 @@ const TABLE_COLUMNS: Record<string, string[]> = {
       'personnel_code', 'first_name', 'last_name', 'father_name', 'national_id', 'id_number',
       'birth_year', 'birth_date', 'birth_place', 'issue_date', 'issue_place', 'marital_status', 'military_status',
       'job_title', 'position', 'employment_type', 'department', 'service_location', 'hire_date',
-      'education_level', 'field_of_study', 'job_group', 'sum_of_decree_factors', 'status'
+      'education_level', 'field_of_study', 'job_group', 'sum_of_decree_factors', 'status',
+      'hire_month', 'total_insurance_history', 'mining_history', 'non_mining_history', 'group_distance_from_1404', 'next_group_distance'
     ],
     commuting_members: ['personnel_code', 'full_name', 'department', 'position'],
     dependents: [
@@ -54,17 +57,17 @@ const TABLE_COLUMNS: Record<string, string[]> = {
         'weaknesses_and_improvements', 'supervisor_suggestions', 'reviewer_name_and_signature', 'supervisor_signature',
         'manager_signature', 'review_date', 'submitted_by_user', 'department'
     ],
-    bonuses: ['personnel_code', 'year', 'first_name', 'last_name', 'position', 'monthly_data', 'created_at', 'updated_at']
+    bonuses: ['personnel_code', 'year', 'first_name', 'last_name', 'position', 'service_location', 'submitted_by_user', 'monthly_data', 'created_at', 'updated_at'],
+    submitted_bonuses: ['personnel_code', 'year', 'first_name', 'last_name', 'position', 'service_location', 'submitted_by_user', 'monthly_data', 'created_at', 'updated_at'],
+    bonus_edit_logs: ['bonus_id', 'personnel_code', 'year', 'month', 'editor_username', 'edit_timestamp', 'action', 'old_values', 'new_values']
 };
 
-// Helper to safely quote all column names
 const quote = (name: string) => `"${name}"`;
 
 async function handleGet(response: VercelResponse, client: VercelPoolClient) {
     try {
         const backupData: { [key: string]: any[] } = {};
         for (const table of TABLES_IN_ORDER) {
-            // FIX: Replace non-existent `client.escapeIdentifier` and incorrect `client.sql` usage with `client.query` for dynamic table names.
             const { rows } = await (client as any).query(`SELECT * FROM ${quote(table)}`);
             backupData[table] = rows;
         }
@@ -78,18 +81,14 @@ async function handleGet(response: VercelResponse, client: VercelPoolClient) {
 async function handlePost(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
     const backupData = request.body;
     for(const table of TABLES_IN_ORDER) {
-        // Allow missing tables in backup for flexibility
         if (backupData[table] && !Array.isArray(backupData[table])) {
             return response.status(400).json({ error: `داده‌های پشتیبان نامعتبر است. بخش "${table}" باید یک آرایه باشد.` });
         }
     }
 
     try {
-        // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
         await client.query('BEGIN');
-        // Truncate in reverse order of creation to respect foreign keys
         for (const table of [...TABLES_IN_ORDER].reverse()) {
-            // FIX: Replace non-existent `client.escapeIdentifier` and incorrect `client.sql` usage with `client.query` for dynamic table names.
             await (client as any).query(`TRUNCATE TABLE ${quote(table)} RESTART IDENTITY CASCADE`);
         }
         
@@ -104,7 +103,6 @@ async function handlePost(request: VercelRequest, response: VercelResponse, clie
             }
             const columnNames = columns.map(quote).join(', ');
             
-            // Batch insert for performance
             const BATCH_SIZE = 250;
             for (let i = 0; i < rows.length; i += BATCH_SIZE) {
                 const batch = rows.slice(i, i + BATCH_SIZE);
@@ -130,11 +128,9 @@ async function handlePost(request: VercelRequest, response: VercelResponse, clie
             }
         }
 
-        // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
         await client.query('COMMIT');
         return response.status(200).json({ message: 'اطلاعات با موفقیت بازیابی شد.' });
     } catch (error) {
-        // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
         await client.query('ROLLBACK').catch(rbError => console.error('Rollback failed:', rbError));
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         return response.status(500).json({ error: 'Failed to restore from backup.', details: errorMessage });
@@ -143,17 +139,13 @@ async function handlePost(request: VercelRequest, response: VercelResponse, clie
 
 async function handleDelete(response: VercelResponse, client: VercelPoolClient) {
     try {
-        // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
         await client.query('BEGIN');
         for (const table of [...TABLES_IN_ORDER].reverse()) {
-            // FIX: Replace non-existent `client.escapeIdentifier` and incorrect `client.sql` usage with `client.query` for dynamic table names.
              await (client as any).query(`TRUNCATE TABLE ${quote(table)} RESTART IDENTITY CASCADE`);
         }
-        // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
         await client.query('COMMIT');
         return response.status(200).json({ message: 'تمام اطلاعات با موفقیت پاک شد.' });
     } catch(error) {
-        // FIX: Corrected invalid syntax for client.sql transaction command. It must be a tagged template literal.
         await client.query('ROLLBACK').catch(rbError => console.error('Rollback failed:', rbError));
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         return response.status(500).json({ error: 'Failed to delete all data.', details: errorMessage });
