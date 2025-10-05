@@ -33,7 +33,8 @@ async function handleGetPersonnel(request: VercelRequest, response: VercelRespon
             ORDER BY last_name, first_name
             LIMIT $2 OFFSET $3;
         `;
-        dataResult = await (client as any).query(query, [searchQuery, pageSize, offset]);
+        // FIX: Convert pageSize and offset to string for client.query parameters.
+        dataResult = await (client as any).query(query, [searchQuery, String(pageSize), String(offset)]);
     } else {
         countResult = await client.sql`SELECT COUNT(*) FROM personnel;`;
         // FIX: Switched to client.query to correctly handle LIMIT/OFFSET parameters, which are not supported by the `sql` tag.
@@ -42,7 +43,8 @@ async function handleGetPersonnel(request: VercelRequest, response: VercelRespon
             ORDER BY last_name, first_name
             LIMIT $1 OFFSET $2;
         `;
-        dataResult = await (client as any).query(query, [pageSize, offset]);
+        // FIX: Convert pageSize and offset to string for client.query parameters.
+        dataResult = await (client as any).query(query, [String(pageSize), String(offset)]);
     }
     const totalCount = parseInt(countResult.rows[0].count, 10);
     return response.status(200).json({ personnel: dataResult.rows, totalCount });
@@ -217,19 +219,21 @@ async function handleGetJobGroupInfo(request: VercelRequest, response: VercelRes
       SELECT COUNT(*) FROM personnel
       WHERE first_name ILIKE ${searchQuery} OR last_name ILIKE ${searchQuery} OR personnel_code ILIKE ${searchQuery} OR national_id ILIKE ${searchQuery};
     `;
+    // FIX: Convert pageSize and offset to string for client.query parameters.
     dataResult = await (client as any).query(`
       SELECT ${columnNames} FROM personnel
       WHERE first_name ILIKE $1 OR last_name ILIKE $1 OR personnel_code ILIKE $1 OR national_id ILIKE $1
       ORDER BY last_name, first_name
       LIMIT $2 OFFSET $3;
-    `, [searchQuery, pageSize, offset]);
+    `, [searchQuery, String(pageSize), String(offset)]);
   } else {
     countResult = await client.sql`SELECT COUNT(*) FROM personnel;`;
+    // FIX: Convert pageSize and offset to string for client.query parameters.
     dataResult = await (client as any).query(`
       SELECT ${columnNames} FROM personnel
       ORDER BY last_name, first_name
       LIMIT $1 OFFSET $2;
-    `, [pageSize, offset]);
+    `, [String(pageSize), String(offset)]);
   }
   
   const totalCount = parseInt(countResult.rows[0].count, 10);
@@ -1092,18 +1096,24 @@ async function handleFinalizeBonuses(request: VercelRequest, response: VercelRes
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                  ON CONFLICT (personnel_code, "year") DO UPDATE
                  SET 
-                     first_name = COALESCE(submitted_bonuses.first_name, EXCLUDED.first_name),
-                     last_name = COALESCE(submitted_bonuses.last_name, EXCLUDED.last_name),
-                     "position" = COALESCE(submitted_bonuses."position", EXCLUDED."position"),
-                     service_location = COALESCE(submitted_bonuses.service_location, EXCLUDED.service_location),
+                     first_name = EXCLUDED.first_name,
+                     last_name = EXCLUDED.last_name,
+                     "position" = EXCLUDED."position",
+                     service_location = EXCLUDED.service_location,
                      monthly_data = submitted_bonuses.monthly_data || EXCLUDED.monthly_data,
                      submitted_by_user = submitted_bonuses.submitted_by_user || ', ' || EXCLUDED.submitted_by_user;`,
                 [bonus.personnel_code, bonus.year, bonus.first_name, bonus.last_name, bonus.position, bonus.service_location, JSON.stringify(bonus.monthly_data), bonus.submitted_by_user]
             );
         }
 
+        // After successfully moving data, delete it from the source table for this user.
+        await client.query(
+            'DELETE FROM bonuses WHERE "year" = $1 AND submitted_by_user = $2;',
+            [year, user]
+        );
+
         await client.query('COMMIT');
-        return response.status(200).json({ message: 'کارانه با موفقیت ارسال نهایی و در بایگانی ثبت شد.' });
+        return response.status(200).json({ message: 'کارانه با موفقیت ارسال نهایی و در بایگانی ثبت شد. اطلاعات از صفحه فعلی پاک شد.' });
     } catch (error) {
         await client.query('ROLLBACK');
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
