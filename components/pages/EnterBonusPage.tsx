@@ -524,6 +524,37 @@ const BonusAnalysis = ({ bonusData, allDepartments }: { bonusData: BonusData[], 
         return { summary, maxPerson, minPerson, byDepartment: byGroup('department'), byPosition: byGroup('position'), byServiceLocation: Object.entries(byServiceLocation).sort((a,b) => b[1] - a[1]), changes };
     }, [bonusData, selectedMonth, selectedDepartment]);
 
+    const monthlyTrendData = useMemo(() => {
+        if (!bonusData || bonusData.length === 0) return [];
+
+        const filteredByDept = selectedDepartment
+            ? bonusData.filter(person =>
+                person.monthly_data && Object.values(person.monthly_data).some((md: any) => md.department === selectedDepartment)
+            )
+            : bonusData;
+
+        const monthlyTotals = PERSIAN_MONTHS.map(month => {
+            const total = filteredByDept.reduce((sum, person) => {
+                const monthBonus = person.monthly_data?.[month]?.bonus;
+                return sum + (monthBonus || 0);
+            }, 0);
+            return { month, total };
+        });
+
+        const trend = monthlyTotals.map((data, index) => {
+            if (index === 0) {
+                return { ...data, change: 0, percentage: 0 };
+            }
+            const prevTotal = monthlyTotals[index - 1].total;
+            const change = data.total - prevTotal;
+            const percentage = prevTotal > 0 ? (change / prevTotal) * 100 : (change > 0 ? 100 : 0);
+            return { ...data, change, percentage };
+        });
+
+        return trend;
+
+    }, [bonusData, selectedDepartment]);
+
     if (!analysisData) {
         return <div className="p-4 text-center text-gray-500 dark:text-slate-400">داده‌ای برای تحلیل وجود ندارد. لطفاً ابتدا اطلاعات کارانه را وارد کنید.</div>;
     }
@@ -595,6 +626,49 @@ const BonusAnalysis = ({ bonusData, allDepartments }: { bonusData: BonusData[], 
                 <AnalysisSection title={`خلاصه بر اساس واحد (ماه ${selectedMonth})`}>
                     <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b dark:border-slate-600"><th className="p-2 text-right">واحد</th><th className="p-2">تجمعی</th><th className="p-2">میانگین</th><th className="p-2">تعداد</th><th className="p-2">بیشترین</th><th className="p-2">کمترین</th></tr></thead><tbody>{analysisData.byDepartment.map(d=><tr key={d.name} className="border-b dark:border-slate-600 text-center hover:bg-slate-100 dark:hover:bg-slate-600/50"><td className="p-2 text-right font-semibold">{d.name}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(d.sum))}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(Math.round(d.avg)))}</td><td className="p-2">{toPersianDigits(d.count)}</td><td className="p-2">{toPersianDigits(formatCurrency(d.max))} <span className="text-xs text-slate-500">({d.maxPerson})</span></td><td className="p-2">{toPersianDigits(formatCurrency(d.min))} <span className="text-xs text-slate-500">({d.minPerson})</span></td></tr>)}</tbody></table></div>
                 </AnalysisSection>
+                
+                <AnalysisSection title={`خلاصه بر اساس پست سازمانی (ماه ${selectedMonth})`}>
+                    <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b dark:border-slate-600"><th className="p-2 text-right">پست</th><th className="p-2">تجمعی</th><th className="p-2">میانگین</th><th className="p-2">تعداد</th><th className="p-2">بیشترین</th><th className="p-2">کمترین</th></tr></thead><tbody>{analysisData.byPosition.map(d=><tr key={d.name} className="border-b dark:border-slate-600 text-center hover:bg-slate-100 dark:hover:bg-slate-600/50"><td className="p-2 text-right font-semibold">{d.name}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(d.sum))}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(Math.round(d.avg)))}</td><td className="p-2">{toPersianDigits(d.count)}</td><td className="p-2">{toPersianDigits(formatCurrency(d.max))} <span className="text-xs text-slate-500">({d.maxPerson})</span></td><td className="p-2">{toPersianDigits(formatCurrency(d.min))} <span className="text-xs text-slate-500">({d.minPerson})</span></td></tr>)}</tbody></table></div>
+                </AnalysisSection>
+
+                <AnalysisSection title="تحلیل روند ماهانه">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="border-b dark:border-slate-600">
+                                    <th className="p-2 text-right font-semibold">ماه</th>
+                                    <th className="p-2 text-center font-semibold">مجموع کارانه</th>
+                                    <th className="p-2 text-center font-semibold">تغییر نسبت به ماه قبل</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {monthlyTrendData.map(({ month, total, change, percentage }, index) => (
+                                    <tr key={month} className="border-b dark:border-slate-600 last:border-b-0 hover:bg-slate-100 dark:hover:bg-slate-600/50">
+                                        <td className="p-2 font-semibold">{month}</td>
+                                        <td className="p-2 text-center font-sans">{toPersianDigits(formatCurrency(total))}</td>
+                                        <td className={`p-2 text-center font-sans font-bold flex items-center justify-center gap-2 ${change > 0 ? 'text-green-600 dark:text-green-400' : change < 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-500 dark:text-slate-400'}`}>
+                                            {index > 0 && total > 0 ? (
+                                                <>
+                                                    {change !== 0 ? (
+                                                        <>
+                                                            <span>{change > 0 ? '▲' : '▼'}</span>
+                                                            <span>{toPersianDigits(formatCurrency(Math.abs(change)))}</span>
+                                                            <span className="text-xs opacity-80">({toPersianDigits(percentage.toFixed(1))}%)</span>
+                                                        </>
+                                                    ) : (
+                                                        <span>-</span>
+                                                    )}
+                                                </>
+                                            ) : (
+                                                <span>-</span>
+                                            )}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </AnalysisSection>
 
                 <AnalysisSection title={`مقایسه ماهانه واحدها (ماه ${selectedMonth})`}>
                     <div className="space-y-2 p-2">
@@ -624,10 +698,6 @@ const BonusAnalysis = ({ bonusData, allDepartments }: { bonusData: BonusData[], 
                             </div>
                         ))}
                     </div>
-                </AnalysisSection>
-                
-                <AnalysisSection title={`خلاصه بر اساس پست سازمانی (ماه ${selectedMonth})`}>
-                    <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b dark:border-slate-600"><th className="p-2 text-right">پست</th><th className="p-2">تجمعی</th><th className="p-2">میانگین</th><th className="p-2">تعداد</th><th className="p-2">بیشترین</th><th className="p-2">کمترین</th></tr></thead><tbody>{analysisData.byPosition.map(d=><tr key={d.name} className="border-b dark:border-slate-600 text-center hover:bg-slate-100 dark:hover:bg-slate-600/50"><td className="p-2 text-right font-semibold">{d.name}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(d.sum))}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(Math.round(d.avg)))}</td><td className="p-2">{toPersianDigits(d.count)}</td><td className="p-2">{toPersianDigits(formatCurrency(d.max))} <span className="text-xs text-slate-500">({d.maxPerson})</span></td><td className="p-2">{toPersianDigits(formatCurrency(d.min))} <span className="text-xs text-slate-500">({d.minPerson})</span></td></tr>)}</tbody></table></div>
                 </AnalysisSection>
 
                 <AnalysisSection title="گزارش تغییرات ماه به ماه">
