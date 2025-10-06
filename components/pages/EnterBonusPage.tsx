@@ -329,8 +329,8 @@ const EnterBonusPage: React.FC = () => {
             
             {status && <div className={`p-4 mb-4 text-sm rounded-lg ${statusColor[status.type]}`}>{status.message}</div>}
 
-            {activeView === 'table' && <BonusDataTable {...{loading, error, selectedYear, selectedMonth, setSelectedYear, setSelectedMonth, bonusData, filteredBonusData, paginatedBonusData, currentPage, totalPages, setCurrentPage, searchTerm, setSearchTerm, departmentFilter, setDepartmentFilter, uniqueDepartments, showManualForm, setShowManualForm, manualEntry, setManualEntry, handleManualSubmit, fileInputRef, handleDownloadSample, handleFileImport, handleExport, handleEditClick: (p: BonusData, m: string) => { setEditingBonusInfo({ person: p, month: m }); setIsEditModalOpen(true); }, handleDeleteClick, handleFinalize, handleDeleteAll }} />}
-            {activeView === 'analysis' && <BonusAnalysis bonusData={bonusData} />}
+            {activeView === 'table' && <BonusDataTable {...{loading, error, selectedYear, setSelectedYear, selectedMonth, setSelectedMonth, bonusData, filteredBonusData, paginatedBonusData, currentPage, totalPages, setCurrentPage, searchTerm, setSearchTerm, departmentFilter, setDepartmentFilter, uniqueDepartments, showManualForm, setShowManualForm, manualEntry, setManualEntry, handleManualSubmit, fileInputRef, handleDownloadSample, handleFileImport, handleExport, handleEditClick: (p: BonusData, m: string) => { setEditingBonusInfo({ person: p, month: m }); setIsEditModalOpen(true); }, handleDeleteClick, handleFinalize, handleDeleteAll }} />}
+            {activeView === 'analysis' && <BonusAnalysis bonusData={bonusData} allDepartments={uniqueDepartments} />}
             {activeView === 'audit' && isAdmin && <AuditLogView logs={auditLogs} loading={auditLoading} />}
 
             {isEditModalOpen && editingBonusInfo && (
@@ -346,7 +346,6 @@ const EnterBonusPage: React.FC = () => {
     );
 };
 
-// FIX: Removed duplicate function declarations that were causing errors.
 const BonusDataTable = ({ loading, error, selectedYear, setSelectedYear, selectedMonth, setSelectedMonth, bonusData, paginatedBonusData, currentPage, totalPages, setCurrentPage, searchTerm, setSearchTerm, departmentFilter, setDepartmentFilter, uniqueDepartments, showManualForm, setShowManualForm, manualEntry, setManualEntry, handleManualSubmit, fileInputRef, handleDownloadSample, handleFileImport, handleExport, handleEditClick, handleDeleteClick, handleFinalize, handleDeleteAll }: any) => {
     const headers = ['کد پرسنلی', 'نام و نام خانوادگی', 'پست', 'محل خدمت', 'کاربر ثبت کننده', ...PERSIAN_MONTHS];
     const inputClass = "w-full p-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 rounded-md";
@@ -454,13 +453,135 @@ const BonusDataTable = ({ loading, error, selectedYear, setSelectedYear, selecte
     );
 };
 
-const BonusAnalysis = ({ bonusData }: { bonusData: BonusData[] }) => {
-    // Analysis logic and UI here...
-    return <div className="p-4"><p>بخش تحلیل هوشمند در حال آماده سازی است.</p></div>; // Placeholder
+const BonusAnalysis = ({ bonusData, allDepartments }: { bonusData: BonusData[], allDepartments: string[] }) => {
+    const [selectedMonth, setSelectedMonth] = useState<string>(PERSIAN_MONTHS[0]);
+    const [selectedDepartment, setSelectedDepartment] = useState<string>('');
+
+    const analysisData = useMemo(() => {
+        if (!bonusData || bonusData.length === 0) return null;
+
+        const flatData = bonusData.flatMap(person => 
+            PERSIAN_MONTHS.map(month => {
+                const monthData = person.monthly_data?.[month];
+                return monthData ? { ...person, month, ...monthData } : null;
+            }).filter(Boolean)
+        );
+
+        const filteredByDept = selectedDepartment ? flatData.filter(d => d.department === selectedDepartment) : flatData;
+        const monthData = filteredByDept.filter(d => d.month === selectedMonth && d.bonus > 0);
+
+        const summary = {
+            total: monthData.reduce((sum, d) => sum + d.bonus, 0),
+            count: monthData.length,
+            avg: monthData.length > 0 ? monthData.reduce((sum, d) => sum + d.bonus, 0) / monthData.length : 0,
+            max: Math.max(0, ...monthData.map(d => d.bonus)),
+            min: Math.min(...monthData.map(d => d.bonus).filter(b => b > 0), Infinity),
+        };
+        const maxPerson = monthData.find(d => d.bonus === summary.max);
+        const minPerson = monthData.find(d => d.bonus === summary.min);
+
+        const byGroup = (key: 'department' | 'position') => {
+            const groups = monthData.reduce((acc, d) => {
+                const groupKey = d[key] || 'نامشخص';
+                if (!acc[groupKey]) acc[groupKey] = { sum: 0, count: 0, bonuses: [], people: [] };
+                acc[groupKey].sum += d.bonus;
+                acc[groupKey].count++;
+                acc[groupKey].bonuses.push(d.bonus);
+                acc[groupKey].people.push(`${d.first_name} ${d.last_name}`);
+                return acc;
+            }, {} as any);
+
+            return Object.entries(groups).map(([name, data]: [string, any]) => {
+                const min = Math.min(...data.bonuses);
+                const max = Math.max(...data.bonuses);
+                return { name, sum: data.sum, count: data.count, avg: data.sum / data.count, min, max, minPerson: data.people[data.bonuses.indexOf(min)], maxPerson: data.people[data.bonuses.indexOf(max)] };
+            }).sort((a,b) => b.sum - a.sum);
+        };
+
+        const changes = bonusData.flatMap(person => {
+            const monthChanges: any[] = [];
+            for (let i = 1; i < PERSIAN_MONTHS.length; i++) {
+                const currentMonth = PERSIAN_MONTHS[i];
+                const prevMonth = PERSIAN_MONTHS[i-1];
+                const currentBonus = person.monthly_data?.[currentMonth]?.bonus;
+                const prevBonus = person.monthly_data?.[prevMonth]?.bonus;
+                if (currentBonus !== undefined && prevBonus !== undefined && currentBonus !== prevBonus) {
+                    monthChanges.push({ person: `${person.first_name} ${person.last_name}`, month: currentMonth, prev: prevBonus, current: currentBonus, diff: currentBonus - prevBonus });
+                }
+            }
+            return monthChanges;
+        });
+
+        return { summary, maxPerson, minPerson, byDepartment: byGroup('department'), byPosition: byGroup('position'), changes };
+    }, [bonusData, selectedMonth, selectedDepartment]);
+
+    if (!analysisData) {
+        return <div className="p-4 text-center text-gray-500">داده‌ای برای تحلیل وجود ندارد.</div>;
+    }
+    
+    const AnalysisCard = ({ title, value, subtext }: { title: string, value: string, subtext?: string }) => (
+        <div className="bg-slate-100 dark:bg-slate-700/50 p-4 rounded-lg shadow">
+            <h4 className="text-sm font-semibold text-slate-600 dark:text-slate-400">{title}</h4>
+            <p className="text-2xl font-bold text-slate-800 dark:text-slate-100 font-sans">{value}</p>
+            {subtext && <p className="text-xs text-slate-500 dark:text-slate-300 mt-1">{subtext}</p>}
+        </div>
+    );
+    
+    const AnalysisSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
+        <details className="bg-slate-50 dark:bg-slate-700/50 rounded-lg border dark:border-slate-600" open>
+            <summary className="p-3 font-bold text-lg cursor-pointer flex justify-between items-center">
+                {title}
+                <ChevronDownIcon className="w-5 h-5 transition-transform details-arrow" />
+            </summary>
+            <div className="p-4 border-t dark:border-slate-600">{children}</div>
+            <style>{`details[open] .details-arrow { transform: rotate(180deg); }`}</style>
+        </details>
+    );
+
+    return (
+        <div className="space-y-6">
+            <div className="flex gap-4">
+                <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} className="p-2 border rounded-md"><option value="">انتخاب ماه</option>{PERSIAN_MONTHS.map(m => <option key={m} value={m}>{m}</option>)}</select>
+                <select value={selectedDepartment} onChange={e => setSelectedDepartment(e.target.value)} className="p-2 border rounded-md"><option value="">همه واحدها</option>{allDepartments.map(d => <option key={d} value={d}>{d}</option>)}</select>
+            </div>
+            
+             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <AnalysisCard title="جمع کل کارانه" value={toPersianDigits(formatCurrency(analysisData.summary.total))} subtext={`برای ${toPersianDigits(analysisData.summary.count)} نفر`} />
+                <AnalysisCard title="میانگین کارانه" value={toPersianDigits(formatCurrency(Math.round(analysisData.summary.avg)))} />
+                <AnalysisCard title="بیشترین کارانه" value={toPersianDigits(formatCurrency(analysisData.summary.max))} subtext={analysisData.maxPerson?.first_name + ' ' + analysisData.maxPerson?.last_name} />
+                <AnalysisCard title="کمترین کارانه" value={toPersianDigits(formatCurrency(analysisData.summary.min === Infinity ? 0 : analysisData.summary.min))} subtext={analysisData.minPerson?.first_name + ' ' + analysisData.minPerson?.last_name} />
+            </div>
+
+            <div className="space-y-4">
+                <AnalysisSection title={`خلاصه بر اساس واحد (ماه ${selectedMonth})`}>
+                    <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b"><th>واحد</th><th>تجمعی</th><th>میانگین</th><th>تعداد</th><th>بیشترین</th><th>کمترین</th></tr></thead><tbody>{analysisData.byDepartment.map(d=><tr key={d.name} className="border-b text-center"><td className="p-2 text-right font-semibold">{d.name}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(d.sum))}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(Math.round(d.avg)))}</td><td className="p-2">{toPersianDigits(d.count)}</td><td className="p-2">{toPersianDigits(formatCurrency(d.max))} <span className="text-xs">({d.maxPerson})</span></td><td className="p-2">{toPersianDigits(formatCurrency(d.min))} <span className="text-xs">({d.minPerson})</span></td></tr>)}</tbody></table></div>
+                </AnalysisSection>
+
+                <AnalysisSection title={`مقایسه ماهانه واحدها (ماه ${selectedMonth})`}>
+                    <div className="space-y-2">
+                        {analysisData.byDepartment.map(d => (
+                            <div key={d.name} className="flex items-center">
+                                <span className="w-32 text-sm text-left pr-2">{d.name}</span>
+                                <div className="flex-1 bg-slate-200 rounded-full h-6"><div className="bg-blue-500 h-6 rounded-full text-white text-xs flex items-center justify-end pr-2" style={{ width: `${(d.sum / Math.max(...analysisData.byDepartment.map(i=>i.sum))) * 100}%` }}><span className="font-sans">{toPersianDigits(formatCurrency(d.sum))}</span></div></div>
+                            </div>
+                        ))}
+                    </div>
+                </AnalysisSection>
+
+                <AnalysisSection title={`خلاصه بر اساس پست سازمانی (ماه ${selectedMonth})`}>
+                    <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b"><th>پست</th><th>تجمعی</th><th>میانگین</th><th>تعداد</th><th>بیشترین</th><th>کمترین</th></tr></thead><tbody>{analysisData.byPosition.map(d=><tr key={d.name} className="border-b text-center"><td className="p-2 text-right font-semibold">{d.name}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(d.sum))}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(Math.round(d.avg)))}</td><td className="p-2">{toPersianDigits(d.count)}</td><td className="p-2">{toPersianDigits(formatCurrency(d.max))} <span className="text-xs">({d.maxPerson})</span></td><td className="p-2">{toPersianDigits(formatCurrency(d.min))} <span className="text-xs">({d.minPerson})</span></td></tr>)}</tbody></table></div>
+                </AnalysisSection>
+
+                <AnalysisSection title="گزارش تغییرات ماه به ماه">
+                    <div className="overflow-x-auto max-h-96"><table className="w-full text-sm"><thead><tr className="border-b"><th>پرسنل</th><th>ماه</th><th>کارانه قبلی</th><th>کارانه جدید</th><th>تغییر</th></tr></thead><tbody>{analysisData.changes.map((c,i)=><tr key={i} className="border-b text-center"><td className="p-2 text-right font-semibold">{c.person}</td><td className="p-2">{c.month}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(c.prev))}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(c.current))}</td><td className={`p-2 font-sans font-bold ${c.diff > 0 ? 'text-green-600' : 'text-red-600'}`}>{c.diff > 0 ? '+' : ''}{toPersianDigits(formatCurrency(c.diff))}</td></tr>)}</tbody></table></div>
+                </AnalysisSection>
+            </div>
+        </div>
+    );
 };
 
+
 const AuditLogView = ({ logs, loading }: { logs: BonusEditLog[], loading: boolean }) => {
-    // Audit Log UI here...
     return (
         <div className="overflow-x-auto">
             <h3 className="text-xl font-bold mb-4">گزارش تغییرات کارانه</h3>
