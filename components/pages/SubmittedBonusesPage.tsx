@@ -98,7 +98,7 @@ const SubmittedBonusesPage: React.FC = () => {
                             <tr><td colSpan={18} className="text-center p-8 text-gray-500 dark:text-gray-400"><DocumentReportIcon className="w-12 h-12 mx-auto mb-2 text-gray-300" />هیچ کارانه ارسال شده‌ای برای این سال یافت نشد.</td></tr>
                         )}
                         {!loading && !error && bonusData.map((person) => (
-                            <tr key={person.personnel_code} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                            <tr key={person.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
                                 <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-slate-300">{toPersianDigits(person.personnel_code)}</td>
                                 <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-gray-800 dark:text-slate-200">{person.first_name} {person.last_name}</td>
                                 <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700 dark:text-slate-300">{person.position || '---'}</td>

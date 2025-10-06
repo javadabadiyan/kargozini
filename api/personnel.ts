@@ -232,7 +232,9 @@ async function handlePostJobGroupInfo(request: VercelRequest, response: VercelRe
           for (const record of validRecords) {
               const recordPlaceholders: string[] = [];
               for (const col of allColumns) {
-                  values.push(record[col as keyof Personnel] ?? null);
+                  // FIX: Ensure all values are strings or null to match the type of `values`.
+                  const val = record[col as keyof Personnel];
+                  values.push(val === null || val === undefined ? null : String(val));
                   recordPlaceholders.push(`$${paramIndex++}`);
               }
               valuePlaceholders.push(`(${recordPlaceholders.join(', ')})`);
@@ -391,7 +393,6 @@ async function handlePutDependent(request: VercelRequest, response: VercelRespon
             birth_month = $7, birth_day = $8, id_number = $9, guardian_national_id = $10, issue_place = $11, insurance_type = $12
         WHERE id = $13 RETURNING *;
     `;
-// FIX: The `d.id` was passed as a number, causing a type error. It has been converted to a string.
     const values = [d.first_name, d.last_name, d.father_name, d.relation_type, d.birth_date, d.gender, d.birth_month, d.birth_day, d.id_number, d.guardian_national_id, d.issue_place, d.insurance_type, String(d.id)];
     const { rows } = await (client as any).query(query, values);
     if (rows.length === 0) return response.status(404).json({ error: 'وابسته‌ای با این شناسه یافت نشد.' });
@@ -745,10 +746,10 @@ async function handleGetSubmittedBonuses(request: VercelRequest, response: Verce
     if (!year || typeof year !== 'string') return response.status(400).json({ error: 'سال الزامی است.' });
     try {
         const query = `
-            SELECT personnel_code, first_name, last_name, "position", service_location, monthly_data, submitted_by_user
+            SELECT id, personnel_code, first_name, last_name, "position", service_location, monthly_data, submitted_by_user
             FROM submitted_bonuses WHERE "year" = $1 ORDER BY last_name, first_name;
         `;
-        const { rows } = await (client as any).query(query, [year]);
+        const { rows } = await (client as any).query(query, [parseInt(year, 10)]);
         return response.status(200).json({ bonuses: rows });
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
