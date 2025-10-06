@@ -1,3 +1,5 @@
+
+
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import type { PerformanceReview } from '../../types';
 import { SearchIcon, DocumentReportIcon, DownloadIcon, PencilIcon, TrashIcon } from '../icons/Icons';
@@ -61,7 +63,6 @@ const ArchivePerformanceReviewPage: React.FC = () => {
                 const allReviews: PerformanceReview[] = data.reviews || [];
                 setReviews(allReviews);
                 
-                // FIX: Add explicit string types to sort() callback parameters to resolve 'unknown' type error.
                 const uniqueYears = [...new Set(allReviews.map(r => r.review_period_start.split('/')[0]).filter(Boolean))].sort((a: string, b: string) => b.localeCompare(a));
                 const uniqueDepartments = [...new Set(allReviews.map(r => r.department).filter(Boolean))].sort((a: string, b: string) => a.localeCompare(b, 'fa'));
                 const uniqueSupervisors = [...new Set(allReviews.map(r => r.reviewer_name_and_signature).filter(Boolean))].sort((a: string, b: string) => a.localeCompare(b, 'fa'));
@@ -103,7 +104,6 @@ const ArchivePerformanceReviewPage: React.FC = () => {
     const totalPages = Math.ceil(filteredReviews.length / PAGE_SIZE);
 
     const departmentStats = useMemo(() => {
-        // FIX: Add explicit types to reduce callback parameters to fix type inference issue.
         return filteredReviews.reduce((acc: Record<string, number>, review: PerformanceReview) => {
             const dept = review.department || 'نامشخص';
             acc[dept] = (acc[dept] || 0) + 1;
@@ -136,7 +136,12 @@ const ArchivePerformanceReviewPage: React.FC = () => {
         if (window.confirm('آیا از حذف این ارزیابی اطمینان دارید؟')) {
             try {
                 const response = await fetch(`/api/personnel?type=performance_reviews&id=${id}`, { method: 'DELETE' });
-                if (!response.ok) throw new Error((await response.json()).error || 'خطا در حذف');
+                // FIX: Argument of type 'unknown' is not assignable to parameter of type 'string | number'.
+                // Handle response from response.json() safely.
+                if (!response.ok) {
+                    const errorData: any = await response.json();
+                    throw new Error(errorData.error || 'خطا در حذف');
+                }
                 fetchReviews(); // Refetch after delete
             } catch (err) {
                  setError(err instanceof Error ? err.message : 'یک خطای ناشناخته رخ داد');

@@ -1,3 +1,5 @@
+
+
 import React, { useState, useMemo, useEffect } from 'react';
 import type { PerformanceReview, Personnel } from '../../types';
 import { DocumentReportIcon } from '../icons/Icons';
@@ -113,10 +115,11 @@ const SendPerformanceReviewPage: React.FC = () => {
     };
 
     const totals = useMemo(() => {
-        // FIX: Add explicit types to reduce callback parameters to resolve 'unknown' type error.
-        const total_score_functional = Object.values(formData.scores_functional).reduce((sum: number, val: number) => sum + (val || 0), 0);
-        const total_score_behavioral = Object.values(formData.scores_behavioral).reduce((sum: number, val: number) => sum + (val || 0), 0);
-        const total_score_ethical = Object.values(formData.scores_ethical).reduce((sum: number, val: number) => sum + (val || 0), 0);
+        // FIX: Operator '+' cannot be applied to types 'unknown' and 'unknown'.
+        // Ensure values from reduce are consistently numbers by removing explicit param types and using Number().
+        const total_score_functional = Object.values(formData.scores_functional).reduce((sum, val) => sum + (Number(val) || 0), 0);
+        const total_score_behavioral = Object.values(formData.scores_behavioral).reduce((sum, val) => sum + (Number(val) || 0), 0);
+        const total_score_ethical = Object.values(formData.scores_ethical).reduce((sum, val) => sum + (Number(val) || 0), 0);
         const overall_score = total_score_functional + total_score_behavioral + total_score_ethical;
         return { total_score_functional, total_score_behavioral, total_score_ethical, overall_score };
     }, [formData.scores_functional, formData.scores_behavioral, formData.scores_ethical]);
