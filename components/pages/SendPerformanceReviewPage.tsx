@@ -113,6 +113,7 @@ const SendPerformanceReviewPage: React.FC = () => {
     };
 
     const totals = useMemo(() => {
+        // FIX: Add explicit types to reduce callback parameters to resolve 'unknown' type error.
         const total_score_functional = Object.values(formData.scores_functional).reduce((sum: number, val: number) => sum + (val || 0), 0);
         const total_score_behavioral = Object.values(formData.scores_behavioral).reduce((sum: number, val: number) => sum + (val || 0), 0);
         const total_score_ethical = Object.values(formData.scores_ethical).reduce((sum: number, val: number) => sum + (val || 0), 0);

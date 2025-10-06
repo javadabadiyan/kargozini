@@ -103,7 +103,8 @@ const ArchivePerformanceReviewPage: React.FC = () => {
     const totalPages = Math.ceil(filteredReviews.length / PAGE_SIZE);
 
     const departmentStats = useMemo(() => {
-        return filteredReviews.reduce((acc, review) => {
+        // FIX: Add explicit types to reduce callback parameters to fix type inference issue.
+        return filteredReviews.reduce((acc: Record<string, number>, review: PerformanceReview) => {
             const dept = review.department || 'نامشخص';
             acc[dept] = (acc[dept] || 0) + 1;
             return acc;

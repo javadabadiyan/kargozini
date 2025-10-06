@@ -266,13 +266,23 @@ async function handlePostJobGroupInfo(request: VercelRequest, response: VercelRe
 async function handlePutJobGroupInfo(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
   const p = request.body as Personnel;
   if (!p || !p.id) return response.status(400).json({ error: 'شناسه رکورد نامعتبر است.' });
-  
-  const updateFields = JOB_GROUP_UPDATE_COLUMNS.map((col, i) => `${col === 'position' ? `"${col}"` : col} = $${i + 1}`);
-  
-  const updateValues: (string | null)[] = JOB_GROUP_UPDATE_COLUMNS.map(col => {
-      const val = p[col as keyof Personnel];
-      return val === null || val === undefined ? null : String(val);
+
+  // FIX: Refactor query building to avoid type inference issues.
+  // Create an object with only the fields to be updated.
+  const updateData: Record<string, string | null> = {};
+  JOB_GROUP_UPDATE_COLUMNS.forEach(col => {
+    // Check if the property exists on the incoming object to avoid updating with undefined
+    if (p.hasOwnProperty(col as keyof Personnel)) {
+        const val = p[col as keyof Personnel];
+        updateData[col] = val === null || val === undefined ? null : String(val);
+    }
   });
+
+  // Build query parts from the updateData object.
+  const updateFields = Object.keys(updateData).map((col, i) => `${col === 'position' ? `"${col}"` : col} = $${i + 1}`);
+  const updateValues = Object.values(updateData);
+  
+  // Add the ID for the WHERE clause as the last parameter.
   updateValues.push(String(p.id));
 
   const query = `UPDATE personnel SET ${updateFields.join(', ')} WHERE id = $${updateValues.length} RETURNING *;`;
@@ -381,7 +391,8 @@ async function handlePutDependent(request: VercelRequest, response: VercelRespon
             birth_month = $7, birth_day = $8, id_number = $9, guardian_national_id = $10, issue_place = $11, insurance_type = $12
         WHERE id = $13 RETURNING *;
     `;
-    const values = [d.first_name, d.last_name, d.father_name, d.relation_type, d.birth_date, d.gender, d.birth_month, d.birth_day, d.id_number, d.guardian_national_id, d.issue_place, d.insurance_type, d.id];
+// FIX: The `d.id` was passed as a number, causing a type error. It has been converted to a string.
+    const values = [d.first_name, d.last_name, d.father_name, d.relation_type, d.birth_date, d.gender, d.birth_month, d.birth_day, d.id_number, d.guardian_national_id, d.issue_place, d.insurance_type, String(d.id)];
     const { rows } = await (client as any).query(query, values);
     if (rows.length === 0) return response.status(404).json({ error: 'وابسته‌ای با این شناسه یافت نشد.' });
     return response.status(200).json({ message: 'اطلاعات با موفقیت به‌روزرسانی شد.', dependent: rows[0] });

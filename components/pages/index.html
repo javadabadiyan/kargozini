@@ -11,7 +11,6 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;500;700;800&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700;900&display=swap" rel="stylesheet">
 
     <script>
       // On page load or when changing themes, best to add inline in `head` to avoid FOUC
@@ -25,9 +24,29 @@
         darkMode: 'class',
         theme: {
           extend: {
+            colors: {
+              primary: {
+                DEFAULT: '#3b82f6', // blue-500
+                '50': '#eff6ff', '100': '#dbeafe', '200': '#bfdbfe', '300': '#93c5fd',
+                '400': '#60a5fa', '500': '#3b82f6', '600': '#2563eb', '700': '#1d4ed8',
+                '800': '#1e40af', '900': '#1e3a8a',
+              },
+            },
             fontFamily: {
               sans: ['Vazirmatn', 'sans-serif'],
-              orbitron: ['Orbitron', 'sans-serif'],
+            },
+            animation: {
+              aurora: 'aurora 20s ease infinite',
+            },
+            keyframes: {
+              aurora: {
+                '0%, 100%': {
+                  'background-position': '0% 50%',
+                },
+                '50%': {
+                  'background-position': '100% 50%',
+                },
+              },
             },
           },
         },
@@ -55,7 +74,7 @@
         background-size: 400% 400%;
         animation: gradient 20s ease infinite;
       }
-      
+
       input, select, button, textarea {
         font-family: 'Vazirmatn', sans-serif;
       }
