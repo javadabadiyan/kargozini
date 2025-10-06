@@ -109,6 +109,85 @@ const EditBonusPersonModal: React.FC<{
     );
 };
 
+const EditAuditLogModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    onSave: (log: BonusEditLog) => Promise<void>;
+    log: BonusEditLog;
+}> = ({ isOpen, onClose, onSave, log }) => {
+    const [formData, setFormData] = useState<BonusEditLog>(log);
+    const [isSaving, setIsSaving] = useState(false);
+
+    useEffect(() => {
+        setFormData(log);
+    }, [log]);
+
+    if (!isOpen) return null;
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsSaving(true);
+        await onSave(formData);
+        setIsSaving(false);
+    };
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+    };
+    
+    const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        const val = toEnglishDigits(value).replace(/,/g, '');
+        if (/^\d*$/.test(val)) {
+            setFormData(prev => ({ ...prev, [name]: val === '' ? null : Number(val) }));
+        }
+    };
+
+    const inputClass = "w-full p-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 rounded-md";
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4" onClick={onClose}>
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
+                <div className="flex justify-between items-center p-4 border-b dark:border-slate-700">
+                    <h3 className="text-xl font-semibold">ویرایش گزارش تغییر</h3>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-white">&times;</button>
+                </div>
+                <form onSubmit={handleSubmit}>
+                    <div className="p-6 space-y-4">
+                        <p><strong>پرسنل:</strong> {log.full_name}</p>
+                        <p><strong>تاریخ:</strong> {toPersianDigits(new Date(log.edit_timestamp).toLocaleString('fa-IR', { timeZone: 'Asia/Tehran' }))}</p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-sm font-medium mb-1">مبلغ قبلی</label>
+                                <input name="old_bonus_value" value={toPersianDigits(formatCurrency(formData.old_bonus_value || ''))} onChange={handleAmountChange} className={`${inputClass} font-sans text-left`} />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-1">مبلغ جدید</label>
+                                <input name="new_bonus_value" value={toPersianDigits(formatCurrency(formData.new_bonus_value || ''))} onChange={handleAmountChange} className={`${inputClass} font-sans text-left`} />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-1">واحد قبلی</label>
+                                <input name="old_department" value={formData.old_department || ''} onChange={handleChange} className={inputClass} />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium mb-1">واحد جدید</label>
+                                <input name="new_department" value={formData.new_department || ''} onChange={handleChange} className={inputClass} />
+                            </div>
+                        </div>
+                    </div>
+                    <div className="flex justify-end items-center p-4 border-t bg-gray-50 dark:bg-slate-900/50 dark:border-slate-700 rounded-b-lg">
+                        <button type="button" onClick={onClose} className="px-6 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 dark:bg-slate-600 dark:text-slate-200 dark:border-slate-500" disabled={isSaving}>انصراف</button>
+                        <button type="submit" className="mr-3 px-6 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700" disabled={isSaving}>
+                            {isSaving ? 'در حال ذخیره...' : 'ذخیره تغییرات'}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
 
 // Main Component
 const EnterBonusPage: React.FC = () => {
@@ -149,6 +228,8 @@ const EnterBonusPage: React.FC = () => {
     // Audit Log State
     const [auditLogs, setAuditLogs] = useState<BonusEditLog[]>([]);
     const [auditLoading, setAuditLoading] = useState(false);
+    const [isAuditEditModalOpen, setIsAuditEditModalOpen] = useState(false);
+    const [editingAuditLog, setEditingAuditLog] = useState<BonusEditLog | null>(null);
 
     const fetchBonuses = useCallback(async (year: number) => {
         if (!canView) { setLoading(false); return; }
@@ -170,24 +251,25 @@ const EnterBonusPage: React.FC = () => {
         fetchBonuses(selectedYear);
     }, [selectedYear, fetchBonuses]);
     
+    const fetchAuditLogs = useCallback(async () => {
+        setAuditLoading(true);
+        try {
+            const response = await fetch('/api/personnel?type=bonus_edit_logs');
+            if (!response.ok) throw new Error('خطا در دریافت گزارش تغییرات');
+            const data = await response.json();
+            setAuditLogs(data.logs || []);
+        } catch (err) {
+            setStatus({type: 'error', message: err instanceof Error ? err.message : 'خطا'});
+        } finally {
+            setAuditLoading(false);
+        }
+    }, []);
+
     useEffect(() => {
         if (activeView === 'audit' && isAdmin) {
-            const fetchAuditLogs = async () => {
-                setAuditLoading(true);
-                try {
-                    const response = await fetch('/api/personnel?type=bonus_edit_logs');
-                    if (!response.ok) throw new Error('خطا در دریافت گزارش تغییرات');
-                    const data = await response.json();
-                    setAuditLogs(data.logs || []);
-                } catch (err) {
-                    setStatus({type: 'error', message: err instanceof Error ? err.message : 'خطا'});
-                } finally {
-                    setAuditLoading(false);
-                }
-            };
             fetchAuditLogs();
         }
-    }, [activeView, isAdmin]);
+    }, [activeView, isAdmin, fetchAuditLogs]);
 
     const uniqueDepartments = useMemo(() => {
         const allDepartments = new Set<string>();
@@ -439,6 +521,50 @@ const EnterBonusPage: React.FC = () => {
         }
     };
 
+    const handleEditAuditLogClick = (log: BonusEditLog) => {
+        setEditingAuditLog(log);
+        setIsAuditEditModalOpen(true);
+    };
+    
+    const handleSaveAuditLog = async (log: BonusEditLog) => {
+        setStatus({ type: 'info', message: 'در حال ذخیره تغییرات گزارش...' });
+        try {
+            const response = await fetch('/api/personnel?type=bonus_edit_logs', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(log),
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error);
+            setStatus({ type: 'success', message: result.message });
+            fetchAuditLogs();
+            setIsAuditEditModalOpen(false);
+        } catch (err) {
+            setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در ذخیره' });
+        } finally {
+            setTimeout(() => setStatus(null), 5000);
+        }
+    };
+    
+    const handleDeleteAuditLog = async (id: number) => {
+        if (window.confirm(`آیا از حذف این گزارش تغییر اطمینان دارید؟`)) {
+            setStatus({ type: 'info', message: 'در حال حذف گزارش...' });
+            try {
+                const response = await fetch(`/api/personnel?type=bonus_edit_logs&id=${id}`, {
+                    method: 'DELETE',
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.error);
+                setStatus({ type: 'success', message: result.message });
+                fetchAuditLogs();
+            } catch (err) {
+                setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در حذف' });
+            } finally {
+                setTimeout(() => setStatus(null), 5000);
+            }
+        }
+    };
+
     if (!canView) {
         return <div className="p-6 text-center"><h2 className="text-2xl font-bold mb-4">عدم دسترسی</h2><p>شما به این صفحه دسترسی ندارید.</p></div>;
     }
@@ -461,7 +587,7 @@ const EnterBonusPage: React.FC = () => {
 
             {activeView === 'table' && <BonusDataTable {...{loading, error, selectedYear, setSelectedYear, selectedMonth, setSelectedMonth, bonusData, filteredBonusData, paginatedBonusData, currentPage, totalPages, setCurrentPage, searchTerm, setSearchTerm, departmentFilter, setDepartmentFilter, uniqueDepartments, showManualForm, setShowManualForm, manualEntry, setManualEntry, handleManualSubmit, fileInputRef, handleDownloadSample, handleFileImport, handleExport, handleEditClick: (p: BonusData, m: string) => { setEditingBonusInfo({ person: p, month: m }); setIsEditModalOpen(true); }, handleDeleteClick, handleFinalize, handleDeleteAll, handlePersonEditClick, handlePersonDeleteClick }} />}
             {activeView === 'analysis' && <BonusAnalysis bonusData={bonusData} allDepartments={uniqueDepartments} />}
-            {activeView === 'audit' && isAdmin && <AuditLogView logs={auditLogs} loading={auditLoading} />}
+            {activeView === 'audit' && isAdmin && <AuditLogView logs={auditLogs} loading={auditLoading} isAdmin={isAdmin} onEdit={handleEditAuditLogClick} onDelete={handleDeleteAuditLog} />}
 
             {isEditModalOpen && editingBonusInfo && (
                 <EditBonusModal 
@@ -478,6 +604,14 @@ const EnterBonusPage: React.FC = () => {
                     onClose={() => setIsPersonEditModalOpen(false)}
                     onSave={handleSavePersonDetails}
                     person={editingPerson}
+                />
+            )}
+            {isAuditEditModalOpen && editingAuditLog && (
+                <EditAuditLogModal
+                    isOpen={isAuditEditModalOpen}
+                    onClose={() => setIsAuditEditModalOpen(false)}
+                    onSave={handleSaveAuditLog}
+                    log={editingAuditLog}
                 />
             )}
         </div>
@@ -965,7 +1099,12 @@ const BonusAnalysis = ({ bonusData, allDepartments }: { bonusData: BonusData[], 
 };
 
 
-const AuditLogView = ({ logs, loading }: { logs: BonusEditLog[], loading: boolean }) => {
+const AuditLogView = ({ logs, loading, isAdmin, onEdit, onDelete }: { logs: BonusEditLog[], loading: boolean, isAdmin: boolean, onEdit: (log: BonusEditLog) => void, onDelete: (id: number) => void }) => {
+    const headers = ['پرسنل', 'کاربر', 'تاریخ', 'ماه', 'مقدار قبلی', 'مقدار جدید', 'واحد قبلی', 'واحد جدید'];
+    if (isAdmin) {
+        headers.push('عملیات');
+    }
+
     return (
         <div className="overflow-x-auto">
             <h3 className="text-xl font-bold mb-4">گزارش تغییرات کارانه</h3>
@@ -975,7 +1114,7 @@ const AuditLogView = ({ logs, loading }: { logs: BonusEditLog[], loading: boolea
                 <table className="min-w-full divide-y divide-gray-200 dark:divide-slate-700 border dark:border-slate-600">
                     <thead className="bg-gray-100 dark:bg-slate-700">
                         <tr>
-                            {['پرسنل', 'کاربر', 'تاریخ', 'ماه', 'مقدار قبلی', 'مقدار جدید', 'واحد قبلی', 'واحد جدید'].map(h => <th key={h} className="px-3 py-2 text-right text-xs font-bold uppercase">{h}</th>)}
+                            {headers.map(h => <th key={h} className="px-3 py-2 text-right text-xs font-bold uppercase">{h}</th>)}
                         </tr>
                     </thead>
                     <tbody className="bg-white dark:bg-slate-800 divide-y divide-gray-200 dark:divide-slate-700">
@@ -989,6 +1128,14 @@ const AuditLogView = ({ logs, loading }: { logs: BonusEditLog[], loading: boolea
                                 <td className="px-3 py-2 text-sm text-green-600 dark:text-green-400 font-sans">{log.new_bonus_value ? toPersianDigits(formatCurrency(log.new_bonus_value)) : '-'}</td>
                                 <td className="px-3 py-2 text-sm text-red-600 dark:text-red-400">{log.old_department || '-'}</td>
                                 <td className="px-3 py-2 text-sm text-green-600 dark:text-green-400">{log.new_department || '-'}</td>
+                                {isAdmin && (
+                                    <td className="px-3 py-2 text-sm text-center">
+                                        <div className="flex items-center justify-center gap-1">
+                                            <button onClick={() => onEdit(log)} className="p-1 text-blue-600 hover:text-blue-500" title="ویرایش"><PencilIcon className="w-4 h-4" /></button>
+                                            <button onClick={() => onDelete(log.id)} className="p-1 text-red-600 hover:text-red-500" title="حذف"><TrashIcon className="w-4 h-4" /></button>
+                                        </div>
+                                    </td>
+                                )}
                             </tr>
                         ))}
                     </tbody>
@@ -1007,7 +1154,7 @@ const AnalysisDetailModal: React.FC<{
     if (!isOpen) return null;
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4" onClick={onClose}>
-            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-lg max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
                 <div className="flex justify-between items-center p-4 border-b dark:border-slate-700">
                     <h3 className="text-xl font-semibold">{title} ({toPersianDigits(data.length)} نفر)</h3>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-white">&times;</button>

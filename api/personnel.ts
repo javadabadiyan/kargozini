@@ -816,6 +816,51 @@ async function handleGetBonusEditLogs(request: VercelRequest, response: VercelRe
     return response.status(200).json({ logs: rows });
 }
 
+async function handlePutBonusEditLog(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
+    const { id, old_bonus_value, new_bonus_value, old_department, new_department } = request.body;
+    if (!id) {
+        return response.status(400).json({ error: 'Log ID is required.' });
+    }
+    try {
+        const { rows } = await client.sql`
+            UPDATE bonus_edit_logs SET
+                old_bonus_value = ${old_bonus_value},
+                new_bonus_value = ${new_bonus_value},
+                old_department = ${old_department},
+                new_department = ${new_department}
+            WHERE id = ${id}
+            RETURNING *;
+        `;
+        if (rows.length === 0) {
+            return response.status(404).json({ error: 'Log not found.' });
+        }
+        return response.status(200).json({ message: 'Log updated successfully.', log: rows[0] });
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error("Error in handlePutBonusEditLog:", error);
+        return response.status(500).json({ error: 'Failed to update bonus edit log.', details: errorMessage });
+    }
+}
+
+async function handleDeleteBonusEditLog(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
+    const { id } = request.query;
+    if (!id || typeof id !== 'string') {
+        return response.status(400).json({ error: 'Log ID is required.' });
+    }
+    try {
+        const result = await client.sql`DELETE FROM bonus_edit_logs WHERE id = ${parseInt(id, 10)};`;
+        if (result.rowCount === 0) {
+            return response.status(404).json({ error: 'Log not found.' });
+        }
+        return response.status(200).json({ message: 'Log deleted successfully.' });
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        console.error("Error in handleDeleteBonusEditLog:", error);
+        return response.status(500).json({ error: 'Failed to delete bonus edit log.', details: errorMessage });
+    }
+}
+
+
 // =================================================================================
 // MAIN API HANDLER
 // =================================================================================
@@ -921,8 +966,14 @@ export default async function handler(request: VercelRequest, response: VercelRe
         if (request.method === 'POST') return await handleFinalizeBonuses(request, response, client);
         else { response.setHeader('Allow', ['POST']); return response.status(405).end(); }
     } else if (type === 'bonus_edit_logs') {
-        if (request.method === 'GET') return await handleGetBonusEditLogs(request, response, client);
-        else { response.setHeader('Allow', ['GET']); return response.status(405).end(); }
+        switch (request.method) {
+            case 'GET': return await handleGetBonusEditLogs(request, response, client);
+            case 'PUT': return await handlePutBonusEditLog(request, response, client);
+            case 'DELETE': return await handleDeleteBonusEditLog(request, response, client);
+            default:
+                response.setHeader('Allow', ['GET', 'PUT', 'DELETE']);
+                return response.status(405).end();
+        }
     }
 
 
