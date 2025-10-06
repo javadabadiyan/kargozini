@@ -984,9 +984,6 @@ const BonusAnalysis = ({ bonusData, allDepartments }: { bonusData: BonusData[], 
         </details>
     );
     
-    const maxDeptSum = Math.max(1, ...analysisData.byDepartment.map(i => i.sum));
-    const maxPositionSum = Math.max(1, ...analysisData.byPosition.map(i => i.sum));
-    
     // Pagination logic for analysis tables
     const departmentSummaryTotalPages = Math.ceil(analysisData.byDepartment.length / ANALYSIS_PAGE_SIZE);
     const paginatedDepartmentSummary = analysisData.byDepartment.slice((departmentSummaryPage - 1) * ANALYSIS_PAGE_SIZE, departmentSummaryPage * ANALYSIS_PAGE_SIZE);
@@ -1077,14 +1074,6 @@ const BonusAnalysis = ({ bonusData, allDepartments }: { bonusData: BonusData[], 
 
                 <AnalysisSection title="تحلیل روند ماهانه">
                     <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b dark:border-slate-600"><th className="p-2 text-right font-semibold">ماه</th><th className="p-2 text-center font-semibold">مجموع کارانه</th><th className="p-2 text-center font-semibold">تغییر نسبت به ماه قبل</th></tr></thead><tbody>{monthlyTrendData.map(({ month, total, change, percentage }, index) => (<tr key={month} className="border-b dark:border-slate-600 last:border-b-0 hover:bg-slate-100 dark:hover:bg-slate-600/50"><td className="p-2 font-semibold">{month}</td><td className="p-2 text-center font-sans">{toPersianDigits(formatCurrency(total))}</td><td className={`p-2 text-center font-sans font-bold flex items-center justify-center gap-2 ${change > 0 ? 'text-green-600 dark:text-green-400' : change < 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-500 dark:text-slate-400'}`}>{index > 0 && total > 0 ? (<>{change !== 0 ? (<><span>{change > 0 ? '▲' : '▼'}</span><span>{toPersianDigits(formatCurrency(Math.abs(change)))}</span><span className="text-xs opacity-80">({toPersianDigits(percentage.toFixed(1))}%)</span></>) : (<span>-</span>)}</>) : (<span>-</span>)}</td></tr>))}</tbody></table></div>
-                </AnalysisSection>
-
-                <AnalysisSection title={`مقایسه ماهانه واحدها (ماه ${selectedMonth})`}>
-                    <div className="overflow-x-auto p-2"><div className="space-y-2" style={{minWidth: `${analysisData.byDepartment.length * 80}px`}}>{analysisData.byDepartment.map(d => (<div key={d.name} className="flex items-center gap-2"><span className="w-32 text-sm text-left shrink-0">{d.name}</span><div className="w-full bg-slate-200 dark:bg-slate-600 rounded-full h-6 relative"><div className="bg-blue-500 h-6 rounded-full text-white text-xs flex items-center justify-end px-2" style={{ width: `${(d.sum / maxDeptSum) * 100}%` }}><span className="font-sans font-semibold">{toPersianDigits(formatCurrency(d.sum))}</span></div></div></div>))}</div></div>
-                </AnalysisSection>
-
-                <AnalysisSection title={`مقایسه تجمعی بر اساس پست (ماه ${selectedMonth})`}>
-                     <div className="overflow-x-auto p-2"><div className="space-y-2" style={{minWidth: `${analysisData.byPosition.length * 80}px`}}>{analysisData.byPosition.map(d => (<div key={d.name} className="flex items-center gap-2"><span className="w-40 text-sm text-left shrink-0">{d.name}</span><div className="w-full bg-slate-200 dark:bg-slate-600 rounded-full h-6 relative"><div className="bg-indigo-500 h-6 rounded-full text-white text-xs flex items-center justify-end px-2" style={{ width: `${(d.sum / maxPositionSum) * 100}%` }}><span className="font-sans font-semibold">{toPersianDigits(formatCurrency(d.sum))}</span></div></div></div>))}</div></div>
                 </AnalysisSection>
 
                 <AnalysisSection title="گزارش تغییرات ماه به ماه">
