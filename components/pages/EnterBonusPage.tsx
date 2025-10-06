@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import type { BonusData, BonusEditLog } from '../../types';
 import { DownloadIcon, UploadIcon, DocumentReportIcon, UserPlusIcon, PencilIcon, TrashIcon, SearchIcon, ChevronDownIcon, ChevronUpIcon } from '../icons/Icons';
@@ -457,6 +456,7 @@ const BonusDataTable = ({ loading, error, selectedYear, setSelectedYear, selecte
 const BonusAnalysis = ({ bonusData, allDepartments }: { bonusData: BonusData[], allDepartments: string[] }) => {
     const [selectedMonth, setSelectedMonth] = useState<string>(PERSIAN_MONTHS[new Date().getMonth()]);
     const [selectedDepartment, setSelectedDepartment] = useState<string>('');
+    const [changeReportPositionFilter, setChangeReportPositionFilter] = useState<string>('');
 
     const analysisData = useMemo(() => {
         if (!bonusData || bonusData.length === 0) return null;
@@ -482,6 +482,12 @@ const BonusAnalysis = ({ bonusData, allDepartments }: { bonusData: BonusData[], 
         };
         const maxPerson = monthData.find(d => d.bonus === summary.max);
         const minPerson = monthData.find(d => d.bonus === summary.min);
+        
+        const byServiceLocation = monthData.reduce((acc, d) => {
+            const location = d.service_location || 'نامشخص';
+            acc[location] = (acc[location] || 0) + 1;
+            return acc;
+        }, {} as Record<string, number>);
 
         const byGroup = (key: 'department' | 'position') => {
             const groups = monthData.reduce((acc, d) => {
@@ -506,16 +512,16 @@ const BonusAnalysis = ({ bonusData, allDepartments }: { bonusData: BonusData[], 
             for (let i = 1; i < PERSIAN_MONTHS.length; i++) {
                 const currentMonth = PERSIAN_MONTHS[i];
                 const prevMonth = PERSIAN_MONTHS[i-1];
-                const currentBonus = person.monthly_data?.[currentMonth]?.bonus;
-                const prevBonus = person.monthly_data?.[prevMonth]?.bonus;
-                if (currentBonus !== undefined && prevBonus !== undefined && currentBonus !== prevBonus) {
-                    monthChanges.push({ person: `${person.first_name} ${person.last_name}`, month: currentMonth, prev: prevBonus, current: currentBonus, diff: currentBonus - prevBonus });
+                const currentBonusData = person.monthly_data?.[currentMonth];
+                const prevBonusData = person.monthly_data?.[prevMonth];
+                if (currentBonusData?.bonus !== undefined && prevBonusData?.bonus !== undefined && currentBonusData.bonus !== prevBonusData.bonus) {
+                    monthChanges.push({ person: `${person.first_name} ${person.last_name}`, position: person.position || 'نامشخص', month: currentMonth, prev: prevBonusData.bonus, current: currentBonusData.bonus, diff: currentBonusData.bonus - prevBonusData.bonus });
                 }
             }
             return monthChanges;
         });
 
-        return { summary, maxPerson, minPerson, byDepartment: byGroup('department'), byPosition: byGroup('position'), changes };
+        return { summary, maxPerson, minPerson, byDepartment: byGroup('department'), byPosition: byGroup('position'), byServiceLocation: Object.entries(byServiceLocation).sort((a,b) => b[1] - a[1]), changes };
     }, [bonusData, selectedMonth, selectedDepartment]);
 
     if (!analysisData) {
@@ -542,6 +548,7 @@ const BonusAnalysis = ({ bonusData, allDepartments }: { bonusData: BonusData[], 
     );
 
     const maxDeptSum = Math.max(1, ...analysisData.byDepartment.map(i => i.sum));
+    const maxPositionSum = Math.max(1, ...analysisData.byPosition.map(i => i.sum));
 
     return (
         <div className="space-y-6">
@@ -564,6 +571,27 @@ const BonusAnalysis = ({ bonusData, allDepartments }: { bonusData: BonusData[], 
             </div>
 
             <div className="space-y-4">
+                 <AnalysisSection title="تعداد نفرات بر اساس محل خدمت">
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="border-b dark:border-slate-600">
+                                    <th className="p-2 text-right">محل خدمت</th>
+                                    <th className="p-2 text-center">تعداد نفرات</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {analysisData.byServiceLocation.map(([location, count]) => (
+                                    <tr key={location} className="border-b dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-600/50">
+                                        <td className="p-2 font-semibold">{location}</td>
+                                        <td className="p-2 text-center font-bold">{toPersianDigits(count)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </AnalysisSection>
+
                 <AnalysisSection title={`خلاصه بر اساس واحد (ماه ${selectedMonth})`}>
                     <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b dark:border-slate-600"><th className="p-2 text-right">واحد</th><th className="p-2">تجمعی</th><th className="p-2">میانگین</th><th className="p-2">تعداد</th><th className="p-2">بیشترین</th><th className="p-2">کمترین</th></tr></thead><tbody>{analysisData.byDepartment.map(d=><tr key={d.name} className="border-b dark:border-slate-600 text-center hover:bg-slate-100 dark:hover:bg-slate-600/50"><td className="p-2 text-right font-semibold">{d.name}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(d.sum))}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(Math.round(d.avg)))}</td><td className="p-2">{toPersianDigits(d.count)}</td><td className="p-2">{toPersianDigits(formatCurrency(d.max))} <span className="text-xs text-slate-500">({d.maxPerson})</span></td><td className="p-2">{toPersianDigits(formatCurrency(d.min))} <span className="text-xs text-slate-500">({d.minPerson})</span></td></tr>)}</tbody></table></div>
                 </AnalysisSection>
@@ -583,12 +611,34 @@ const BonusAnalysis = ({ bonusData, allDepartments }: { bonusData: BonusData[], 
                     </div>
                 </AnalysisSection>
 
+                <AnalysisSection title={`مقایسه تجمعی بر اساس پست (ماه ${selectedMonth})`}>
+                    <div className="space-y-2 p-2">
+                        {analysisData.byPosition.map(d => (
+                            <div key={d.name} className="flex items-center gap-2">
+                                <span className="w-40 text-sm text-left shrink-0">{d.name}</span>
+                                <div className="w-full bg-slate-200 dark:bg-slate-600 rounded-full h-6 relative">
+                                    <div className="bg-indigo-500 h-6 rounded-full text-white text-xs flex items-center justify-end px-2" style={{ width: `${(d.sum / maxPositionSum) * 100}%` }}>
+                                       <span className="font-sans font-semibold">{toPersianDigits(formatCurrency(d.sum))}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </AnalysisSection>
+                
                 <AnalysisSection title={`خلاصه بر اساس پست سازمانی (ماه ${selectedMonth})`}>
                     <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b dark:border-slate-600"><th className="p-2 text-right">پست</th><th className="p-2">تجمعی</th><th className="p-2">میانگین</th><th className="p-2">تعداد</th><th className="p-2">بیشترین</th><th className="p-2">کمترین</th></tr></thead><tbody>{analysisData.byPosition.map(d=><tr key={d.name} className="border-b dark:border-slate-600 text-center hover:bg-slate-100 dark:hover:bg-slate-600/50"><td className="p-2 text-right font-semibold">{d.name}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(d.sum))}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(Math.round(d.avg)))}</td><td className="p-2">{toPersianDigits(d.count)}</td><td className="p-2">{toPersianDigits(formatCurrency(d.max))} <span className="text-xs text-slate-500">({d.maxPerson})</span></td><td className="p-2">{toPersianDigits(formatCurrency(d.min))} <span className="text-xs text-slate-500">({d.minPerson})</span></td></tr>)}</tbody></table></div>
                 </AnalysisSection>
 
                 <AnalysisSection title="گزارش تغییرات ماه به ماه">
-                    <div className="overflow-x-auto max-h-96"><table className="w-full text-sm"><thead><tr className="border-b dark:border-slate-600"><th className="p-2 text-right">پرسنل</th><th className="p-2">ماه تغییر</th><th className="p-2">کارانه قبلی</th><th className="p-2">کارانه جدید</th><th className="p-2">مبلغ تغییر</th></tr></thead><tbody>{analysisData.changes.map((c,i)=><tr key={i} className="border-b dark:border-slate-600 text-center hover:bg-slate-100 dark:hover:bg-slate-600/50"><td className="p-2 text-right font-semibold">{c.person}</td><td className="p-2">{c.month}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(c.prev))}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(c.current))}</td><td className={`p-2 font-sans font-bold ${c.diff > 0 ? 'text-green-600' : 'text-red-600'}`}>{c.diff > 0 ? '▲' : '▼'} {toPersianDigits(formatCurrency(Math.abs(c.diff)))}</td></tr>)}</tbody></table></div>
+                    <div className="mb-4">
+                        <label className="text-sm font-medium">فیلتر بر اساس پست:</label>
+                        <select value={changeReportPositionFilter} onChange={e => setChangeReportPositionFilter(e.target.value)} className="w-full md:w-1/3 p-2 border rounded-md bg-white dark:bg-slate-800 dark:border-slate-600 mt-1">
+                            <option value="">همه پست‌ها</option>
+                            {[...new Set(analysisData.changes.map(c => c.position))].sort().map(p => <option key={p} value={p}>{p}</option>)}
+                        </select>
+                    </div>
+                    <div className="overflow-x-auto max-h-96"><table className="w-full text-sm"><thead><tr className="border-b dark:border-slate-600"><th className="p-2 text-right">پرسنل</th><th className="p-2 text-right">پست سازمانی</th><th className="p-2">ماه تغییر</th><th className="p-2">کارانه قبلی</th><th className="p-2">کارانه جدید</th><th className="p-2">مبلغ تغییر</th></tr></thead><tbody>{analysisData.changes.filter(c => !changeReportPositionFilter || c.position === changeReportPositionFilter).map((c,i)=><tr key={i} className="border-b dark:border-slate-600 text-center hover:bg-slate-100 dark:hover:bg-slate-600/50"><td className="p-2 text-right font-semibold">{c.person}</td><td className="p-2 text-right">{c.position}</td><td className="p-2">{c.month}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(c.prev))}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(c.current))}</td><td className={`p-2 font-sans font-bold ${c.diff > 0 ? 'text-green-600' : 'text-red-600'}`}>{c.diff > 0 ? '▲' : '▼'} {toPersianDigits(formatCurrency(Math.abs(c.diff)))}</td></tr>)}</tbody></table></div>
                 </AnalysisSection>
             </div>
         </div>

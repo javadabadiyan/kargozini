@@ -137,7 +137,7 @@ const ArchivePerformanceReviewPage: React.FC = () => {
             try {
                 const response = await fetch(`/api/personnel?type=performance_reviews&id=${id}`, { method: 'DELETE' });
                 // FIX: Argument of type 'unknown' is not assignable to parameter of type 'string | number'.
-                // Handle response from response.json() safely.
+                // Handle response from response.json() safely by parsing it and extracting the error message.
                 if (!response.ok) {
                     const errorData: any = await response.json();
                     throw new Error(errorData.error || 'خطا در حذف');

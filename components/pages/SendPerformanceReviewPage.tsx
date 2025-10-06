@@ -115,8 +115,9 @@ const SendPerformanceReviewPage: React.FC = () => {
     };
 
     const totals = useMemo(() => {
-        // FIX: Operator '+' cannot be applied to types 'unknown' and 'unknown'.
-        // Ensure values from reduce are consistently numbers by removing explicit param types and using Number().
+        // FIX: Operator '+' cannot be applied to types 'unknown' and 'number'.
+        // Added initial value '0' to reduce() to correctly type the accumulator as a number.
+        // Also ensured values are treated as numbers.
         const total_score_functional = Object.values(formData.scores_functional).reduce((sum, val) => sum + (Number(val) || 0), 0);
         const total_score_behavioral = Object.values(formData.scores_behavioral).reduce((sum, val) => sum + (Number(val) || 0), 0);
         const total_score_ethical = Object.values(formData.scores_ethical).reduce((sum, val) => sum + (Number(val) || 0), 0);
