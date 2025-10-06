@@ -765,11 +765,11 @@ async function handleGetSubmittedBonuses(request: VercelRequest, response: Verce
     const { year } = request.query;
     if (!year || typeof year !== 'string') return response.status(400).json({ error: 'سال الزامی است.' });
     try {
-        const query = `
+        const yearInt = parseInt(year, 10);
+        const { rows } = await client.sql`
             SELECT id, personnel_code, first_name, last_name, "position", service_location, monthly_data, submitted_by_user
-            FROM submitted_bonuses WHERE "year" = $1 ORDER BY last_name, first_name;
+            FROM submitted_bonuses WHERE "year" = ${yearInt} ORDER BY last_name, first_name;
         `;
-        const { rows } = await (client as any).query(query, [parseInt(year, 10)]);
         return response.status(200).json({ bonuses: rows });
     } catch (error) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
