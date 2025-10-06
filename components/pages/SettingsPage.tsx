@@ -27,6 +27,7 @@ const PERMISSION_KEYS: { key: keyof UserPermissions, label: string }[] = [
     { key: 'commute_report', label: ' - گزارش گیری تردد' },
     { key: 'settings', label: 'تنظیمات' },
     { key: 'user_management', label: 'مدیریت کاربران (در تنظیمات)' },
+    { key: 'change_password', label: 'تغییر رمز عبور (در تنظیمات)' },
 ];
 
 const PERMISSION_ROLES: { [key: string]: { label: string; permissions: UserPermissions } } = {
@@ -421,24 +422,26 @@ const SettingsPage: React.FC = () => {
                 </div>
             </div>
 
-            <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-lg p-6 rounded-xl shadow-xl">
-                <h2 className="text-xl font-bold mb-4">تغییر رمز عبور</h2>
-                <form onSubmit={handlePasswordChangeSubmit} className="space-y-4 max-w-sm">
-                    <div>
-                        <label className="block text-sm font-medium">رمز عبور فعلی</label>
-                        <input type="password" value={passwordData.oldPassword} onChange={e => setPasswordData(p => ({...p, oldPassword: e.target.value}))} className="w-full p-2 border rounded-md" required />
-                    </div>
-                     <div>
-                        <label className="block text-sm font-medium">رمز عبور جدید</label>
-                        <input type="password" value={passwordData.newPassword} onChange={e => setPasswordData(p => ({...p, newPassword: e.target.value}))} className="w-full p-2 border rounded-md" required />
-                    </div>
-                     <div>
-                        <label className="block text-sm font-medium">تکرار رمز عبور جدید</label>
-                        <input type="password" value={passwordData.confirmPassword} onChange={e => setPasswordData(p => ({...p, confirmPassword: e.target.value}))} className="w-full p-2 border rounded-md" required />
-                    </div>
-                    <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-md">ذخیره رمز جدید</button>
-                </form>
-            </div>
+            {userPermissions.change_password && (
+                <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-lg p-6 rounded-xl shadow-xl">
+                    <h2 className="text-xl font-bold mb-4">تغییر رمز عبور</h2>
+                    <form onSubmit={handlePasswordChangeSubmit} className="space-y-4 max-w-sm">
+                        <div>
+                            <label className="block text-sm font-medium">رمز عبور فعلی</label>
+                            <input type="password" value={passwordData.oldPassword} onChange={e => setPasswordData(p => ({...p, oldPassword: e.target.value}))} className="w-full p-2 border rounded-md" required />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium">رمز عبور جدید</label>
+                            <input type="password" value={passwordData.newPassword} onChange={e => setPasswordData(p => ({...p, newPassword: e.target.value}))} className="w-full p-2 border rounded-md" required />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium">تکرار رمز عبور جدید</label>
+                            <input type="password" value={passwordData.confirmPassword} onChange={e => setPasswordData(p => ({...p, confirmPassword: e.target.value}))} className="w-full p-2 border rounded-md" required />
+                        </div>
+                        <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-md">ذخیره رمز جدید</button>
+                    </form>
+                </div>
+            )}
 
             {userPermissions.user_management && (
                 <>

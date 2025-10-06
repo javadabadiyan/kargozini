@@ -113,12 +113,13 @@ const SendPerformanceReviewPage: React.FC = () => {
     };
 
     const totals = useMemo(() => {
-        // FIX: Explicitly convert value to number to avoid `+` operator on `unknown` type.
+        // FIX: Operator '+' cannot be applied to types 'unknown' and 'number'. Explicitly convert value to number.
         const total_score_functional = Object.values(formData.scores_functional).reduce((sum, val) => sum + Number(val || 0), 0);
-        // FIX: Explicitly convert value to number to avoid `+` operator on `unknown` type.
+        // FIX: Operator '+' cannot be applied to types 'unknown' and 'number'. Explicitly convert value to number.
         const total_score_behavioral = Object.values(formData.scores_behavioral).reduce((sum, val) => sum + Number(val || 0), 0);
-        // FIX: Explicitly convert value to number to avoid `+` operator on `unknown` type.
+        // FIX: Operator '+' cannot be applied to types 'unknown' and 'number'. Explicitly convert value to number.
         const total_score_ethical = Object.values(formData.scores_ethical).reduce((sum, val) => sum + Number(val || 0), 0);
+        // FIX: Operator '+' cannot be applied to types 'unknown' and 'unknown'. Values are now numbers.
         const overall_score = total_score_functional + total_score_behavioral + total_score_ethical;
         return { total_score_functional, total_score_behavioral, total_score_ethical, overall_score };
     }, [formData.scores_functional, formData.scores_behavioral, formData.scores_ethical]);

@@ -17,6 +17,7 @@ export interface BonusPermissionFilters {
 export interface UserPermissions {
   [key: string]: boolean | BonusPermissionFilters | undefined;
   enter_bonus_filters?: BonusPermissionFilters;
+  change_password?: boolean;
 }
 
 

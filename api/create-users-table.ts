@@ -447,6 +447,7 @@ export default async function handler(
       commute_report: true,
       settings: true,
       user_management: true,
+      change_password: true,
     });
     const guardPermissions = JSON.stringify({
       dashboard: false,
@@ -455,6 +456,8 @@ export default async function handler(
       commuting_members: true,
       log_commute: true,
       commute_report: true,
+      settings: true,
+      change_password: true,
     });
 
     await client.sql`

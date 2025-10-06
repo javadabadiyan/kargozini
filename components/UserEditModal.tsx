@@ -29,6 +29,7 @@ const PERMISSION_KEYS: { key: keyof UserPermissions, label: string }[] = [
     { key: 'commute_report', label: ' - گزارش گیری تردد' },
     { key: 'settings', label: 'تنظیمات' },
     { key: 'user_management', label: 'مدیریت کاربران (در تنظیمات)' },
+    { key: 'change_password', label: 'تغییر رمز عبور' },
 ];
 
 const PERMISSION_ROLES: { [key: string]: { label: string; permissions: UserPermissions } } = {
