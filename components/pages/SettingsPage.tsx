@@ -19,7 +19,7 @@ const PERMISSION_KEYS: { key: keyof UserPermissions, label: string }[] = [
     { key: 'archive_performance_review', label: '   - بایگانی ارزیابی عملکرد پرسنل' },
     { key: 'job_group', label: ' - گروه شغلی پرسنل' },
     { key: 'bonus_management', label: ' - مدیریت کارانه' },
-    { key: 'enter_bonus', label: '   - وارد کردن کارانه' },
+    { key: 'enter_bonus', label: '   - ارسال کارانه' },
     { key: 'bonus_analyzer', label: '   - تحلیلگر هوشمند کارانه' },
     { key: 'security', label: 'منوی حراست' },
     { key: 'commuting_members', label: ' - کارمندان عضو تردد' },
@@ -88,6 +88,9 @@ const SettingsPage: React.FC = () => {
     const [usersLoading, setUsersLoading] = useState(true);
     const [isUserModalOpen, setIsUserModalOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<AppUser | null>(null);
+
+    // Password change state
+    const [passwordData, setPasswordData] = useState({ oldPassword: '', newPassword: '', confirmPassword: '' });
 
     const handleAppNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setAppName(e.target.value);
@@ -344,6 +347,42 @@ const SettingsPage: React.FC = () => {
         XLSX.writeFile(workbook, 'Users_Export.xlsx');
     };
     
+    const handlePasswordChangeSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (passwordData.newPassword !== passwordData.confirmPassword) {
+            setStatus({ type: 'error', message: 'رمز عبور جدید و تکرار آن مطابقت ندارند.' });
+            return;
+        }
+        if (!passwordData.oldPassword || !passwordData.newPassword) {
+            setStatus({ type: 'error', message: 'لطفاً تمام فیلدها را پر کنید.' });
+            return;
+        }
+
+        setStatus({ type: 'info', message: 'در حال تغییر رمز عبور...' });
+        try {
+            const response = await fetch('/api/users', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    change_password: true,
+                    username: currentUser.username,
+                    oldPassword: passwordData.oldPassword,
+                    newPassword: passwordData.newPassword,
+                })
+            });
+            const result = await response.json();
+            if (!response.ok) {
+                throw new Error(result.error);
+            }
+            setStatus({ type: 'success', message: result.message });
+            setPasswordData({ oldPassword: '', newPassword: '', confirmPassword: '' });
+        } catch (err) {
+            setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در تغییر رمز' });
+        } finally {
+            setTimeout(() => setStatus(null), 5000);
+        }
+    };
+    
     const statusColor = { info: 'bg-blue-100 text-blue-800', success: 'bg-green-100 text-green-800', error: 'bg-red-100 text-red-800' };
 
     return (
@@ -382,43 +421,63 @@ const SettingsPage: React.FC = () => {
                 </div>
             </div>
 
-             <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-lg p-6 rounded-xl shadow-xl">
-                <h2 className="text-xl font-bold mb-4">پشتیبان‌گیری و بازیابی</h2>
-                 <div className="flex flex-wrap gap-4 items-center">
-                     <button onClick={handleCreateBackup} className="px-4 py-2 bg-blue-600 text-white rounded-md">ایجاد فایل پشتیبان</button>
-                     <input type="file" ref={backupInputRef} onChange={handleRestoreBackup} className="hidden" id="backup-restore" accept=".json" />
-                     <label htmlFor="backup-restore" className="px-4 py-2 bg-green-600 text-white rounded-md cursor-pointer">بازیابی از فایل</label>
-                     <button onClick={handleDeleteAllData} className="px-4 py-2 bg-red-600 text-white rounded-md">حذف تمام اطلاعات سیستم</button>
-                </div>
+            <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-lg p-6 rounded-xl shadow-xl">
+                <h2 className="text-xl font-bold mb-4">تغییر رمز عبور</h2>
+                <form onSubmit={handlePasswordChangeSubmit} className="space-y-4 max-w-sm">
+                    <div>
+                        <label className="block text-sm font-medium">رمز عبور فعلی</label>
+                        <input type="password" value={passwordData.oldPassword} onChange={e => setPasswordData(p => ({...p, oldPassword: e.target.value}))} className="w-full p-2 border rounded-md" required />
+                    </div>
+                     <div>
+                        <label className="block text-sm font-medium">رمز عبور جدید</label>
+                        <input type="password" value={passwordData.newPassword} onChange={e => setPasswordData(p => ({...p, newPassword: e.target.value}))} className="w-full p-2 border rounded-md" required />
+                    </div>
+                     <div>
+                        <label className="block text-sm font-medium">تکرار رمز عبور جدید</label>
+                        <input type="password" value={passwordData.confirmPassword} onChange={e => setPasswordData(p => ({...p, confirmPassword: e.target.value}))} className="w-full p-2 border rounded-md" required />
+                    </div>
+                    <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-md">ذخیره رمز جدید</button>
+                </form>
             </div>
 
             {userPermissions.user_management && (
-                 <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-lg p-6 rounded-xl shadow-xl">
-                    <h2 className="text-xl font-bold mb-4">مدیریت کاربران</h2>
-                     <div className="flex flex-wrap gap-4 items-center mb-4">
-                        <button onClick={() => handleOpenUserModal(null)} className="px-4 py-2 bg-blue-600 text-white rounded-md">افزودن کاربر جدید</button>
-                        <input type="file" ref={userImportRef} onChange={handleUserImport} className="hidden" id="user-import" accept=".xlsx, .xls" />
-                        <label htmlFor="user-import" className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 cursor-pointer"><UploadIcon className="w-4 h-4"/> ورود کاربران از اکسل</label>
-                        <button onClick={handleUserExport} className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700"><DownloadIcon className="w-4 h-4"/> خروجی کاربران</button>
+                <>
+                    <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-lg p-6 rounded-xl shadow-xl">
+                        <h2 className="text-xl font-bold mb-4">پشتیبان‌گیری و بازیابی</h2>
+                         <div className="flex flex-wrap gap-4 items-center">
+                             <button onClick={handleCreateBackup} className="px-4 py-2 bg-blue-600 text-white rounded-md">ایجاد فایل پشتیبان</button>
+                             <input type="file" ref={backupInputRef} onChange={handleRestoreBackup} className="hidden" id="backup-restore" accept=".json" />
+                             <label htmlFor="backup-restore" className="px-4 py-2 bg-green-600 text-white rounded-md cursor-pointer">بازیابی از فایل</label>
+                             <button onClick={handleDeleteAllData} className="px-4 py-2 bg-red-600 text-white rounded-md">حذف تمام اطلاعات سیستم</button>
+                        </div>
                     </div>
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50"><tr><th className="px-6 py-3 text-right">نام کاربری</th><th className="px-6 py-3 text-center">عملیات</th></tr></thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
-                                {usersLoading ? <tr><td colSpan={2} className="text-center p-4">Loading...</td></tr> :
-                                 users.map(user => (
-                                     <tr key={user.id}>
-                                         <td className="px-6 py-4 whitespace-nowrap">{user.username}</td>
-                                         <td className="px-6 py-4 whitespace-nowrap text-center">
-                                             <button onClick={() => handleOpenUserModal(user)} className="p-1 text-blue-600"><PencilIcon className="w-5 h-5"/></button>
-                                             <button onClick={() => handleDeleteUser(user.id)} className="p-1 text-red-600 mr-2"><TrashIcon className="w-5 h-5"/></button>
-                                         </td>
-                                     </tr>
-                                 ))}
-                            </tbody>
-                        </table>
+                    <div className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-lg p-6 rounded-xl shadow-xl">
+                        <h2 className="text-xl font-bold mb-4">مدیریت کاربران</h2>
+                         <div className="flex flex-wrap gap-4 items-center mb-4">
+                            <button onClick={() => handleOpenUserModal(null)} className="px-4 py-2 bg-blue-600 text-white rounded-md">افزودن کاربر جدید</button>
+                            <input type="file" ref={userImportRef} onChange={handleUserImport} className="hidden" id="user-import" accept=".xlsx, .xls" />
+                            <label htmlFor="user-import" className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 cursor-pointer"><UploadIcon className="w-4 h-4"/> ورود کاربران از اکسل</label>
+                            <button onClick={handleUserExport} className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700"><DownloadIcon className="w-4 h-4"/> خروجی کاربران</button>
+                        </div>
+                        <div className="overflow-x-auto">
+                            <table className="min-w-full divide-y divide-gray-200">
+                                <thead className="bg-gray-50"><tr><th className="px-6 py-3 text-right">نام کاربری</th><th className="px-6 py-3 text-center">عملیات</th></tr></thead>
+                                <tbody className="bg-white divide-y divide-gray-200">
+                                    {usersLoading ? <tr><td colSpan={2} className="text-center p-4">Loading...</td></tr> :
+                                     users.map(user => (
+                                         <tr key={user.id}>
+                                             <td className="px-6 py-4 whitespace-nowrap">{user.username}</td>
+                                             <td className="px-6 py-4 whitespace-nowrap text-center">
+                                                 <button onClick={() => handleOpenUserModal(user)} className="p-1 text-blue-600"><PencilIcon className="w-5 h-5"/></button>
+                                                 <button onClick={() => handleDeleteUser(user.id)} className="p-1 text-red-600 mr-2"><TrashIcon className="w-5 h-5"/></button>
+                                             </td>
+                                         </tr>
+                                     ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
-                </div>
+                </>
             )}
             {isUserModalOpen && <UserEditModal user={editingUser} onClose={handleCloseUserModal} onSave={handleSaveUser} />}
         </div>

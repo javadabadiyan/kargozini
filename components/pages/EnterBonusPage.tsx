@@ -206,6 +206,8 @@ const EnterBonusPage: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [status, setStatus] = useState<{ type: 'info' | 'success' | 'error'; message: string } | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [allDepartments, setAllDepartments] = useState<string[]>([]);
+
 
     // Search and Filter State
     const [searchTerm, setSearchTerm] = useState('');
@@ -252,6 +254,21 @@ const EnterBonusPage: React.FC = () => {
             setLoading(false);
         }
     }, [canView, username, userPermissions]);
+    
+    useEffect(() => {
+        const fetchDistinctValues = async () => {
+            try {
+                const response = await fetch('/api/personnel?type=distinct_values');
+                if (response.ok) {
+                    const data = await response.json();
+                    setAllDepartments(data.departments || []);
+                }
+            } catch (error) {
+                console.error("Failed to fetch distinct departments:", error);
+            }
+        };
+        fetchDistinctValues();
+    }, []);
 
     useEffect(() => {
         fetchBonuses(selectedYear);
@@ -591,7 +608,7 @@ const EnterBonusPage: React.FC = () => {
             
             {status && <div className={`p-4 mb-4 text-sm rounded-lg ${statusColor[status.type]}`}>{status.message}</div>}
 
-            {activeView === 'table' && <BonusDataTable {...{loading, error, selectedYear, setSelectedYear, selectedMonth, setSelectedMonth, bonusData, filteredBonusData, paginatedBonusData, currentPage, totalPages, setCurrentPage, searchTerm, setSearchTerm, departmentFilter, setDepartmentFilter, uniqueDepartments, showManualForm, setShowManualForm, manualEntry, setManualEntry, handleManualSubmit, fileInputRef, handleDownloadSample, handleFileImport, handleExport, handleEditClick: (p: BonusData, m: string) => { setEditingBonusInfo({ person: p, month: m }); setIsEditModalOpen(true); }, handleDeleteClick, handleFinalize, handleDeleteAll, handlePersonEditClick, handlePersonDeleteClick, userPermissions }} />}
+            {activeView === 'table' && <BonusDataTable {...{loading, error, selectedYear, setSelectedYear, selectedMonth, setSelectedMonth, bonusData, filteredBonusData, paginatedBonusData, currentPage, totalPages, setCurrentPage, searchTerm, setSearchTerm, departmentFilter, setDepartmentFilter, uniqueDepartments, showManualForm, setShowManualForm, manualEntry, setManualEntry, handleManualSubmit, fileInputRef, handleDownloadSample, handleFileImport, handleExport, handleEditClick: (p: BonusData, m: string) => { setEditingBonusInfo({ person: p, month: m }); setIsEditModalOpen(true); }, handleDeleteClick, handleFinalize, handleDeleteAll, handlePersonEditClick, handlePersonDeleteClick, userPermissions, allDepartments }} />}
             {activeView === 'analysis' && currentUser.permissions.bonus_analyzer && <BonusAnalysis bonusData={bonusData} />}
             {activeView === 'audit' && isAdmin && <AuditLogView logs={auditLogs} loading={auditLoading} isAdmin={isAdmin} onEdit={handleEditAuditLogClick} onDelete={handleDeleteAuditLog} />}
 
@@ -624,10 +641,12 @@ const EnterBonusPage: React.FC = () => {
     );
 };
 
-const BonusDataTable = ({ loading, error, selectedYear, setSelectedYear, selectedMonth, setSelectedMonth, bonusData, paginatedBonusData, currentPage, totalPages, setCurrentPage, searchTerm, setSearchTerm, departmentFilter, setDepartmentFilter, uniqueDepartments, showManualForm, setShowManualForm, manualEntry, setManualEntry, handleManualSubmit, fileInputRef, handleDownloadSample, handleFileImport, handleExport, handleEditClick, handleDeleteClick, handleFinalize, handleDeleteAll, handlePersonEditClick, handlePersonDeleteClick, userPermissions }: any) => {
+const BonusDataTable = ({ loading, error, selectedYear, setSelectedYear, selectedMonth, setSelectedMonth, bonusData, paginatedBonusData, currentPage, totalPages, setCurrentPage, searchTerm, setSearchTerm, departmentFilter, setDepartmentFilter, uniqueDepartments, showManualForm, setShowManualForm, manualEntry, setManualEntry, handleManualSubmit, fileInputRef, handleDownloadSample, handleFileImport, handleExport, handleEditClick, handleDeleteClick, handleFinalize, handleDeleteAll, handlePersonEditClick, handlePersonDeleteClick, userPermissions, allDepartments }: any) => {
     const headers = ['کد پرسنلی', 'نام و نام خانوادگی', 'پست', 'محل خدمت', 'کاربر ثبت کننده', ...PERSIAN_MONTHS, 'عملیات'];
     const inputClass = "w-full p-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 rounded-md";
     const allowedDepartments = userPermissions.enter_bonus_filters?.departments;
+    const departmentOptions = (allowedDepartments && allowedDepartments.length > 0) ? allowedDepartments : allDepartments;
+
 
     return (
     <div className="space-y-6">
@@ -653,14 +672,10 @@ const BonusDataTable = ({ loading, error, selectedYear, setSelectedYear, selecte
                         <div><label className="block text-sm mb-1">محل خدمت</label><input name="service_location" value={manualEntry.service_location} onChange={(e) => setManualEntry({ ...manualEntry, service_location: e.target.value })} className={inputClass} /></div>
                         <div>
                             <label className="block text-sm mb-1">واحد*</label>
-                            {allowedDepartments && allowedDepartments.length > 0 ? (
-                                <select name="department" value={manualEntry.department} onChange={(e) => setManualEntry({ ...manualEntry, department: e.target.value })} className={inputClass} required>
-                                    <option value="">انتخاب کنید...</option>
-                                    {allowedDepartments.map((d:string) => <option key={d} value={d}>{d}</option>)}
-                                </select>
-                            ) : (
-                                <input name="department" value={manualEntry.department} onChange={(e) => setManualEntry({ ...manualEntry, department: e.target.value })} className={inputClass} required />
-                            )}
+                            <select name="department" value={manualEntry.department} onChange={(e) => setManualEntry({ ...manualEntry, department: e.target.value })} className={inputClass} required>
+                                <option value="">انتخاب کنید...</option>
+                                {departmentOptions.map((d:string) => <option key={d} value={d}>{d}</option>)}
+                            </select>
                         </div>
                         <div><label className="block text-sm mb-1">مبلغ کارانه (ریال)*</label><input name="bonus_amount" value={toPersianDigits(formatCurrency(manualEntry.bonus_amount))} onChange={(e) => setManualEntry({ ...manualEntry, bonus_amount: e.target.value })} className={`${inputClass} font-sans text-left`} required /></div>
                     </div>

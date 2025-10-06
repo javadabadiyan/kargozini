@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import type { AppUser, UserPermissions } from '../types';
+import type { AppUser, UserPermissions, BonusPermissionFilters } from '../types';
 
 interface UserEditModalProps {
   user: AppUser | null;
@@ -21,7 +21,7 @@ const PERMISSION_KEYS: { key: keyof UserPermissions, label: string }[] = [
     { key: 'archive_performance_review', label: '   - بایگانی ارزیابی عملکرد پرسنل' },
     { key: 'job_group', label: ' - گروه شغلی پرسنل' },
     { key: 'bonus_management', label: ' - مدیریت کارانه' },
-    { key: 'enter_bonus', label: '   - وارد کردن کارانه' },
+    { key: 'enter_bonus', label: '   - ارسال کارانه' },
     { key: 'bonus_analyzer', label: '   - تحلیلگر هوشمند کارانه' },
     { key: 'security', label: 'منوی حراست' },
     { key: 'commuting_members', label: ' - کارمندان عضو تردد' },
@@ -71,16 +71,66 @@ const PERMISSION_ROLES: { [key: string]: { label: string; permissions: UserPermi
   }
 };
 
+const FilterCheckboxList: React.FC<{
+    title: string;
+    options: string[];
+    selected: string[];
+    onChange: (selected: string[]) => void;
+}> = ({ title, options, selected, onChange }) => {
+    const handleToggle = (option: string) => {
+        const newSelected = selected.includes(option)
+            ? selected.filter(item => item !== option)
+            : [...selected, option];
+        onChange(newSelected);
+    };
+
+    return (
+        <div>
+            <h5 className="font-semibold text-sm mb-2">{title}</h5>
+            <div className="max-h-32 overflow-y-auto border rounded-md p-2 bg-white dark:bg-slate-800">
+                {options.length === 0 && <p className="text-xs text-center text-gray-500">موردی یافت نشد.</p>}
+                {options.map(option => (
+                    <label key={option} className="flex items-center space-x-2 space-x-reverse cursor-pointer p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700">
+                        <input
+                            type="checkbox"
+                            checked={selected.includes(option)}
+                            onChange={() => handleToggle(option)}
+                            className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="text-sm">{option}</span>
+                    </label>
+                ))}
+            </div>
+        </div>
+    );
+};
+
 
 const UserEditModal: React.FC<UserEditModalProps> = ({ user, onClose, onSave }) => {
   const [formData, setFormData] = useState<Partial<AppUser>>({});
   const [isSaving, setIsSaving] = useState(false);
+  const [distinctValues, setDistinctValues] = useState<{ departments: string[], positions: string[], service_locations: string[] }>({ departments: [], positions: [], service_locations: [] });
   
   const isNew = !user;
 
   useEffect(() => {
-    setFormData(user || { username: '', password: '', permissions: {} });
+    setFormData(user || { username: '', password: '', permissions: { enter_bonus_filters: {} } });
   }, [user]);
+
+  useEffect(() => {
+    const fetchDistinctValues = async () => {
+        try {
+            const response = await fetch('/api/personnel?type=distinct_values');
+            if(response.ok) {
+                const data = await response.json();
+                setDistinctValues(data);
+            }
+        } catch (error) {
+            console.error("Failed to fetch distinct values for filters:", error);
+        }
+    };
+    fetchDistinctValues();
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -88,13 +138,33 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, onClose, onSave }) 
   };
 
   const handlePermissionChange = (key: keyof UserPermissions) => {
+    const newPermissions = { ...formData.permissions };
+    newPermissions[key] = !newPermissions[key];
+
+    if (key === 'enter_bonus' && !newPermissions[key]) {
+        // If 'enter_bonus' is unchecked, clear its filters
+        if (newPermissions.enter_bonus_filters) {
+            newPermissions.enter_bonus_filters = {};
+        }
+    }
+
     setFormData(prev => ({
         ...prev,
-        permissions: {
-            ...prev.permissions,
-            [key]: !prev.permissions?.[key]
-        }
+        permissions: newPermissions
     }));
+  };
+  
+  const handleBonusFilterChange = (filterType: keyof BonusPermissionFilters, selected: string[]) => {
+      setFormData(prev => ({
+          ...prev,
+          permissions: {
+              ...prev.permissions,
+              enter_bonus_filters: {
+                  ...prev.permissions?.enter_bonus_filters,
+                  [filterType]: selected,
+              }
+          }
+      }));
   };
 
   const handleRoleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -129,7 +199,7 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, onClose, onSave }) 
       onClick={onClose}
     >
       <div 
-        className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col"
+        className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex justify-between items-center p-4 border-b dark:border-slate-700">
@@ -168,15 +238,40 @@ const UserEditModal: React.FC<UserEditModalProps> = ({ user, onClose, onSave }) 
                 <h4 className="text-md font-semibold text-gray-700 dark:text-gray-300 mb-2">دسترسی‌ها</h4>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 p-4 border rounded-lg bg-slate-50 dark:bg-slate-700/50 dark:border-slate-600">
                     {PERMISSION_KEYS.map(perm => (
-                        <label key={perm.key} className="flex items-center space-x-2 space-x-reverse cursor-pointer">
-                            <input
-                                type="checkbox"
-                                checked={!!formData.permissions?.[perm.key]}
-                                onChange={() => handlePermissionChange(perm.key)}
-                                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                            />
-                            <span className="text-sm text-gray-700 dark:text-gray-200">{perm.label}</span>
-                        </label>
+                        <div key={perm.key}>
+                            <label className="flex items-center space-x-2 space-x-reverse cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={!!formData.permissions?.[perm.key]}
+                                    onChange={() => handlePermissionChange(perm.key)}
+                                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                />
+                                <span className="text-sm text-gray-700 dark:text-gray-200">{perm.label}</span>
+                            </label>
+                            {perm.key === 'enter_bonus' && formData.permissions?.enter_bonus && (
+                                <div className="mt-2 p-3 border rounded-md bg-slate-100 dark:bg-slate-600 space-y-3 mr-6">
+                                    <h5 className="text-xs font-bold">فیلترهای دسترسی کارانه:</h5>
+                                    <FilterCheckboxList
+                                        title="واحدها"
+                                        options={distinctValues.departments}
+                                        selected={formData.permissions.enter_bonus_filters?.departments || []}
+                                        onChange={(selected) => handleBonusFilterChange('departments', selected)}
+                                    />
+                                     <FilterCheckboxList
+                                        title="پست‌های سازمانی"
+                                        options={distinctValues.positions}
+                                        selected={formData.permissions.enter_bonus_filters?.positions || []}
+                                        onChange={(selected) => handleBonusFilterChange('positions', selected)}
+                                    />
+                                     <FilterCheckboxList
+                                        title="محل‌های خدمت"
+                                        options={distinctValues.service_locations}
+                                        selected={formData.permissions.enter_bonus_filters?.service_locations || []}
+                                        onChange={(selected) => handleBonusFilterChange('service_locations', selected)}
+                                    />
+                                </div>
+                            )}
+                        </div>
                     ))}
                 </div>
             </div>

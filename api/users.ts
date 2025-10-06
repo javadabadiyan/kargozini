@@ -1,6 +1,6 @@
 import { createPool, VercelPool, VercelPoolClient } from '@vercel/postgres';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import type { AppUser } from '../types';
+import type { AppUser } from '../../types';
 
 async function handleGetUsers(response: VercelResponse, pool: VercelPool) {
   try {
