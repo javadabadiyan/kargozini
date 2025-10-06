@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LockClosedIcon, UserIcon, LoginIcon } from './icons/Icons';
+import { LockClosedIcon, UserIcon, LoginIcon, UsersIcon } from './icons/Icons';
 
 interface LoginPageProps {
   onLogin: (user: string, pass: string) => Promise<{ success: boolean; error?: string }>;
@@ -23,72 +23,72 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   };
 
   return (
-    <div className="flex min-h-screen w-full items-center justify-center bg-slate-100 p-4">
-      <div className="flex flex-col md:flex-row w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden">
-        
-        {/* Decorative Panel */}
-        <div className="w-full md:w-2/5 p-8 text-white flex flex-col justify-center items-center text-center bg-[linear-gradient(-45deg,#0284c7,#1d4ed8,#4f46e5,#7c3aed)] bg-[size:400%_400%] animate-aurora">
-          <h1 className="text-4xl font-bold mb-2">سیستم جامع کارگزینی</h1>
-          <p className="text-lg opacity-80 max-w-sm">
-            به سیستم یکپارچه مدیریت پرسنل خوش آمدید.
-          </p>
+    <div className="flex min-h-screen w-full items-center justify-center bg-transparent p-4 relative overflow-hidden">
+        {/* Animated Shapes */}
+        <div className="absolute inset-0 z-[-1] pointer-events-none">
+            <div className="absolute -top-40 -left-40 w-96 h-96 bg-sky-500/10 rounded-full filter blur-3xl opacity-40 bg-shape" />
+            <div className="absolute top-60 -right-40 w-[30rem] h-[30rem] bg-indigo-500/10 rounded-full filter blur-3xl opacity-30 bg-shape2" />
         </div>
 
-        {/* Form Panel */}
-        <div className="w-full md:w-3/5 bg-white p-8 md:p-12">
-          <h2 className="text-3xl font-bold text-slate-800 mb-4">ورود به سیستم</h2>
-          <p className="text-slate-600 mb-8">لطفا برای ورود اطلاعات خود را وارد کنید.</p>
-          
-          <form className="space-y-6" onSubmit={handleSubmit}>
-            <div className="relative">
-              <UserIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-              <input
-                id="username"
-                name="username"
-                type="text"
-                required
-                className="w-full px-4 py-3 pr-10 text-slate-800 bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 placeholder:text-slate-500"
-                placeholder="نام کاربری"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                disabled={isLoading}
-              />
+        {/* Glassmorphism Login Card */}
+        <div className="w-full max-w-md rounded-2xl border border-white/20 dark:border-slate-700/50 bg-white/30 dark:bg-slate-900/40 p-8 shadow-2xl backdrop-blur-xl">
+            <div className="text-center mb-8">
+                <div className="inline-block bg-white/20 dark:bg-slate-800/50 p-4 rounded-full mb-4 ring-1 ring-white/10">
+                    <UsersIcon className="w-12 h-12 text-blue-500" />
+                </div>
+                <h2 className="text-3xl font-bold text-slate-800 dark:text-white">ورود به سیستم</h2>
+                <p className="text-slate-600 dark:text-slate-300 mt-2">خوش آمدید، لطفا وارد شوید.</p>
             </div>
-            <div className="relative">
-              <LockClosedIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-              <input
-                id="password"
-                name="password"
-                type="password"
-                required
-                className="w-full px-4 py-3 pr-10 text-slate-800 bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 placeholder:text-slate-500"
-                placeholder="رمز عبور"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={isLoading}
-              />
-            </div>
+            
+            <form className="space-y-6" onSubmit={handleSubmit}>
+                <div className="relative">
+                    <UserIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 dark:text-slate-500" />
+                    <input
+                        id="username"
+                        name="username"
+                        type="text"
+                        required
+                        className="w-full px-4 py-3 pr-10 text-slate-800 dark:text-white bg-white/20 dark:bg-slate-800/50 border border-slate-300/50 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-slate-500 dark:placeholder:text-slate-400"
+                        placeholder="نام کاربری"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        disabled={isLoading}
+                    />
+                </div>
+                <div className="relative">
+                    <LockClosedIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 dark:text-slate-500" />
+                    <input
+                        id="password"
+                        name="password"
+                        type="password"
+                        required
+                        className="w-full px-4 py-3 pr-10 text-slate-800 dark:text-white bg-white/20 dark:bg-slate-800/50 border border-slate-300/50 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-slate-500 dark:placeholder:text-slate-400"
+                        placeholder="رمز عبور"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        disabled={isLoading}
+                    />
+                </div>
 
-            {error && (
-              <div className="text-red-500 text-sm text-center">{error}</div>
-            )}
+                {error && (
+                    <div className="text-red-500 dark:text-red-400 text-sm text-center bg-red-100/50 dark:bg-red-900/30 p-2 rounded-md">{error}</div>
+                )}
 
-            <div>
-              <button
-                type="submit"
-                className="group w-full flex items-center justify-center gap-2 py-3 text-lg font-bold text-white bg-primary-600 rounded-lg hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 transition-all transform hover:scale-105 disabled:opacity-50 disabled:scale-100 disabled:cursor-not-allowed"
-                disabled={isLoading}
-              >
-                <LoginIcon className="w-6 h-6 transform transition-transform group-hover:-translate-x-1" />
-                {isLoading ? 'در حال بررسی...' : 'ورود'}
-              </button>
+                <div>
+                    <button
+                        type="submit"
+                        className="group w-full flex items-center justify-center gap-2 py-3 text-lg font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg hover:from-blue-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-4 focus:ring-offset-slate-900/50 focus:ring-blue-500 transition-all transform hover:scale-105 disabled:opacity-50 disabled:scale-100 disabled:cursor-not-allowed"
+                        disabled={isLoading}
+                    >
+                        <LoginIcon className="w-6 h-6 transform transition-transform group-hover:-translate-x-1" />
+                        {isLoading ? 'در حال ورود...' : 'ورود به سیستم'}
+                    </button>
+                </div>
+            </form>
+            <div className="mt-12 text-center text-sm text-slate-500 dark:text-slate-400">
+                <p>طراح و کدنویسی جواد آبادیان</p>
             </div>
-          </form>
-          <div className="mt-12 text-center text-sm text-slate-500">
-             <p>طراح و کدنویسی جواد آبادیان</p>
-          </div>
         </div>
-      </div>
     </div>
   );
 };
