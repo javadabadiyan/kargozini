@@ -113,9 +113,11 @@ const SendPerformanceReviewPage: React.FC = () => {
     };
 
     const totals = useMemo(() => {
-        // FIX: The `reduce` calls were simplified to let TypeScript infer correct types and avoid errors by ensuring values are numbers.
+        // FIX: Explicitly convert value to number to avoid `+` operator on `unknown` type.
         const total_score_functional = Object.values(formData.scores_functional).reduce((sum, val) => sum + Number(val || 0), 0);
+        // FIX: Explicitly convert value to number to avoid `+` operator on `unknown` type.
         const total_score_behavioral = Object.values(formData.scores_behavioral).reduce((sum, val) => sum + Number(val || 0), 0);
+        // FIX: Explicitly convert value to number to avoid `+` operator on `unknown` type.
         const total_score_ethical = Object.values(formData.scores_ethical).reduce((sum, val) => sum + Number(val || 0), 0);
         const overall_score = total_score_functional + total_score_behavioral + total_score_ethical;
         return { total_score_functional, total_score_behavioral, total_score_ethical, overall_score };

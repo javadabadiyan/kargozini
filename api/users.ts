@@ -22,7 +22,6 @@ async function handlePostUsers(request: VercelRequest, response: VercelResponse,
 
   const client = await pool.connect();
   try {
-    // FIX: Corrected invalid syntax for client.sql transaction command. It must be a plain query.
     await client.query('BEGIN');
     let processedCount = 0;
     for (const user of usersData) {
@@ -39,11 +38,9 @@ async function handlePostUsers(request: VercelRequest, response: VercelResponse,
         `;
         processedCount++;
     }
-    // FIX: Corrected invalid syntax for client.sql transaction command. It must be a plain query.
     await client.query('COMMIT');
     return response.status(201).json({ message: `${processedCount} کاربر با موفقیت افزوده/به‌روزرسانی شد.` });
   } catch (error) {
-    // FIX: Corrected invalid syntax for client.sql transaction command. It must be a plain query.
     await client.query('ROLLBACK');
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return response.status(500).json({ error: 'Failed to create/update user.', details: errorMessage });
@@ -53,6 +50,30 @@ async function handlePostUsers(request: VercelRequest, response: VercelResponse,
 }
 
 async function handlePutUsers(request: VercelRequest, response: VercelResponse, pool: VercelPool) {
+  // --- Self-service password change ---
+  if (request.body.change_password) {
+      const { username, oldPassword, newPassword } = request.body;
+      if (!username || !oldPassword || !newPassword) {
+          return response.status(400).json({ error: 'رمز عبور فعلی و جدید برای تغییر الزامی است.' });
+      }
+      try {
+          const { rows } = await pool.sql`SELECT password FROM app_users WHERE username = ${username};`;
+          if (rows.length === 0) {
+              return response.status(404).json({ error: 'کاربر یافت نشد.' });
+          }
+          const user = rows[0];
+          if (user.password !== oldPassword) {
+              return response.status(401).json({ error: 'رمز عبور فعلی اشتباه است.' });
+          }
+          await pool.sql`UPDATE app_users SET password = ${newPassword} WHERE username = ${username};`;
+          return response.status(200).json({ message: 'رمز عبور با موفقیت تغییر کرد.' });
+      } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          return response.status(500).json({ error: 'Failed to change password.', details: errorMessage });
+      }
+  }
+
+  // --- Admin user update ---
   const { id, username, password, permissions, full_name, national_id } = request.body as AppUser;
   if (!id || !username || !permissions) {
     return response.status(400).json({ error: 'شناسه، نام کاربری و دسترسی‌ها برای ویرایش الزامی است.' });

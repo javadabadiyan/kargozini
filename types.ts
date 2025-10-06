@@ -8,9 +8,17 @@ export interface MenuItem {
   page?: React.ComponentType;
 }
 
-export interface UserPermissions {
-  [key: string]: boolean;
+export interface BonusPermissionFilters {
+  departments?: string[];
+  positions?: string[];
+  service_locations?: string[];
 }
+
+export interface UserPermissions {
+  [key: string]: boolean | BonusPermissionFilters | undefined;
+  enter_bonus_filters?: BonusPermissionFilters;
+}
+
 
 export interface AppUser {
   id: number;

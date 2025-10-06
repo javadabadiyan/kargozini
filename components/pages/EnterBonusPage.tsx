@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import type { BonusData, BonusEditLog } from '../../types';
+import type { BonusData, BonusEditLog, UserPermissions } from '../../types';
 import { DownloadIcon, UploadIcon, DocumentReportIcon, UserPlusIcon, PencilIcon, TrashIcon, SearchIcon, ChevronDownIcon, ChevronUpIcon } from '../icons/Icons';
 import EditBonusModal from '../EditBonusModal';
 
@@ -192,8 +192,9 @@ const EditAuditLogModal: React.FC<{
 // Main Component
 const EnterBonusPage: React.FC = () => {
     const currentUser = useMemo(() => JSON.parse(sessionStorage.getItem('currentUser') || '{}'), []);
-    const canView = useMemo(() => currentUser.permissions?.enter_bonus, [currentUser]);
-    const isAdmin = useMemo(() => currentUser.permissions?.user_management, [currentUser]);
+    const userPermissions: UserPermissions = useMemo(() => currentUser.permissions || {}, [currentUser]);
+    const canView = useMemo(() => userPermissions?.enter_bonus, [userPermissions]);
+    const isAdmin = useMemo(() => userPermissions?.user_management, [userPermissions]);
     const username = useMemo(() => currentUser.full_name || currentUser.username, [currentUser]);
     
     const [activeView, setActiveView] = useState('table'); // 'table', 'analysis', 'audit'
@@ -236,7 +237,12 @@ const EnterBonusPage: React.FC = () => {
         setLoading(true);
         setError(null);
         try {
-            const response = await fetch(`/api/personnel?type=bonuses&year=${year}&user=${encodeURIComponent(username)}`);
+            const params = new URLSearchParams({
+                year: String(year),
+                user: username,
+                permissions: JSON.stringify(userPermissions)
+            });
+            const response = await fetch(`/api/personnel?type=bonuses&${params.toString()}`);
             if (!response.ok) throw new Error((await response.json()).error || 'خطا در دریافت اطلاعات کارانه');
             const data = await response.json();
             setBonusData(data.bonuses || []);
@@ -245,7 +251,7 @@ const EnterBonusPage: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    }, [canView, username]);
+    }, [canView, username, userPermissions]);
 
     useEffect(() => {
         fetchBonuses(selectedYear);
@@ -334,7 +340,7 @@ const EnterBonusPage: React.FC = () => {
                 const response = await fetch('/api/personnel?type=bonuses', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ year: selectedYear, month: selectedMonth, data: dataToUpload, submitted_by_user: username }),
+                    body: JSON.stringify({ year: selectedYear, month: selectedMonth, data: dataToUpload, submitted_by_user: username, permissions: userPermissions }),
                 });
                 const result = await response.json();
                 if (!response.ok) throw new Error(result.details || result.error);
@@ -380,7 +386,7 @@ const EnterBonusPage: React.FC = () => {
             const response = await fetch('/api/personnel?type=bonuses', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ year: selectedYear, month: selectedMonth, data: dataToUpload, submitted_by_user: username }),
+                body: JSON.stringify({ year: selectedYear, month: selectedMonth, data: dataToUpload, submitted_by_user: username, permissions: userPermissions }),
             });
             const result = await response.json();
             if (!response.ok) throw new Error(result.details || result.error);
@@ -400,7 +406,7 @@ const EnterBonusPage: React.FC = () => {
              const response = await fetch('/api/personnel?type=bonuses', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id, month, bonus_value, department, editor_name: username }),
+                body: JSON.stringify({ id, month, bonus_value, department, editor_name: username, permissions: userPermissions }),
             });
             const result = await response.json();
             if (!response.ok) throw new Error(result.error);
@@ -507,7 +513,7 @@ const EnterBonusPage: React.FC = () => {
             const response = await fetch('/api/personnel?type=bonuses', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ id: personDetails.id, person_details: personDetails }),
+                body: JSON.stringify({ id: personDetails.id, person_details: personDetails, permissions: userPermissions }),
             });
             const result = await response.json();
             if (!response.ok) throw new Error(result.error);
@@ -578,15 +584,15 @@ const EnterBonusPage: React.FC = () => {
             <div className="border-b border-slate-200 dark:border-slate-700 mb-6">
                 <nav className="flex space-x-4 space-x-reverse">
                     <button className={tabClass('table')} onClick={() => setActiveView('table')}>جدول داده‌ها</button>
-                    <button className={tabClass('analysis')} onClick={() => setActiveView('analysis')}>تحلیل هوشمند</button>
+                    {currentUser.permissions.bonus_analyzer && <button className={tabClass('analysis')} onClick={() => setActiveView('analysis')}>تحلیل هوشمند</button>}
                     {isAdmin && <button className={tabClass('audit')} onClick={() => setActiveView('audit')}>گزارش تغییرات</button>}
                 </nav>
             </div>
             
             {status && <div className={`p-4 mb-4 text-sm rounded-lg ${statusColor[status.type]}`}>{status.message}</div>}
 
-            {activeView === 'table' && <BonusDataTable {...{loading, error, selectedYear, setSelectedYear, selectedMonth, setSelectedMonth, bonusData, filteredBonusData, paginatedBonusData, currentPage, totalPages, setCurrentPage, searchTerm, setSearchTerm, departmentFilter, setDepartmentFilter, uniqueDepartments, showManualForm, setShowManualForm, manualEntry, setManualEntry, handleManualSubmit, fileInputRef, handleDownloadSample, handleFileImport, handleExport, handleEditClick: (p: BonusData, m: string) => { setEditingBonusInfo({ person: p, month: m }); setIsEditModalOpen(true); }, handleDeleteClick, handleFinalize, handleDeleteAll, handlePersonEditClick, handlePersonDeleteClick }} />}
-            {activeView === 'analysis' && <BonusAnalysis bonusData={bonusData} />}
+            {activeView === 'table' && <BonusDataTable {...{loading, error, selectedYear, setSelectedYear, selectedMonth, setSelectedMonth, bonusData, filteredBonusData, paginatedBonusData, currentPage, totalPages, setCurrentPage, searchTerm, setSearchTerm, departmentFilter, setDepartmentFilter, uniqueDepartments, showManualForm, setShowManualForm, manualEntry, setManualEntry, handleManualSubmit, fileInputRef, handleDownloadSample, handleFileImport, handleExport, handleEditClick: (p: BonusData, m: string) => { setEditingBonusInfo({ person: p, month: m }); setIsEditModalOpen(true); }, handleDeleteClick, handleFinalize, handleDeleteAll, handlePersonEditClick, handlePersonDeleteClick, userPermissions }} />}
+            {activeView === 'analysis' && currentUser.permissions.bonus_analyzer && <BonusAnalysis bonusData={bonusData} />}
             {activeView === 'audit' && isAdmin && <AuditLogView logs={auditLogs} loading={auditLoading} isAdmin={isAdmin} onEdit={handleEditAuditLogClick} onDelete={handleDeleteAuditLog} />}
 
             {isEditModalOpen && editingBonusInfo && (
@@ -618,10 +624,11 @@ const EnterBonusPage: React.FC = () => {
     );
 };
 
-const BonusDataTable = ({ loading, error, selectedYear, setSelectedYear, selectedMonth, setSelectedMonth, bonusData, paginatedBonusData, currentPage, totalPages, setCurrentPage, searchTerm, setSearchTerm, departmentFilter, setDepartmentFilter, uniqueDepartments, showManualForm, setShowManualForm, manualEntry, setManualEntry, handleManualSubmit, fileInputRef, handleDownloadSample, handleFileImport, handleExport, handleEditClick, handleDeleteClick, handleFinalize, handleDeleteAll, handlePersonEditClick, handlePersonDeleteClick }: any) => {
+const BonusDataTable = ({ loading, error, selectedYear, setSelectedYear, selectedMonth, setSelectedMonth, bonusData, paginatedBonusData, currentPage, totalPages, setCurrentPage, searchTerm, setSearchTerm, departmentFilter, setDepartmentFilter, uniqueDepartments, showManualForm, setShowManualForm, manualEntry, setManualEntry, handleManualSubmit, fileInputRef, handleDownloadSample, handleFileImport, handleExport, handleEditClick, handleDeleteClick, handleFinalize, handleDeleteAll, handlePersonEditClick, handlePersonDeleteClick, userPermissions }: any) => {
     const headers = ['کد پرسنلی', 'نام و نام خانوادگی', 'پست', 'محل خدمت', 'کاربر ثبت کننده', ...PERSIAN_MONTHS, 'عملیات'];
     const inputClass = "w-full p-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 rounded-md";
-    
+    const allowedDepartments = userPermissions.enter_bonus_filters?.departments;
+
     return (
     <div className="space-y-6">
        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
@@ -644,7 +651,17 @@ const BonusDataTable = ({ loading, error, selectedYear, setSelectedYear, selecte
                         <div><label className="block text-sm mb-1">نام خانوادگی*</label><input name="last_name" value={manualEntry.last_name} onChange={(e) => setManualEntry({ ...manualEntry, last_name: e.target.value })} className={inputClass} required /></div>
                         <div><label className="block text-sm mb-1">پست سازمانی</label><input name="position" value={manualEntry.position} onChange={(e) => setManualEntry({ ...manualEntry, position: e.target.value })} className={inputClass} /></div>
                         <div><label className="block text-sm mb-1">محل خدمت</label><input name="service_location" value={manualEntry.service_location} onChange={(e) => setManualEntry({ ...manualEntry, service_location: e.target.value })} className={inputClass} /></div>
-                        <div><label className="block text-sm mb-1">واحد*</label><input name="department" value={manualEntry.department} onChange={(e) => setManualEntry({ ...manualEntry, department: e.target.value })} className={inputClass} required /></div>
+                        <div>
+                            <label className="block text-sm mb-1">واحد*</label>
+                            {allowedDepartments && allowedDepartments.length > 0 ? (
+                                <select name="department" value={manualEntry.department} onChange={(e) => setManualEntry({ ...manualEntry, department: e.target.value })} className={inputClass} required>
+                                    <option value="">انتخاب کنید...</option>
+                                    {allowedDepartments.map((d:string) => <option key={d} value={d}>{d}</option>)}
+                                </select>
+                            ) : (
+                                <input name="department" value={manualEntry.department} onChange={(e) => setManualEntry({ ...manualEntry, department: e.target.value })} className={inputClass} required />
+                            )}
+                        </div>
                         <div><label className="block text-sm mb-1">مبلغ کارانه (ریال)*</label><input name="bonus_amount" value={toPersianDigits(formatCurrency(manualEntry.bonus_amount))} onChange={(e) => setManualEntry({ ...manualEntry, bonus_amount: e.target.value })} className={`${inputClass} font-sans text-left`} required /></div>
                     </div>
                     <div className="flex justify-end mt-4"><button type="submit" className="px-6 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700">ثبت کارانه</button></div>

@@ -1,6 +1,6 @@
 import { createPool, VercelPool, VercelPoolClient } from '@vercel/postgres';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import type { Personnel, Dependent, CommutingMember, DisciplinaryRecord, PerformanceReview, BonusData, BonusEditLog } from '../../types';
+import type { Personnel, Dependent, CommutingMember, DisciplinaryRecord, PerformanceReview, BonusData, BonusEditLog, UserPermissions } from '../../types';
 
 // --- Type Aliases for Payloads ---
 type NewPersonnel = Omit<Personnel, 'id'>;
@@ -232,7 +232,6 @@ async function handlePostJobGroupInfo(request: VercelRequest, response: VercelRe
           for (const record of validRecords) {
               const recordPlaceholders: string[] = [];
               for (const col of allColumns) {
-                  // FIX: Ensure all values are strings or null to match the type of `values`.
                   const val = record[col as keyof Personnel];
                   values.push(val === null || val === undefined ? null : String(val));
                   recordPlaceholders.push(`$${paramIndex++}`);
@@ -269,22 +268,17 @@ async function handlePutJobGroupInfo(request: VercelRequest, response: VercelRes
   const p = request.body as Personnel;
   if (!p || !p.id) return response.status(400).json({ error: 'شناسه رکورد نامعتبر است.' });
 
-  // FIX: Refactor query building to avoid type inference issues.
-  // Create an object with only the fields to be updated.
   const updateData: Record<string, string | null> = {};
   JOB_GROUP_UPDATE_COLUMNS.forEach(col => {
-    // Check if the property exists on the incoming object to avoid updating with undefined
     if (p.hasOwnProperty(col as keyof Personnel)) {
         const val = p[col as keyof Personnel];
         updateData[col] = val === null || val === undefined ? null : String(val);
     }
   });
 
-  // Build query parts from the updateData object.
   const updateFields = Object.keys(updateData).map((col, i) => `${col === 'position' ? `"${col}"` : col} = $${i + 1}`);
   const updateValues = Object.values(updateData);
   
-  // Add the ID for the WHERE clause as the last parameter.
   updateValues.push(String(p.id));
 
   const query = `UPDATE personnel SET ${updateFields.join(', ')} WHERE id = $${updateValues.length} RETURNING *;`;
@@ -654,17 +648,55 @@ async function handleDeletePerformanceReview(request: VercelRequest, response: V
 // BONUS HANDLERS
 // =================================================================================
 async function handleGetBonuses(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
-    const { year, user } = request.query;
-    if (!year || typeof year !== 'string' || !user || typeof user !== 'string') return response.status(400).json({ error: 'سال و کاربر برای دریافت اطلاعات کارانه الزامی است.' });
+    const { year, user, permissions: permissionsStr } = request.query;
+    if (!year || typeof year !== 'string' || !user || typeof user !== 'string' || !permissionsStr || typeof permissionsStr !== 'string') {
+        return response.status(400).json({ error: 'سال، کاربر و دسترسی‌ها برای دریافت اطلاعات کارانه الزامی است.' });
+    }
+
+    let permissions: UserPermissions;
+    try {
+        permissions = JSON.parse(permissionsStr);
+    } catch {
+        return response.status(400).json({ error: 'فرمت دسترسی‌های ارسال شده نامعتبر است.' });
+    }
+    
     const query = `SELECT id, personnel_code, first_name, last_name, "position", service_location, monthly_data, submitted_by_user FROM bonuses WHERE "year" = $1 AND submitted_by_user = $2 ORDER BY last_name, first_name;`;
     const { rows } = await (client as any).query(query, [year, user]);
+
+    // Server-side filtering based on permissions
+    const filters = permissions.enter_bonus_filters;
+    if (filters && (filters.departments?.length || filters.positions?.length || filters.service_locations?.length)) {
+        const filteredRows = rows.filter((row: BonusData) => {
+            const hasDeptMatch = !filters.departments?.length || (row.monthly_data && Object.values(row.monthly_data).some((md: any) => filters.departments!.includes(md.department)));
+            const hasPosMatch = !filters.positions?.length || (row.position && filters.positions.includes(row.position));
+            const hasLocMatch = !filters.service_locations?.length || (row.service_location && filters.service_locations.includes(row.service_location));
+            return hasDeptMatch && hasPosMatch && hasLocMatch;
+        });
+        return response.status(200).json({ bonuses: filteredRows });
+    }
+
     return response.status(200).json({ bonuses: rows });
 }
 
 
 async function handlePostBonuses(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
-    const { year, month, data, submitted_by_user } = request.body;
-    if (!year || !month || !Array.isArray(data) || data.length === 0 || !submitted_by_user) return response.status(400).json({ error: 'اطلاعات ارسالی برای ثبت کارانه ناقص یا نامعتبر است.' });
+    const { year, month, data, submitted_by_user, permissions } = request.body;
+    if (!year || !month || !Array.isArray(data) || data.length === 0 || !submitted_by_user || !permissions) {
+        return response.status(400).json({ error: 'اطلاعات ارسالی برای ثبت کارانه ناقص یا نامعتبر است.' });
+    }
+
+    const filters = permissions.enter_bonus_filters;
+    if (filters && (filters.departments?.length || filters.positions?.length || filters.service_locations?.length)) {
+        for (const record of data) {
+            const isDeptAllowed = !filters.departments?.length || filters.departments.includes(record.department);
+            const isPosAllowed = !filters.positions?.length || filters.positions.includes(record.position);
+            const isLocAllowed = !filters.service_locations?.length || filters.service_locations.includes(record.service_location);
+            if (!isDeptAllowed || !isPosAllowed || !isLocAllowed) {
+                return response.status(403).json({ error: 'عدم دسترسی', details: `شما اجازه ثبت کارانه برای پرسنل با مشخصات ${record.department}/${record.position}/${record.service_location} را ندارید.`});
+            }
+        }
+    }
+
     try {
         await client.query('BEGIN');
         for (const record of data) {
@@ -692,9 +724,10 @@ async function handlePostBonuses(request: VercelRequest, response: VercelRespons
 }
 
 async function handlePutBonuses(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
-    const { id, month, bonus_value, department, editor_name, person_details } = request.body;
+    const { id, month, bonus_value, department, editor_name, person_details, permissions } = request.body;
 
     if (person_details) {
+        // No permission check needed for editing person details, as it doesn't involve bonus values/departments
         const { first_name, last_name, position, service_location } = person_details;
         if (!id || !first_name || !last_name) {
             return response.status(400).json({ error: 'ID, first name and last name are required for person details update.'});
@@ -713,19 +746,43 @@ async function handlePutBonuses(request: VercelRequest, response: VercelResponse
         }
     }
 
-    if (!id || !month || bonus_value === undefined || !department || !editor_name) return response.status(400).json({ error: 'اطلاعات برای ویرایش ناقص است (شامل نام ویرایشگر).' });
+    if (!id || !month || bonus_value === undefined || !department || !editor_name || !permissions) {
+        return response.status(400).json({ error: 'اطلاعات برای ویرایش ناقص است (شامل نام ویرایشگر و دسترسی‌ها).' });
+    }
+    
     try {
         await client.query('BEGIN');
-        const { rows: oldDataRows } = await (client as any).query('SELECT personnel_code, monthly_data FROM bonuses WHERE id = $1', [id]);
+        const { rows: oldDataRows } = await (client as any).query('SELECT personnel_code, "position", service_location, monthly_data FROM bonuses WHERE id = $1', [id]);
         if (oldDataRows.length === 0) { await client.query('ROLLBACK'); return response.status(404).json({ error: 'رکورد یافت نشد.'}); }
-        const oldMonthData = oldDataRows[0].monthly_data?.[month];
+
+        const oldData = oldDataRows[0];
+        const oldMonthData = oldData.monthly_data?.[month];
+
+        // --- Permission Check ---
+        const filters = permissions.enter_bonus_filters;
+        if (filters && (filters.departments?.length || filters.positions?.length || filters.service_locations?.length)) {
+             const oldDeptAllowed = !filters.departments?.length || (oldMonthData && filters.departments.includes(oldMonthData.department));
+             const newDeptAllowed = !filters.departments?.length || filters.departments.includes(department);
+             const posAllowed = !filters.positions?.length || (oldData.position && filters.positions.includes(oldData.position));
+             const locAllowed = !filters.service_locations?.length || (oldData.service_location && filters.service_locations.includes(oldData.service_location));
+
+             if (!oldDeptAllowed || !newDeptAllowed || !posAllowed || !locAllowed) {
+                 await client.query('ROLLBACK');
+                 return response.status(403).json({ error: 'عدم دسترسی', details: 'شما اجازه ویرایش این رکورد را ندارید.' });
+             }
+        }
+        // --- End Permission Check ---
+
         const bonusValueNumber = Number(bonus_value);
         if (isNaN(bonusValueNumber)) { await client.query('ROLLBACK'); return response.status(400).json({ error: 'مبلغ کارانه نامعتبر است.' }); }
+        
         const { rows } = await (client as any).query(`UPDATE bonuses SET monthly_data = jsonb_set(monthly_data, '{${month}}', $1::jsonb), updated_at = NOW() WHERE id = $2 RETURNING *;`, [JSON.stringify({ bonus: bonusValueNumber, department: department }), id]);
         const newMonthData = rows[0].monthly_data?.[month];
+        
         if (oldMonthData?.bonus !== newMonthData?.bonus || oldMonthData?.department !== newMonthData?.department) {
              await (client as any).query(`INSERT INTO bonus_edit_logs (bonus_id, personnel_code, editor_name, month, old_bonus_value, new_bonus_value, old_department, new_department) VALUES ($1, $2, $3, $4, $5, $6, $7, $8);`, [id, rows[0].personnel_code, editor_name, month, oldMonthData?.bonus || null, newMonthData?.bonus, oldMonthData?.department || null, newMonthData?.department]);
         }
+        
         await client.query('COMMIT');
         return response.status(200).json({ message: 'کارانه با موفقیت ویرایش شد.' });
     } catch(error) {
@@ -860,6 +917,24 @@ async function handleDeleteBonusEditLog(request: VercelRequest, response: Vercel
     }
 }
 
+async function handleGetDistinctValues(response: VercelResponse, client: VercelPoolClient) {
+    try {
+        const [departmentsRes, positionsRes, serviceLocationsRes] = await Promise.all([
+            client.sql`SELECT DISTINCT department FROM personnel WHERE department IS NOT NULL AND department <> '' ORDER BY department;`,
+            client.sql`SELECT DISTINCT "position" FROM personnel WHERE "position" IS NOT NULL AND "position" <> '' ORDER BY "position";`,
+            client.sql`SELECT DISTINCT service_location FROM personnel WHERE service_location IS NOT NULL AND service_location <> '' ORDER BY service_location;`
+        ]);
+        return response.status(200).json({
+            departments: departmentsRes.rows.map(r => r.department),
+            positions: positionsRes.rows.map(r => r.position),
+            service_locations: serviceLocationsRes.rows.map(r => r.service_location)
+        });
+    } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        return response.status(500).json({ error: 'Failed to fetch distinct values.', details: errorMessage });
+    }
+}
+
 
 // =================================================================================
 // MAIN API HANDLER
@@ -974,6 +1049,9 @@ export default async function handler(request: VercelRequest, response: VercelRe
                 response.setHeader('Allow', ['GET', 'PUT', 'DELETE']);
                 return response.status(405).end();
         }
+    } else if (type === 'distinct_values') {
+        if (request.method === 'GET') return await handleGetDistinctValues(response, client);
+        else { response.setHeader('Allow', ['GET']); return response.status(405).end(); }
     }
 
 
