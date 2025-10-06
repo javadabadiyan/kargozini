@@ -454,9 +454,27 @@ const BonusDataTable = ({ loading, error, selectedYear, setSelectedYear, selecte
 };
 
 const BonusAnalysis = ({ bonusData, allDepartments }: { bonusData: BonusData[], allDepartments: string[] }) => {
+    const ANALYSIS_PAGE_SIZE = 10;
     const [selectedMonth, setSelectedMonth] = useState<string>(PERSIAN_MONTHS[new Date().getMonth()]);
     const [selectedDepartment, setSelectedDepartment] = useState<string>('');
     const [changeReportPositionFilter, setChangeReportPositionFilter] = useState<string>('');
+
+    const [departmentSummaryPage, setDepartmentSummaryPage] = useState(1);
+    const [positionSummaryPage, setPositionSummaryPage] = useState(1);
+    const [changeReportPage, setChangeReportPage] = useState(1);
+    const [serviceLocationPage, setServiceLocationPage] = useState(1);
+
+    useEffect(() => {
+        setDepartmentSummaryPage(1);
+        setPositionSummaryPage(1);
+        setChangeReportPage(1);
+        setServiceLocationPage(1);
+    }, [selectedMonth, selectedDepartment]);
+
+    useEffect(() => {
+        setChangeReportPage(1);
+    }, [changeReportPositionFilter]);
+
 
     const analysisData = useMemo(() => {
         if (!bonusData || bonusData.length === 0) return null;
@@ -506,20 +524,37 @@ const BonusAnalysis = ({ bonusData, allDepartments }: { bonusData: BonusData[], 
                 return { name, sum: data.sum, count: data.count, avg: data.sum / data.count, min, max, minPerson: data.people[data.bonuses.indexOf(min)], maxPerson: data.people[data.bonuses.indexOf(max)] };
             }).sort((a,b) => b.sum - a.sum);
         };
-
+        
         const changes = bonusData.flatMap(person => {
             const monthChanges: any[] = [];
             for (let i = 1; i < PERSIAN_MONTHS.length; i++) {
                 const currentMonth = PERSIAN_MONTHS[i];
-                const prevMonth = PERSIAN_MONTHS[i-1];
+                const prevMonth = PERSIAN_MONTHS[i - 1];
                 const currentBonusData = person.monthly_data?.[currentMonth];
                 const prevBonusData = person.monthly_data?.[prevMonth];
-                if (currentBonusData?.bonus !== undefined && prevBonusData?.bonus !== undefined && currentBonusData.bonus !== prevBonusData.bonus) {
-                    monthChanges.push({ person: `${person.first_name} ${person.last_name}`, position: person.position || 'نامشخص', month: currentMonth, prev: prevBonusData.bonus, current: currentBonusData.bonus, diff: currentBonusData.bonus - prevBonusData.bonus });
+
+                if (currentBonusData?.bonus !== undefined && prevBonusData?.bonus !== undefined) {
+                    const bonusChanged = currentBonusData.bonus !== prevBonusData.bonus;
+                    const departmentChanged = currentBonusData.department !== prevBonusData.department;
+                    
+                    if (bonusChanged || departmentChanged) {
+                        monthChanges.push({
+                            person: `${person.first_name} ${person.last_name}`,
+                            position: person.position || 'نامشخص',
+                            month: currentMonth,
+                            prevBonus: prevBonusData.bonus,
+                            currentBonus: currentBonusData.bonus,
+                            bonusDiff: currentBonusData.bonus - prevBonusData.bonus,
+                            prevDepartment: prevBonusData.department,
+                            currentDepartment: currentBonusData.department,
+                            departmentChanged: departmentChanged,
+                        });
+                    }
                 }
             }
             return monthChanges;
         });
+
 
         return { summary, maxPerson, minPerson, byDepartment: byGroup('department'), byPosition: byGroup('position'), byServiceLocation: Object.entries(byServiceLocation).sort((a,b) => b[1] - a[1]), changes };
     }, [bonusData, selectedMonth, selectedDepartment]);
@@ -554,6 +589,17 @@ const BonusAnalysis = ({ bonusData, allDepartments }: { bonusData: BonusData[], 
         return trend;
 
     }, [bonusData, selectedDepartment]);
+    
+    const PaginationControls = ({ currentPage, totalPages, onPageChange }: { currentPage: number, totalPages: number, onPageChange: (page: number) => void }) => {
+        if (totalPages <= 1) return null;
+        return (
+            <div className="flex justify-center items-center gap-4 mt-4">
+                <button onClick={() => onPageChange(Math.max(currentPage - 1, 1))} disabled={currentPage === 1} className="px-3 py-1 text-sm bg-white dark:bg-slate-800 border dark:border-slate-600 rounded disabled:opacity-50">قبلی</button>
+                <span className="text-sm">صفحه {toPersianDigits(currentPage)} از {toPersianDigits(totalPages)}</span>
+                <button onClick={() => onPageChange(Math.min(currentPage + 1, totalPages))} disabled={currentPage === totalPages} className="px-3 py-1 text-sm bg-white dark:bg-slate-800 border dark:border-slate-600 rounded disabled:opacity-50">بعدی</button>
+            </div>
+        );
+    };
 
     if (!analysisData) {
         return <div className="p-4 text-center text-gray-500 dark:text-slate-400">داده‌ای برای تحلیل وجود ندارد. لطفاً ابتدا اطلاعات کارانه را وارد کنید.</div>;
@@ -580,6 +626,20 @@ const BonusAnalysis = ({ bonusData, allDepartments }: { bonusData: BonusData[], 
 
     const maxDeptSum = Math.max(1, ...analysisData.byDepartment.map(i => i.sum));
     const maxPositionSum = Math.max(1, ...analysisData.byPosition.map(i => i.sum));
+    
+    const departmentSummaryTotalPages = Math.ceil(analysisData.byDepartment.length / ANALYSIS_PAGE_SIZE);
+    const paginatedDepartmentSummary = analysisData.byDepartment.slice((departmentSummaryPage - 1) * ANALYSIS_PAGE_SIZE, departmentSummaryPage * ANALYSIS_PAGE_SIZE);
+
+    const positionSummaryTotalPages = Math.ceil(analysisData.byPosition.length / ANALYSIS_PAGE_SIZE);
+    const paginatedPositionSummary = analysisData.byPosition.slice((positionSummaryPage - 1) * ANALYSIS_PAGE_SIZE, positionSummaryPage * ANALYSIS_PAGE_SIZE);
+    
+    const serviceLocationTotalPages = Math.ceil(analysisData.byServiceLocation.length / ANALYSIS_PAGE_SIZE);
+    const paginatedServiceLocation = analysisData.byServiceLocation.slice((serviceLocationPage - 1) * ANALYSIS_PAGE_SIZE, serviceLocationPage * ANALYSIS_PAGE_SIZE);
+
+    const filteredChanges = analysisData.changes.filter(c => !changeReportPositionFilter || c.position === changeReportPositionFilter);
+    const changeReportTotalPages = Math.ceil(filteredChanges.length / ANALYSIS_PAGE_SIZE);
+    const paginatedChanges = filteredChanges.slice((changeReportPage - 1) * ANALYSIS_PAGE_SIZE, changeReportPage * ANALYSIS_PAGE_SIZE);
+
 
     return (
         <div className="space-y-6">
@@ -605,110 +665,39 @@ const BonusAnalysis = ({ bonusData, allDepartments }: { bonusData: BonusData[], 
                  <AnalysisSection title="تعداد نفرات بر اساس محل خدمت">
                     <div className="overflow-x-auto">
                         <table className="w-full text-sm">
-                            <thead>
-                                <tr className="border-b dark:border-slate-600">
-                                    <th className="p-2 text-right">محل خدمت</th>
-                                    <th className="p-2 text-center">تعداد نفرات</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {analysisData.byServiceLocation.map(([location, count]) => (
-                                    <tr key={location} className="border-b dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-600/50">
-                                        <td className="p-2 font-semibold">{location}</td>
-                                        <td className="p-2 text-center font-bold">{toPersianDigits(count)}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
+                            <thead><tr className="border-b dark:border-slate-600"><th className="p-2 text-right">محل خدمت</th><th className="p-2 text-center">تعداد نفرات</th></tr></thead>
+                            <tbody>{paginatedServiceLocation.map(([location, count]) => (<tr key={location} className="border-b dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-600/50"><td className="p-2 font-semibold">{location}</td><td className="p-2 text-center font-bold">{toPersianDigits(count)}</td></tr>))}</tbody>
                         </table>
                     </div>
+                    <PaginationControls currentPage={serviceLocationPage} totalPages={serviceLocationTotalPages} onPageChange={setServiceLocationPage} />
                 </AnalysisSection>
 
                 <AnalysisSection title={`خلاصه بر اساس واحد (ماه ${selectedMonth})`}>
-                    <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b dark:border-slate-600"><th className="p-2 text-right">واحد</th><th className="p-2">تجمعی</th><th className="p-2">میانگین</th><th className="p-2">تعداد</th><th className="p-2">بیشترین</th><th className="p-2">کمترین</th></tr></thead><tbody>{analysisData.byDepartment.map(d=><tr key={d.name} className="border-b dark:border-slate-600 text-center hover:bg-slate-100 dark:hover:bg-slate-600/50"><td className="p-2 text-right font-semibold">{d.name}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(d.sum))}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(Math.round(d.avg)))}</td><td className="p-2">{toPersianDigits(d.count)}</td><td className="p-2">{toPersianDigits(formatCurrency(d.max))} <span className="text-xs text-slate-500">({d.maxPerson})</span></td><td className="p-2">{toPersianDigits(formatCurrency(d.min))} <span className="text-xs text-slate-500">({d.minPerson})</span></td></tr>)}</tbody></table></div>
+                    <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b dark:border-slate-600"><th className="p-2 text-right">واحد</th><th className="p-2">تجمعی</th><th className="p-2">میانگین</th><th className="p-2">تعداد</th><th className="p-2">بیشترین</th><th className="p-2">کمترین</th></tr></thead><tbody>{paginatedDepartmentSummary.map(d=><tr key={d.name} className="border-b dark:border-slate-600 text-center hover:bg-slate-100 dark:hover:bg-slate-600/50"><td className="p-2 text-right font-semibold">{d.name}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(d.sum))}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(Math.round(d.avg)))}</td><td className="p-2">{toPersianDigits(d.count)}</td><td className="p-2">{toPersianDigits(formatCurrency(d.max))} <span className="text-xs text-slate-500">({d.maxPerson})</span></td><td className="p-2">{toPersianDigits(formatCurrency(d.min))} <span className="text-xs text-slate-500">({d.minPerson})</span></td></tr>)}</tbody></table></div>
+                     <PaginationControls currentPage={departmentSummaryPage} totalPages={departmentSummaryTotalPages} onPageChange={setDepartmentSummaryPage} />
                 </AnalysisSection>
                 
                 <AnalysisSection title={`خلاصه بر اساس پست سازمانی (ماه ${selectedMonth})`}>
-                    <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b dark:border-slate-600"><th className="p-2 text-right">پست</th><th className="p-2">تجمعی</th><th className="p-2">میانگین</th><th className="p-2">تعداد</th><th className="p-2">بیشترین</th><th className="p-2">کمترین</th></tr></thead><tbody>{analysisData.byPosition.map(d=><tr key={d.name} className="border-b dark:border-slate-600 text-center hover:bg-slate-100 dark:hover:bg-slate-600/50"><td className="p-2 text-right font-semibold">{d.name}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(d.sum))}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(Math.round(d.avg)))}</td><td className="p-2">{toPersianDigits(d.count)}</td><td className="p-2">{toPersianDigits(formatCurrency(d.max))} <span className="text-xs text-slate-500">({d.maxPerson})</span></td><td className="p-2">{toPersianDigits(formatCurrency(d.min))} <span className="text-xs text-slate-500">({d.minPerson})</span></td></tr>)}</tbody></table></div>
+                    <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b dark:border-slate-600"><th className="p-2 text-right">پست</th><th className="p-2">تجمعی</th><th className="p-2">میانگین</th><th className="p-2">تعداد</th><th className="p-2">بیشترین</th><th className="p-2">کمترین</th></tr></thead><tbody>{paginatedPositionSummary.map(d=><tr key={d.name} className="border-b dark:border-slate-600 text-center hover:bg-slate-100 dark:hover:bg-slate-600/50"><td className="p-2 text-right font-semibold">{d.name}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(d.sum))}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(Math.round(d.avg)))}</td><td className="p-2">{toPersianDigits(d.count)}</td><td className="p-2">{toPersianDigits(formatCurrency(d.max))} <span className="text-xs text-slate-500">({d.maxPerson})</span></td><td className="p-2">{toPersianDigits(formatCurrency(d.min))} <span className="text-xs text-slate-500">({d.minPerson})</span></td></tr>)}</tbody></table></div>
+                    <PaginationControls currentPage={positionSummaryPage} totalPages={positionSummaryTotalPages} onPageChange={setPositionSummaryPage} />
                 </AnalysisSection>
 
                 <AnalysisSection title="تحلیل روند ماهانه">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead>
-                                <tr className="border-b dark:border-slate-600">
-                                    <th className="p-2 text-right font-semibold">ماه</th>
-                                    <th className="p-2 text-center font-semibold">مجموع کارانه</th>
-                                    <th className="p-2 text-center font-semibold">تغییر نسبت به ماه قبل</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {monthlyTrendData.map(({ month, total, change, percentage }, index) => (
-                                    <tr key={month} className="border-b dark:border-slate-600 last:border-b-0 hover:bg-slate-100 dark:hover:bg-slate-600/50">
-                                        <td className="p-2 font-semibold">{month}</td>
-                                        <td className="p-2 text-center font-sans">{toPersianDigits(formatCurrency(total))}</td>
-                                        <td className={`p-2 text-center font-sans font-bold flex items-center justify-center gap-2 ${change > 0 ? 'text-green-600 dark:text-green-400' : change < 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-500 dark:text-slate-400'}`}>
-                                            {index > 0 && total > 0 ? (
-                                                <>
-                                                    {change !== 0 ? (
-                                                        <>
-                                                            <span>{change > 0 ? '▲' : '▼'}</span>
-                                                            <span>{toPersianDigits(formatCurrency(Math.abs(change)))}</span>
-                                                            <span className="text-xs opacity-80">({toPersianDigits(percentage.toFixed(1))}%)</span>
-                                                        </>
-                                                    ) : (
-                                                        <span>-</span>
-                                                    )}
-                                                </>
-                                            ) : (
-                                                <span>-</span>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                    <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b dark:border-slate-600"><th className="p-2 text-right font-semibold">ماه</th><th className="p-2 text-center font-semibold">مجموع کارانه</th><th className="p-2 text-center font-semibold">تغییر نسبت به ماه قبل</th></tr></thead><tbody>{monthlyTrendData.map(({ month, total, change, percentage }, index) => (<tr key={month} className="border-b dark:border-slate-600 last:border-b-0 hover:bg-slate-100 dark:hover:bg-slate-600/50"><td className="p-2 font-semibold">{month}</td><td className="p-2 text-center font-sans">{toPersianDigits(formatCurrency(total))}</td><td className={`p-2 text-center font-sans font-bold flex items-center justify-center gap-2 ${change > 0 ? 'text-green-600 dark:text-green-400' : change < 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-500 dark:text-slate-400'}`}>{index > 0 && total > 0 ? (<>{change !== 0 ? (<><span>{change > 0 ? '▲' : '▼'}</span><span>{toPersianDigits(formatCurrency(Math.abs(change)))}</span><span className="text-xs opacity-80">({toPersianDigits(percentage.toFixed(1))}%)</span></>) : (<span>-</span>)}</>) : (<span>-</span>)}</td></tr>))}</tbody></table></div>
                 </AnalysisSection>
 
                 <AnalysisSection title={`مقایسه ماهانه واحدها (ماه ${selectedMonth})`}>
-                    <div className="space-y-2 p-2">
-                        {analysisData.byDepartment.map(d => (
-                            <div key={d.name} className="flex items-center gap-2">
-                                <span className="w-32 text-sm text-left shrink-0">{d.name}</span>
-                                <div className="w-full bg-slate-200 dark:bg-slate-600 rounded-full h-6 relative">
-                                    <div className="bg-blue-500 h-6 rounded-full text-white text-xs flex items-center justify-end px-2" style={{ width: `${(d.sum / maxDeptSum) * 100}%` }}>
-                                       <span className="font-sans font-semibold">{toPersianDigits(formatCurrency(d.sum))}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                    <div className="space-y-2 p-2">{analysisData.byDepartment.map(d => (<div key={d.name} className="flex items-center gap-2"><span className="w-32 text-sm text-left shrink-0">{d.name}</span><div className="w-full bg-slate-200 dark:bg-slate-600 rounded-full h-6 relative"><div className="bg-blue-500 h-6 rounded-full text-white text-xs flex items-center justify-end px-2" style={{ width: `${(d.sum / maxDeptSum) * 100}%` }}><span className="font-sans font-semibold">{toPersianDigits(formatCurrency(d.sum))}</span></div></div></div>))}</div>
                 </AnalysisSection>
 
                 <AnalysisSection title={`مقایسه تجمعی بر اساس پست (ماه ${selectedMonth})`}>
-                    <div className="space-y-2 p-2">
-                        {analysisData.byPosition.map(d => (
-                            <div key={d.name} className="flex items-center gap-2">
-                                <span className="w-40 text-sm text-left shrink-0">{d.name}</span>
-                                <div className="w-full bg-slate-200 dark:bg-slate-600 rounded-full h-6 relative">
-                                    <div className="bg-indigo-500 h-6 rounded-full text-white text-xs flex items-center justify-end px-2" style={{ width: `${(d.sum / maxPositionSum) * 100}%` }}>
-                                       <span className="font-sans font-semibold">{toPersianDigits(formatCurrency(d.sum))}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+                    <div className="space-y-2 p-2">{analysisData.byPosition.map(d => (<div key={d.name} className="flex items-center gap-2"><span className="w-40 text-sm text-left shrink-0">{d.name}</span><div className="w-full bg-slate-200 dark:bg-slate-600 rounded-full h-6 relative"><div className="bg-indigo-500 h-6 rounded-full text-white text-xs flex items-center justify-end px-2" style={{ width: `${(d.sum / maxPositionSum) * 100}%` }}><span className="font-sans font-semibold">{toPersianDigits(formatCurrency(d.sum))}</span></div></div></div>))}</div>
                 </AnalysisSection>
 
                 <AnalysisSection title="گزارش تغییرات ماه به ماه">
-                    <div className="mb-4">
-                        <label className="text-sm font-medium">فیلتر بر اساس پست:</label>
-                        <select value={changeReportPositionFilter} onChange={e => setChangeReportPositionFilter(e.target.value)} className="w-full md:w-1/3 p-2 border rounded-md bg-white dark:bg-slate-800 dark:border-slate-600 mt-1">
-                            <option value="">همه پست‌ها</option>
-                            {[...new Set(analysisData.changes.map(c => c.position))].sort().map(p => <option key={p} value={p}>{p}</option>)}
-                        </select>
-                    </div>
-                    <div className="overflow-x-auto max-h-96"><table className="w-full text-sm"><thead><tr className="border-b dark:border-slate-600"><th className="p-2 text-right">پرسنل</th><th className="p-2 text-right">پست سازمانی</th><th className="p-2">ماه تغییر</th><th className="p-2">کارانه قبلی</th><th className="p-2">کارانه جدید</th><th className="p-2">مبلغ تغییر</th></tr></thead><tbody>{analysisData.changes.filter(c => !changeReportPositionFilter || c.position === changeReportPositionFilter).map((c,i)=><tr key={i} className="border-b dark:border-slate-600 text-center hover:bg-slate-100 dark:hover:bg-slate-600/50"><td className="p-2 text-right font-semibold">{c.person}</td><td className="p-2 text-right">{c.position}</td><td className="p-2">{c.month}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(c.prev))}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(c.current))}</td><td className={`p-2 font-sans font-bold ${c.diff > 0 ? 'text-green-600' : 'text-red-600'}`}>{c.diff > 0 ? '▲' : '▼'} {toPersianDigits(formatCurrency(Math.abs(c.diff)))}</td></tr>)}</tbody></table></div>
+                    <div className="mb-4"><label className="text-sm font-medium">فیلتر بر اساس پست:</label><select value={changeReportPositionFilter} onChange={e => setChangeReportPositionFilter(e.target.value)} className="w-full md:w-1/3 p-2 border rounded-md bg-white dark:bg-slate-800 dark:border-slate-600 mt-1"><option value="">همه پست‌ها</option>{[...new Set(analysisData.changes.map(c => c.position))].sort().map(p => <option key={p} value={p}>{p}</option>)}</select></div>
+                    <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b dark:border-slate-600"><th className="p-2 text-right">پرسنل</th><th className="p-2 text-right">پست</th><th className="p-2">ماه تغییر</th><th className="p-2">کارانه قبلی</th><th className="p-2">کارانه جدید</th><th className="p-2">مبلغ تغییر</th><th className="p-2 text-right">واحد قبلی</th><th className="p-2 text-right">واحد جدید</th></tr></thead><tbody>{paginatedChanges.map((c,i)=><tr key={i} className="border-b dark:border-slate-600 text-center hover:bg-slate-100 dark:hover:bg-slate-600/50"><td className="p-2 text-right font-semibold">{c.person}</td><td className="p-2 text-right">{c.position}</td><td className="p-2">{c.month}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(c.prevBonus))}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(c.currentBonus))}</td><td className={`p-2 font-sans font-bold ${c.bonusDiff > 0 ? 'text-green-600 dark:text-green-400' : c.bonusDiff < 0 ? 'text-red-600 dark:text-red-400' : ''}`}>{c.bonusDiff !== 0 ? (c.bonusDiff > 0 ? '▲ ' : '▼ ') + toPersianDigits(formatCurrency(Math.abs(c.bonusDiff))) : '-'}</td><td className="p-2 text-right">{c.prevDepartment}</td><td className={`p-2 text-right ${c.departmentChanged ? 'font-bold text-blue-600 dark:text-blue-400' : ''}`}>{c.currentDepartment}</td></tr>)}</tbody></table></div>
+                    <PaginationControls currentPage={changeReportPage} totalPages={changeReportTotalPages} onPageChange={setChangeReportPage} />
                 </AnalysisSection>
             </div>
         </div>
