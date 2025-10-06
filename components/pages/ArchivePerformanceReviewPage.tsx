@@ -61,6 +61,7 @@ const ArchivePerformanceReviewPage: React.FC = () => {
                 const allReviews: PerformanceReview[] = data.reviews || [];
                 setReviews(allReviews);
                 
+                // FIX: Add explicit types to sort callback arguments to prevent type errors.
                 const uniqueYears = [...new Set(allReviews.map(r => r.review_period_start.split('/')[0]).filter(Boolean))].sort((a: string, b: string) => b.localeCompare(a));
                 const uniqueDepartments = [...new Set(allReviews.map(r => r.department).filter(Boolean))].sort((a: string, b: string) => a.localeCompare(b, 'fa'));
                 const uniqueSupervisors = [...new Set(allReviews.map(r => r.reviewer_name_and_signature).filter(Boolean))].sort((a: string, b: string) => a.localeCompare(b, 'fa'));
@@ -134,8 +135,6 @@ const ArchivePerformanceReviewPage: React.FC = () => {
         if (window.confirm('آیا از حذف این ارزیابی اطمینان دارید؟')) {
             try {
                 const response = await fetch(`/api/personnel?type=performance_reviews&id=${id}`, { method: 'DELETE' });
-                // FIX: Argument of type 'unknown' is not assignable to parameter of type 'string | number'.
-                // Handle response from response.json() safely by parsing it and extracting the error message.
                 if (!response.ok) {
                     const errorData: any = await response.json();
                     throw new Error(errorData.error || 'خطا در حذف');

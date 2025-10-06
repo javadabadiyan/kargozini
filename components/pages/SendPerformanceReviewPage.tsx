@@ -113,12 +113,10 @@ const SendPerformanceReviewPage: React.FC = () => {
     };
 
     const totals = useMemo(() => {
-        // FIX: Operator '+' cannot be applied to types 'unknown' and 'number'.
-        // Added initial value '0' to reduce() to correctly type the accumulator as a number.
-        // Also ensured values are treated as numbers.
-        const total_score_functional = Object.values(formData.scores_functional).reduce((sum, val) => sum + (Number(val) || 0), 0);
-        const total_score_behavioral = Object.values(formData.scores_behavioral).reduce((sum, val) => sum + (Number(val) || 0), 0);
-        const total_score_ethical = Object.values(formData.scores_ethical).reduce((sum, val) => sum + (Number(val) || 0), 0);
+        // FIX: The `reduce` calls were simplified to let TypeScript infer correct types and avoid errors by ensuring values are numbers.
+        const total_score_functional = Object.values(formData.scores_functional).reduce((sum, val) => sum + Number(val || 0), 0);
+        const total_score_behavioral = Object.values(formData.scores_behavioral).reduce((sum, val) => sum + Number(val || 0), 0);
+        const total_score_ethical = Object.values(formData.scores_ethical).reduce((sum, val) => sum + Number(val || 0), 0);
         const overall_score = total_score_functional + total_score_behavioral + total_score_ethical;
         return { total_score_functional, total_score_behavioral, total_score_ethical, overall_score };
     }, [formData.scores_functional, formData.scores_behavioral, formData.scores_ethical]);

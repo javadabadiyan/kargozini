@@ -127,8 +127,8 @@ const CommitmentLetterArchivePage: React.FC = () => {
             acc[code].letters.push(letter);
             return acc;
         }, {} as Record<string, { guarantor_personnel_code: string; guarantor_name: string; letterCount: number; totalAmount: number; letters: CommitmentLetter[] }>);
-
-        return Object.values(summary).sort((a: any, b: any) => b.totalAmount - a.totalAmount);
+        // FIX: Explicitly cast sort callback arguments to a typed object to fix potential type errors.
+        return Object.values(summary).sort((a: { totalAmount: number }, b: { totalAmount: number }) => b.totalAmount - a.totalAmount);
     }, [letters]);
     
     const toggleGuarantorExpansion = (code: string) => {

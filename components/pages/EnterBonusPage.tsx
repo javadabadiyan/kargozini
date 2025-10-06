@@ -586,7 +586,7 @@ const EnterBonusPage: React.FC = () => {
             {status && <div className={`p-4 mb-4 text-sm rounded-lg ${statusColor[status.type]}`}>{status.message}</div>}
 
             {activeView === 'table' && <BonusDataTable {...{loading, error, selectedYear, setSelectedYear, selectedMonth, setSelectedMonth, bonusData, filteredBonusData, paginatedBonusData, currentPage, totalPages, setCurrentPage, searchTerm, setSearchTerm, departmentFilter, setDepartmentFilter, uniqueDepartments, showManualForm, setShowManualForm, manualEntry, setManualEntry, handleManualSubmit, fileInputRef, handleDownloadSample, handleFileImport, handleExport, handleEditClick: (p: BonusData, m: string) => { setEditingBonusInfo({ person: p, month: m }); setIsEditModalOpen(true); }, handleDeleteClick, handleFinalize, handleDeleteAll, handlePersonEditClick, handlePersonDeleteClick }} />}
-            {activeView === 'analysis' && <BonusAnalysis bonusData={bonusData} allDepartments={uniqueDepartments} />}
+            {activeView === 'analysis' && <BonusAnalysis bonusData={bonusData} />}
             {activeView === 'audit' && isAdmin && <AuditLogView logs={auditLogs} loading={auditLoading} isAdmin={isAdmin} onEdit={handleEditAuditLogClick} onDelete={handleDeleteAuditLog} />}
 
             {isEditModalOpen && editingBonusInfo && (
@@ -731,51 +731,78 @@ const BonusDataTable = ({ loading, error, selectedYear, setSelectedYear, selecte
     );
 };
 
-const BonusAnalysis = ({ bonusData, allDepartments }: { bonusData: BonusData[], allDepartments: string[] }) => {
+const BonusAnalysis = ({ bonusData }: { bonusData: BonusData[] }) => {
     const ANALYSIS_PAGE_SIZE = 10;
+    
+    const reports = [
+        { id: 'direct_comparison', label: 'مقایسه مستقیم ماه به ماه' },
+        { id: 'dept_monthly_summary', label: 'تجمیع کارانه هر واحد بر اساس ماه' },
+        { id: 'pos_monthly_summary', label: 'تجمیع کارانه هر ماه براساس پست' },
+        { id: 'location_summary', label: 'تعداد نفرات بر اساس محل خدمت' },
+        { id: 'dept_summary', label: 'خلاصه بر اساس واحد' },
+        { id: 'pos_summary', label: 'خلاصه بر اساس پست سازمانی' },
+        { id: 'monthly_trend', label: 'تحلیل روند ماهانه' },
+        { id: 'change_report', label: 'گزارش تغییرات ماه به ماه' },
+    ];
+    
+    const [selectedReport, setSelectedReport] = useState(reports[0].id);
     const [selectedMonth, setSelectedMonth] = useState<string>(PERSIAN_MONTHS[new Date().getMonth()]);
     const [selectedDepartment, setSelectedDepartment] = useState<string>('');
     const [changeReportPositionFilter, setChangeReportPositionFilter] = useState<string>('');
 
-    // Pagination states for different sections
-    const [departmentSummaryPage, setDepartmentSummaryPage] = useState(1);
-    const [positionSummaryPage, setPositionSummaryPage] = useState(1);
-    const [changeReportPage, setChangeReportPage] = useState(1);
-    const [serviceLocationPage, setServiceLocationPage] = useState(1);
-    const [deptMonthlyPage, setDeptMonthlyPage] = useState(1);
-    const [posMonthlyPage, setPosMonthlyPage] = useState(1);
+    // Pagination states
+    const [pagination, setPagination] = useState({
+        dept_summary: 1,
+        pos_summary: 1,
+        change_report: 1,
+        location_summary: 1,
+        dept_monthly_summary: 1,
+        pos_monthly_summary: 1,
+    });
+    
+    const handlePageChange = (reportId: keyof typeof pagination, page: number) => {
+        setPagination(prev => ({ ...prev, [reportId]: page }));
+    };
 
     // State for month-to-month comparison
     const [compareMonth1, setCompareMonth1] = useState(PERSIAN_MONTHS[0]);
     const [compareMonth2, setCompareMonth2] = useState(PERSIAN_MONTHS[1]);
+    const [compareFilters, setCompareFilters] = useState({ department: '', position: '', service_location: '' });
     
     // State for details modal
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
     const [modalContent, setModalContent] = useState<{ title: string; data: any[] }>({ title: '', data: [] });
 
     useEffect(() => {
-        setDepartmentSummaryPage(1);
-        setPositionSummaryPage(1);
-        setChangeReportPage(1);
-        setServiceLocationPage(1);
-        setDeptMonthlyPage(1);
-        setPosMonthlyPage(1);
-    }, [selectedMonth, selectedDepartment]);
-
-    useEffect(() => {
-        setChangeReportPage(1);
-    }, [changeReportPositionFilter]);
-
+        // Reset pagination on filter change
+        setPagination({
+            dept_summary: 1, pos_summary: 1, change_report: 1, location_summary: 1,
+            dept_monthly_summary: 1, pos_monthly_summary: 1
+        });
+    }, [selectedMonth, selectedDepartment, changeReportPositionFilter]);
+    
+    const uniqueFilterOptions = useMemo(() => {
+        const departments = new Set<string>();
+        const positions = new Set<string>();
+        const service_locations = new Set<string>();
+        bonusData.forEach(p => {
+            if(p.monthly_data) Object.values(p.monthly_data).forEach((md: any) => departments.add(md.department));
+            if(p.position) positions.add(p.position);
+            if(p.service_location) service_locations.add(p.service_location);
+        });
+        return {
+            departments: Array.from(departments).sort((a,b)=> a.localeCompare(b,'fa')),
+            positions: Array.from(positions).sort((a,b)=> a.localeCompare(b,'fa')),
+            service_locations: Array.from(service_locations).sort((a,b)=> a.localeCompare(b,'fa'))
+        }
+    }, [bonusData]);
 
     const analysisData = useMemo(() => {
         if (!bonusData || bonusData.length === 0) return null;
 
         const flatData = bonusData.flatMap(person => 
             Object.entries(person.monthly_data || {}).map(([month, monthData]) => ({
-                ...person,
-                month,
-                bonus: (monthData as any).bonus,
-                department: (monthData as any).department,
+                ...person, month, bonus: (monthData as any).bonus, department: (monthData as any).department,
             }))
         );
 
@@ -851,12 +878,24 @@ const BonusAnalysis = ({ bonusData, allDepartments }: { bonusData: BonusData[], 
     
     const comparisonData = useMemo(() => {
         if (!bonusData) return null;
-        const total1 = bonusData.reduce((sum, p) => sum + (p.monthly_data?.[compareMonth1]?.bonus || 0), 0);
-        const total2 = bonusData.reduce((sum, p) => sum + (p.monthly_data?.[compareMonth2]?.bonus || 0), 0);
+
+        let filteredData = bonusData;
+        if (compareFilters.department) {
+            filteredData = filteredData.filter(p => Object.values(p.monthly_data || {}).some((md: any) => md.department === compareFilters.department));
+        }
+        if (compareFilters.position) {
+            filteredData = filteredData.filter(p => p.position === compareFilters.position);
+        }
+        if (compareFilters.service_location) {
+            filteredData = filteredData.filter(p => p.service_location === compareFilters.service_location);
+        }
+
+        const total1 = filteredData.reduce((sum, p) => sum + (p.monthly_data?.[compareMonth1]?.bonus || 0), 0);
+        const total2 = filteredData.reduce((sum, p) => sum + (p.monthly_data?.[compareMonth2]?.bonus || 0), 0);
         const diff = total2 - total1;
         const percent = total1 > 0 ? (diff / total1) * 100 : (total2 > 0 ? 100 : 0);
         return { total1, total2, diff, percent };
-    }, [bonusData, compareMonth1, compareMonth2]);
+    }, [bonusData, compareMonth1, compareMonth2, compareFilters]);
 
     const monthlyBreakdownData = useMemo(() => {
         const byDepartment: { [dept: string]: { [month: string]: number } } = {};
@@ -973,60 +1012,42 @@ const BonusAnalysis = ({ bonusData, allDepartments }: { bonusData: BonusData[], 
         </div>
     );
     
-    const AnalysisSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
-        <details className="bg-slate-50 dark:bg-slate-700/50 rounded-lg border dark:border-slate-600" open>
-            <summary className="p-3 font-bold text-lg cursor-pointer flex justify-between items-center list-none">
-                {title}
-                <ChevronDownIcon className="w-5 h-5 transition-transform duration-200 details-arrow" />
-            </summary>
-            <div className="p-4 border-t dark:border-slate-600">{children}</div>
-            <style>{`details summary::-webkit-details-marker { display: none; } details[open] .details-arrow { transform: rotate(180deg); }`}</style>
-        </details>
+    const AnalysisSection: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+        <div className="bg-slate-50 dark:bg-slate-700/50 rounded-lg border dark:border-slate-600 p-4">
+            {children}
+        </div>
     );
     
-    // Pagination logic for analysis tables
+    // Pagination logic
     const departmentSummaryTotalPages = Math.ceil(analysisData.byDepartment.length / ANALYSIS_PAGE_SIZE);
-    const paginatedDepartmentSummary = analysisData.byDepartment.slice((departmentSummaryPage - 1) * ANALYSIS_PAGE_SIZE, departmentSummaryPage * ANALYSIS_PAGE_SIZE);
+    const paginatedDepartmentSummary = analysisData.byDepartment.slice((pagination.dept_summary - 1) * ANALYSIS_PAGE_SIZE, pagination.dept_summary * ANALYSIS_PAGE_SIZE);
     const positionSummaryTotalPages = Math.ceil(analysisData.byPosition.length / ANALYSIS_PAGE_SIZE);
-    const paginatedPositionSummary = analysisData.byPosition.slice((positionSummaryPage - 1) * ANALYSIS_PAGE_SIZE, positionSummaryPage * ANALYSIS_PAGE_SIZE);
+    const paginatedPositionSummary = analysisData.byPosition.slice((pagination.pos_summary - 1) * ANALYSIS_PAGE_SIZE, pagination.pos_summary * ANALYSIS_PAGE_SIZE);
     const serviceLocationTotalPages = Math.ceil(analysisData.byServiceLocation.length / ANALYSIS_PAGE_SIZE);
-    const paginatedServiceLocation = analysisData.byServiceLocation.slice((serviceLocationPage - 1) * ANALYSIS_PAGE_SIZE, serviceLocationPage * ANALYSIS_PAGE_SIZE);
+    const paginatedServiceLocation = analysisData.byServiceLocation.slice((pagination.location_summary - 1) * ANALYSIS_PAGE_SIZE, pagination.location_summary * ANALYSIS_PAGE_SIZE);
     const filteredChanges = analysisData.changes.filter(c => !changeReportPositionFilter || c.position === changeReportPositionFilter);
     const changeReportTotalPages = Math.ceil(filteredChanges.length / ANALYSIS_PAGE_SIZE);
-    const paginatedChanges = filteredChanges.slice((changeReportPage - 1) * ANALYSIS_PAGE_SIZE, changeReportPage * ANALYSIS_PAGE_SIZE);
+    const paginatedChanges = filteredChanges.slice((pagination.change_report - 1) * ANALYSIS_PAGE_SIZE, pagination.change_report * ANALYSIS_PAGE_SIZE);
     const deptMonthlyTotalPages = Math.ceil(monthlyBreakdownData.byDepartment.length / ANALYSIS_PAGE_SIZE);
-    const paginatedDeptMonthly = monthlyBreakdownData.byDepartment.slice((deptMonthlyPage - 1) * ANALYSIS_PAGE_SIZE, deptMonthlyPage * ANALYSIS_PAGE_SIZE);
+    const paginatedDeptMonthly = monthlyBreakdownData.byDepartment.slice((pagination.dept_monthly_summary - 1) * ANALYSIS_PAGE_SIZE, pagination.dept_monthly_summary * ANALYSIS_PAGE_SIZE);
     const posMonthlyTotalPages = Math.ceil(monthlyBreakdownData.byPosition.length / ANALYSIS_PAGE_SIZE);
-    const paginatedPosMonthly = monthlyBreakdownData.byPosition.slice((posMonthlyPage - 1) * ANALYSIS_PAGE_SIZE, posMonthlyPage * ANALYSIS_PAGE_SIZE);
+    const paginatedPosMonthly = monthlyBreakdownData.byPosition.slice((pagination.pos_monthly_summary - 1) * ANALYSIS_PAGE_SIZE, pagination.pos_monthly_summary * ANALYSIS_PAGE_SIZE);
 
-
-    return (
-        <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row gap-4 p-4 bg-slate-100 dark:bg-slate-900/50 rounded-lg border dark:border-slate-700">
-                <div className="flex-1">
-                    <label className="text-sm font-medium">ماه مورد تحلیل:</label>
-                    <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} className="w-full p-2 border rounded-md bg-white dark:bg-slate-700 dark:border-slate-600 mt-1"><option value="">انتخاب ماه</option>{PERSIAN_MONTHS.map(m => <option key={m} value={m}>{m}</option>)}</select>
-                </div>
-                <div className="flex-1">
-                    <label className="text-sm font-medium">فیلتر واحد:</label>
-                    <select value={selectedDepartment} onChange={e => setSelectedDepartment(e.target.value)} className="w-full p-2 border rounded-md bg-white dark:bg-slate-700 dark:border-slate-600 mt-1"><option value="">همه واحدها</option>{allDepartments.map(d => <option key={d} value={d}>{d}</option>)}</select>
-                </div>
-            </div>
-            
-             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div onClick={() => handleCardClick('total')} className="cursor-pointer hover:scale-105 transition-transform duration-200"><AnalysisCard title="جمع کل کارانه" value={toPersianDigits(formatCurrency(analysisData.summary.total))} subtext={`برای ${toPersianDigits(analysisData.summary.count)} نفر`} /></div>
-                <div onClick={() => handleCardClick('average')} className="cursor-pointer hover:scale-105 transition-transform duration-200"><AnalysisCard title="میانگین کارانه" value={toPersianDigits(formatCurrency(Math.round(analysisData.summary.avg)))} /></div>
-                <div onClick={() => handleCardClick('highest')} className="cursor-pointer hover:scale-105 transition-transform duration-200"><AnalysisCard title="بیشترین کارانه" value={toPersianDigits(formatCurrency(analysisData.summary.max))} subtext={analysisData.maxPerson ? `${analysisData.maxPerson.first_name} ${analysisData.maxPerson.last_name}` : ''} /></div>
-                <div onClick={() => handleCardClick('lowest')} className="cursor-pointer hover:scale-105 transition-transform duration-200"><AnalysisCard title="کمترین کارانه" value={toPersianDigits(formatCurrency(analysisData.summary.min === Infinity ? 0 : analysisData.summary.min))} subtext={analysisData.minPerson ? `${analysisData.minPerson.first_name} ${analysisData.minPerson.last_name}` : ''} /></div>
-            </div>
-
-            <div className="space-y-4">
-                <AnalysisSection title="مقایسه مستقیم ماه به ماه">
-                    {comparisonData && (
+    const renderSelectedReport = () => {
+        switch (selectedReport) {
+            case 'direct_comparison':
+                return (
+                    <AnalysisSection>
+                        {comparisonData && (
                         <div className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                 <div><label className="text-sm">ماه اول</label><select value={compareMonth1} onChange={e => setCompareMonth1(e.target.value)} className="w-full p-2 border rounded-md bg-white dark:bg-slate-800 dark:border-slate-600 mt-1">{PERSIAN_MONTHS.map(m => <option key={m} value={m}>{m}</option>)}</select></div>
                                 <div><label className="text-sm">ماه دوم</label><select value={compareMonth2} onChange={e => setCompareMonth2(e.target.value)} className="w-full p-2 border rounded-md bg-white dark:bg-slate-800 dark:border-slate-600 mt-1">{PERSIAN_MONTHS.map(m => <option key={m} value={m}>{m}</option>)}</select></div>
+                            </div>
+                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-4 border-t dark:border-slate-600">
+                                <div><label className="text-sm">فیلتر واحد</label><select value={compareFilters.department} onChange={e => setCompareFilters(f => ({...f, department: e.target.value}))} className="w-full p-2 border rounded-md bg-white dark:bg-slate-800 dark:border-slate-600 mt-1"><option value="">همه</option>{uniqueFilterOptions.departments.map(d=><option key={d} value={d}>{d}</option>)}</select></div>
+                                <div><label className="text-sm">فیلتر پست سازمانی</label><select value={compareFilters.position} onChange={e => setCompareFilters(f => ({...f, position: e.target.value}))} className="w-full p-2 border rounded-md bg-white dark:bg-slate-800 dark:border-slate-600 mt-1"><option value="">همه</option>{uniqueFilterOptions.positions.map(p=><option key={p} value={p}>{p}</option>)}</select></div>
+                                <div><label className="text-sm">فیلتر محل خدمت</label><select value={compareFilters.service_location} onChange={e => setCompareFilters(f => ({...f, service_location: e.target.value}))} className="w-full p-2 border rounded-md bg-white dark:bg-slate-800 dark:border-slate-600 mt-1"><option value="">همه</option>{uniqueFilterOptions.service_locations.map(l=><option key={l} value={l}>{l}</option>)}</select></div>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
                                 <div className="p-3 bg-slate-100 dark:bg-slate-800 rounded-lg"><h4>{compareMonth1}</h4><p className="font-bold font-sans text-lg">{toPersianDigits(formatCurrency(comparisonData.total1))}</p></div>
@@ -1040,47 +1061,96 @@ const BonusAnalysis = ({ bonusData, allDepartments }: { bonusData: BonusData[], 
                             </div>
                         </div>
                     )}
-                </AnalysisSection>
+                    </AnalysisSection>
+                );
+            case 'dept_monthly_summary':
+                return (
+                    <AnalysisSection>
+                        <div className="overflow-x-auto"><table className="w-full text-sm text-center"><thead><tr className="border-b dark:border-slate-600"><th className="p-2 text-right">واحد</th>{PERSIAN_MONTHS.map(m => <th key={m} className="p-2">{m}</th>)}</tr></thead><tbody>{paginatedDeptMonthly.map(([dept, monthsData]) => (<tr key={dept} className="border-b dark:border-slate-600 last:border-b-0 hover:bg-slate-100 dark:hover:bg-slate-600/50"><td className="p-2 text-right font-semibold">{dept}</td>{PERSIAN_MONTHS.map(m => <td key={m} className="p-2 font-sans">{monthsData[m] ? toPersianDigits(formatCurrency(monthsData[m])) : '-'}</td>)}</tr>))}</tbody></table></div>
+                        <PaginationControls currentPage={pagination.dept_monthly_summary} totalPages={deptMonthlyTotalPages} onPageChange={(p) => handlePageChange('dept_monthly_summary', p)} />
+                    </AnalysisSection>
+                );
+            case 'pos_monthly_summary':
+                return (
+                    <AnalysisSection>
+                         <div className="overflow-x-auto"><table className="w-full text-sm text-center"><thead><tr className="border-b dark:border-slate-600"><th className="p-2 text-right">پست</th>{PERSIAN_MONTHS.map(m => <th key={m} className="p-2">{m}</th>)}</tr></thead><tbody>{paginatedPosMonthly.map(([pos, monthsData]) => (<tr key={pos} className="border-b dark:border-slate-600 last:border-b-0 hover:bg-slate-100 dark:hover:bg-slate-600/50"><td className="p-2 text-right font-semibold">{pos}</td>{PERSIAN_MONTHS.map(m => <td key={m} className="p-2 font-sans">{monthsData[m] ? toPersianDigits(formatCurrency(monthsData[m])) : '-'}</td>)}</tr>))}</tbody></table></div>
+                         <PaginationControls currentPage={pagination.pos_monthly_summary} totalPages={posMonthlyTotalPages} onPageChange={(p) => handlePageChange('pos_monthly_summary', p)} />
+                    </AnalysisSection>
+                );
+            case 'location_summary':
+                return (
+                    <AnalysisSection>
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead><tr className="border-b dark:border-slate-600"><th className="p-2 text-right">محل خدمت</th><th className="p-2 text-center">تعداد نفرات</th></tr></thead>
+                                <tbody>{paginatedServiceLocation.map(([location, count]) => (<tr key={location} className="border-b dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-600/50"><td className="p-2 font-semibold">{location}</td><td className="p-2 text-center font-bold">{toPersianDigits(count as number)}</td></tr>))}</tbody>
+                            </table>
+                        </div>
+                        <PaginationControls currentPage={pagination.location_summary} totalPages={serviceLocationTotalPages} onPageChange={(p) => handlePageChange('location_summary', p)} />
+                    </AnalysisSection>
+                );
+            case 'dept_summary':
+                 return (
+                    <AnalysisSection>
+                        <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b dark:border-slate-600"><th className="p-2 text-right">واحد</th><th className="p-2">تجمعی</th><th className="p-2">میانگین</th><th className="p-2">تعداد</th><th className="p-2">بیشترین</th><th className="p-2">کمترین</th></tr></thead><tbody>{paginatedDepartmentSummary.map(d=><tr key={d.name} className="border-b dark:border-slate-600 text-center hover:bg-slate-100 dark:hover:bg-slate-600/50"><td className="p-2 text-right font-semibold">{d.name}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(d.sum))}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(Math.round(d.avg)))}</td><td className="p-2">{toPersianDigits(d.count)}</td><td className="p-2">{toPersianDigits(formatCurrency(d.max))} <span className="text-xs text-slate-500">({d.maxPerson})</span></td><td className="p-2">{toPersianDigits(formatCurrency(d.min))} <span className="text-xs text-slate-500">({d.minPerson})</span></td></tr>)}</tbody></table></div>
+                         <PaginationControls currentPage={pagination.dept_summary} totalPages={departmentSummaryTotalPages} onPageChange={(p) => handlePageChange('dept_summary', p)} />
+                    </AnalysisSection>
+                );
+            case 'pos_summary':
+                return (
+                    <AnalysisSection>
+                        <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b dark:border-slate-600"><th className="p-2 text-right">پست</th><th className="p-2">تجمعی</th><th className="p-2">میانگین</th><th className="p-2">تعداد</th><th className="p-2">بیشترین</th><th className="p-2">کمترین</th></tr></thead><tbody>{paginatedPositionSummary.map(d=><tr key={d.name} className="border-b dark:border-slate-600 text-center hover:bg-slate-100 dark:hover:bg-slate-600/50"><td className="p-2 text-right font-semibold">{d.name}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(d.sum))}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(Math.round(d.avg)))}</td><td className="p-2">{toPersianDigits(d.count)}</td><td className="p-2">{toPersianDigits(formatCurrency(d.max))} <span className="text-xs text-slate-500">({d.maxPerson})</span></td><td className="p-2">{toPersianDigits(formatCurrency(d.min))} <span className="text-xs text-slate-500">({d.minPerson})</span></td></tr>)}</tbody></table></div>
+                        <PaginationControls currentPage={pagination.pos_summary} totalPages={positionSummaryTotalPages} onPageChange={(p) => handlePageChange('pos_summary', p)} />
+                    </AnalysisSection>
+                );
+            case 'monthly_trend':
+                return (
+                    <AnalysisSection>
+                        <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b dark:border-slate-600"><th className="p-2 text-right font-semibold">ماه</th><th className="p-2 text-center font-semibold">مجموع کارانه</th><th className="p-2 text-center font-semibold">تغییر نسبت به ماه قبل</th></tr></thead><tbody>{monthlyTrendData.map(({ month, total, change, percentage }, index) => (<tr key={month} className="border-b dark:border-slate-600 last:border-b-0 hover:bg-slate-100 dark:hover:bg-slate-600/50"><td className="p-2 font-semibold">{month}</td><td className="p-2 text-center font-sans">{toPersianDigits(formatCurrency(total))}</td><td className={`p-2 text-center font-sans font-bold flex items-center justify-center gap-2 ${change > 0 ? 'text-green-600 dark:text-green-400' : change < 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-500 dark:text-slate-400'}`}>{index > 0 && total > 0 ? (<>{change !== 0 ? (<><span>{change > 0 ? '▲' : '▼'}</span><span>{toPersianDigits(formatCurrency(Math.abs(change)))}</span><span className="text-xs opacity-80">({toPersianDigits(percentage.toFixed(1))}%)</span></>) : (<span>-</span>)}</>) : (<span>-</span>)}</td></tr>))}</tbody></table></div>
+                    </AnalysisSection>
+                );
+            case 'change_report':
+                 return (
+                    <AnalysisSection>
+                        <div className="mb-4"><label className="text-sm font-medium">فیلتر بر اساس پست:</label><select value={changeReportPositionFilter} onChange={e => setChangeReportPositionFilter(e.target.value)} className="w-full md:w-1/3 p-2 border rounded-md bg-white dark:bg-slate-800 dark:border-slate-600 mt-1"><option value="">همه پست‌ها</option>{[...new Set(analysisData.changes.map(c => c.position))].sort().map(p => <option key={p} value={p}>{p}</option>)}</select></div>
+                        <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b dark:border-slate-600"><th className="p-2 text-right">پرسنل</th><th className="p-2 text-right">پست</th><th className="p-2">ماه تغییر</th><th className="p-2">کارانه قبلی</th><th className="p-2">کارانه جدید</th><th className="p-2">مبلغ تغییر</th><th className="p-2 text-right">واحد قبلی</th><th className="p-2 text-right">واحد جدید</th></tr></thead><tbody>{paginatedChanges.map((c,i)=><tr key={i} className="border-b dark:border-slate-600 text-center hover:bg-slate-100 dark:hover:bg-slate-600/50"><td className="p-2 text-right font-semibold">{c.person}</td><td className="p-2 text-right">{c.position}</td><td className="p-2">{c.month}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(c.prevBonus))}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(c.currentBonus))}</td><td className={`p-2 font-sans font-bold ${c.bonusDiff > 0 ? 'text-green-600 dark:text-green-400' : c.bonusDiff < 0 ? 'text-red-600 dark:text-red-400' : ''}`}>{c.bonusDiff !== 0 ? (c.bonusDiff > 0 ? '▲ ' : '▼ ') + toPersianDigits(formatCurrency(Math.abs(c.bonusDiff))) : '-'}</td><td className="p-2 text-right">{c.prevDepartment}</td><td className={`p-2 text-right ${c.departmentChanged ? 'font-bold text-blue-600 dark:text-blue-400' : ''}`}>{c.currentDepartment}</td></tr>)}</tbody></table></div>
+                        <PaginationControls currentPage={pagination.change_report} totalPages={changeReportTotalPages} onPageChange={(p) => handlePageChange('change_report', p)} />
+                    </AnalysisSection>
+                );
+            default:
+                return null;
+        }
+    };
+    
 
-                <AnalysisSection title="تجمیع کارانه هر واحد بر اساس ماه">
-                     <div className="overflow-x-auto"><table className="w-full text-sm text-center"><thead><tr className="border-b dark:border-slate-600"><th className="p-2 text-right">واحد</th>{PERSIAN_MONTHS.map(m => <th key={m} className="p-2">{m}</th>)}</tr></thead><tbody>{paginatedDeptMonthly.map(([dept, monthsData]) => (<tr key={dept} className="border-b dark:border-slate-600 last:border-b-0 hover:bg-slate-100 dark:hover:bg-slate-600/50"><td className="p-2 text-right font-semibold">{dept}</td>{PERSIAN_MONTHS.map(m => <td key={m} className="p-2 font-sans">{monthsData[m] ? toPersianDigits(formatCurrency(monthsData[m])) : '-'}</td>)}</tr>))}</tbody></table></div>
-                     <PaginationControls currentPage={deptMonthlyPage} totalPages={deptMonthlyTotalPages} onPageChange={setDeptMonthlyPage} />
-                </AnalysisSection>
+    return (
+        <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4 bg-slate-100 dark:bg-slate-900/50 rounded-lg border dark:border-slate-700">
+                <div>
+                    <label className="text-sm font-medium">ماه مورد تحلیل:</label>
+                    <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} className="w-full p-2 border rounded-md bg-white dark:bg-slate-700 dark:border-slate-600 mt-1"><option value="">انتخاب ماه</option>{PERSIAN_MONTHS.map(m => <option key={m} value={m}>{m}</option>)}</select>
+                </div>
+                <div>
+                    <label className="text-sm font-medium">فیلتر واحد:</label>
+                    <select value={selectedDepartment} onChange={e => setSelectedDepartment(e.target.value)} className="w-full p-2 border rounded-md bg-white dark:bg-slate-700 dark:border-slate-600 mt-1"><option value="">همه واحدها</option>{uniqueFilterOptions.departments.map(d => <option key={d} value={d}>{d}</option>)}</select>
+                </div>
+                 <div className="lg:col-span-1">
+                    <label className="text-sm font-medium">انتخاب نوع گزارش:</label>
+                    <select value={selectedReport} onChange={e => setSelectedReport(e.target.value)} className="w-full p-2 border rounded-md bg-white dark:bg-slate-700 dark:border-slate-600 mt-1">
+                        {reports.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
+                    </select>
+                </div>
+            </div>
+            
+             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div onClick={() => handleCardClick('total')} className="cursor-pointer hover:scale-105 transition-transform duration-200"><AnalysisCard title="جمع کل کارانه" value={toPersianDigits(formatCurrency(analysisData.summary.total))} subtext={`برای ${toPersianDigits(analysisData.summary.count)} نفر`} /></div>
+                <div onClick={() => handleCardClick('average')} className="cursor-pointer hover:scale-105 transition-transform duration-200"><AnalysisCard title="میانگین کارانه" value={toPersianDigits(formatCurrency(Math.round(analysisData.summary.avg)))} /></div>
+                <div onClick={() => handleCardClick('highest')} className="cursor-pointer hover:scale-105 transition-transform duration-200"><AnalysisCard title="بیشترین کارانه" value={toPersianDigits(formatCurrency(analysisData.summary.max))} subtext={analysisData.maxPerson ? `${analysisData.maxPerson.first_name} ${analysisData.maxPerson.last_name}` : ''} /></div>
+                <div onClick={() => handleCardClick('lowest')} className="cursor-pointer hover:scale-105 transition-transform duration-200"><AnalysisCard title="کمترین کارانه" value={toPersianDigits(formatCurrency(analysisData.summary.min === Infinity ? 0 : analysisData.summary.min))} subtext={analysisData.minPerson ? `${analysisData.minPerson.first_name} ${analysisData.minPerson.last_name}` : ''} /></div>
+            </div>
 
-                <AnalysisSection title="تجمیع کارانه هر ماه براساس پست">
-                     <div className="overflow-x-auto"><table className="w-full text-sm text-center"><thead><tr className="border-b dark:border-slate-600"><th className="p-2 text-right">پست</th>{PERSIAN_MONTHS.map(m => <th key={m} className="p-2">{m}</th>)}</tr></thead><tbody>{paginatedPosMonthly.map(([pos, monthsData]) => (<tr key={pos} className="border-b dark:border-slate-600 last:border-b-0 hover:bg-slate-100 dark:hover:bg-slate-600/50"><td className="p-2 text-right font-semibold">{pos}</td>{PERSIAN_MONTHS.map(m => <td key={m} className="p-2 font-sans">{monthsData[m] ? toPersianDigits(formatCurrency(monthsData[m])) : '-'}</td>)}</tr>))}</tbody></table></div>
-                     <PaginationControls currentPage={posMonthlyPage} totalPages={posMonthlyTotalPages} onPageChange={setPosMonthlyPage} />
-                </AnalysisSection>
-
-                 <AnalysisSection title="تعداد نفرات بر اساس محل خدمت">
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead><tr className="border-b dark:border-slate-600"><th className="p-2 text-right">محل خدمت</th><th className="p-2 text-center">تعداد نفرات</th></tr></thead>
-                            <tbody>{paginatedServiceLocation.map(([location, count]) => (<tr key={location} className="border-b dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-600/50"><td className="p-2 font-semibold">{location}</td><td className="p-2 text-center font-bold">{toPersianDigits(count)}</td></tr>))}</tbody>
-                        </table>
-                    </div>
-                    <PaginationControls currentPage={serviceLocationPage} totalPages={serviceLocationTotalPages} onPageChange={setServiceLocationPage} />
-                </AnalysisSection>
-
-                <AnalysisSection title={`خلاصه بر اساس واحد (ماه ${selectedMonth})`}>
-                    <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b dark:border-slate-600"><th className="p-2 text-right">واحد</th><th className="p-2">تجمعی</th><th className="p-2">میانگین</th><th className="p-2">تعداد</th><th className="p-2">بیشترین</th><th className="p-2">کمترین</th></tr></thead><tbody>{paginatedDepartmentSummary.map(d=><tr key={d.name} className="border-b dark:border-slate-600 text-center hover:bg-slate-100 dark:hover:bg-slate-600/50"><td className="p-2 text-right font-semibold">{d.name}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(d.sum))}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(Math.round(d.avg)))}</td><td className="p-2">{toPersianDigits(d.count)}</td><td className="p-2">{toPersianDigits(formatCurrency(d.max))} <span className="text-xs text-slate-500">({d.maxPerson})</span></td><td className="p-2">{toPersianDigits(formatCurrency(d.min))} <span className="text-xs text-slate-500">({d.minPerson})</span></td></tr>)}</tbody></table></div>
-                     <PaginationControls currentPage={departmentSummaryPage} totalPages={departmentSummaryTotalPages} onPageChange={setDepartmentSummaryPage} />
-                </AnalysisSection>
-                
-                <AnalysisSection title={`خلاصه بر اساس پست سازمانی (ماه ${selectedMonth})`}>
-                    <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b dark:border-slate-600"><th className="p-2 text-right">پست</th><th className="p-2">تجمعی</th><th className="p-2">میانگین</th><th className="p-2">تعداد</th><th className="p-2">بیشترین</th><th className="p-2">کمترین</th></tr></thead><tbody>{paginatedPositionSummary.map(d=><tr key={d.name} className="border-b dark:border-slate-600 text-center hover:bg-slate-100 dark:hover:bg-slate-600/50"><td className="p-2 text-right font-semibold">{d.name}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(d.sum))}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(Math.round(d.avg)))}</td><td className="p-2">{toPersianDigits(d.count)}</td><td className="p-2">{toPersianDigits(formatCurrency(d.max))} <span className="text-xs text-slate-500">({d.maxPerson})</span></td><td className="p-2">{toPersianDigits(formatCurrency(d.min))} <span className="text-xs text-slate-500">({d.minPerson})</span></td></tr>)}</tbody></table></div>
-                    <PaginationControls currentPage={positionSummaryPage} totalPages={positionSummaryTotalPages} onPageChange={setPositionSummaryPage} />
-                </AnalysisSection>
-
-                <AnalysisSection title="تحلیل روند ماهانه">
-                    <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b dark:border-slate-600"><th className="p-2 text-right font-semibold">ماه</th><th className="p-2 text-center font-semibold">مجموع کارانه</th><th className="p-2 text-center font-semibold">تغییر نسبت به ماه قبل</th></tr></thead><tbody>{monthlyTrendData.map(({ month, total, change, percentage }, index) => (<tr key={month} className="border-b dark:border-slate-600 last:border-b-0 hover:bg-slate-100 dark:hover:bg-slate-600/50"><td className="p-2 font-semibold">{month}</td><td className="p-2 text-center font-sans">{toPersianDigits(formatCurrency(total))}</td><td className={`p-2 text-center font-sans font-bold flex items-center justify-center gap-2 ${change > 0 ? 'text-green-600 dark:text-green-400' : change < 0 ? 'text-red-600 dark:text-red-400' : 'text-slate-500 dark:text-slate-400'}`}>{index > 0 && total > 0 ? (<>{change !== 0 ? (<><span>{change > 0 ? '▲' : '▼'}</span><span>{toPersianDigits(formatCurrency(Math.abs(change)))}</span><span className="text-xs opacity-80">({toPersianDigits(percentage.toFixed(1))}%)</span></>) : (<span>-</span>)}</>) : (<span>-</span>)}</td></tr>))}</tbody></table></div>
-                </AnalysisSection>
-
-                <AnalysisSection title="گزارش تغییرات ماه به ماه">
-                    <div className="mb-4"><label className="text-sm font-medium">فیلتر بر اساس پست:</label><select value={changeReportPositionFilter} onChange={e => setChangeReportPositionFilter(e.target.value)} className="w-full md:w-1/3 p-2 border rounded-md bg-white dark:bg-slate-800 dark:border-slate-600 mt-1"><option value="">همه پست‌ها</option>{[...new Set(analysisData.changes.map(c => c.position))].sort().map(p => <option key={p} value={p}>{p}</option>)}</select></div>
-                    <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b dark:border-slate-600"><th className="p-2 text-right">پرسنل</th><th className="p-2 text-right">پست</th><th className="p-2">ماه تغییر</th><th className="p-2">کارانه قبلی</th><th className="p-2">کارانه جدید</th><th className="p-2">مبلغ تغییر</th><th className="p-2 text-right">واحد قبلی</th><th className="p-2 text-right">واحد جدید</th></tr></thead><tbody>{paginatedChanges.map((c,i)=><tr key={i} className="border-b dark:border-slate-600 text-center hover:bg-slate-100 dark:hover:bg-slate-600/50"><td className="p-2 text-right font-semibold">{c.person}</td><td className="p-2 text-right">{c.position}</td><td className="p-2">{c.month}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(c.prevBonus))}</td><td className="p-2 font-sans">{toPersianDigits(formatCurrency(c.currentBonus))}</td><td className={`p-2 font-sans font-bold ${c.bonusDiff > 0 ? 'text-green-600 dark:text-green-400' : c.bonusDiff < 0 ? 'text-red-600 dark:text-red-400' : ''}`}>{c.bonusDiff !== 0 ? (c.bonusDiff > 0 ? '▲ ' : '▼ ') + toPersianDigits(formatCurrency(Math.abs(c.bonusDiff))) : '-'}</td><td className="p-2 text-right">{c.prevDepartment}</td><td className={`p-2 text-right ${c.departmentChanged ? 'font-bold text-blue-600 dark:text-blue-400' : ''}`}>{c.currentDepartment}</td></tr>)}</tbody></table></div>
-                    <PaginationControls currentPage={changeReportPage} totalPages={changeReportTotalPages} onPageChange={setChangeReportPage} />
-                </AnalysisSection>
+            <div className="space-y-4">
+                {renderSelectedReport()}
             </div>
              {isDetailModalOpen && <AnalysisDetailModal isOpen={isDetailModalOpen} onClose={() => setIsDetailModalOpen(false)} title={modalContent.title} data={modalContent.data} />}
         </div>
@@ -1143,7 +1213,7 @@ const AnalysisDetailModal: React.FC<{
     if (!isOpen) return null;
     return (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4" onClick={onClose}>
-            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-lg max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-md max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
                 <div className="flex justify-between items-center p-4 border-b dark:border-slate-700">
                     <h3 className="text-xl font-semibold">{title} ({toPersianDigits(data.length)} نفر)</h3>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-white">&times;</button>

@@ -383,9 +383,8 @@ const AccountingCommitmentPage: React.FC = () => {
             acc[code].letters.push(letter);
             return acc;
         }, {} as Record<string, { guarantor_personnel_code: string; guarantor_name: string; letterCount: number; totalAmount: number; letters: CommitmentLetter[] }>);
-
-        // FIX: Explicitly cast sort callback arguments to any to fix 'property does not exist on type unknown' error.
-        return Object.values(summary).sort((a: any, b: any) => b.totalAmount - a.totalAmount);
+        // FIX: Explicitly type sort callback arguments to resolve 'unknown' type error.
+        return Object.values(summary).sort((a: { totalAmount: number }, b: { totalAmount: number }) => b.totalAmount - a.totalAmount);
     }, [archivedLetters]);
 
      const paginatedGuarantorSummary = useMemo(() => {
