@@ -677,7 +677,7 @@ async function handlePostBonuses(request: VercelRequest, response: VercelRespons
                 `INSERT INTO bonuses (personnel_code, "year", first_name, last_name, "position", service_location, monthly_data, submitted_by_user)
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                  ON CONFLICT (personnel_code, "year", submitted_by_user) DO UPDATE
-                 SET first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name, "position" = EXCLUDED."position", service_location = EXCLUDED.service_location, monthly_data = bonuses.monthly_data || EXCLUDED.monthly_data;`,
+                 SET first_name = EXCLUDED.first_name, last_name = EXCLUDED.last_name, "position" = EXCLUDED."position", service_location = EXCLUDED.service_location, monthly_data = bonuses.monthly_data || EXCLUDED.monthly_data, updated_at = NOW();`,
                 [personnel_code, year, first_name, last_name, position, service_location, JSON.stringify(monthlyUpdate), submitted_by_user]
             );
         }
@@ -692,7 +692,27 @@ async function handlePostBonuses(request: VercelRequest, response: VercelRespons
 }
 
 async function handlePutBonuses(request: VercelRequest, response: VercelResponse, client: VercelPoolClient) {
-    const { id, month, bonus_value, department, editor_name } = request.body;
+    const { id, month, bonus_value, department, editor_name, person_details } = request.body;
+
+    if (person_details) {
+        const { first_name, last_name, position, service_location } = person_details;
+        if (!id || !first_name || !last_name) {
+            return response.status(400).json({ error: 'ID, first name and last name are required for person details update.'});
+        }
+        try {
+            const { rows } = await (client as any).query(
+                `UPDATE bonuses SET first_name = $1, last_name = $2, "position" = $3, service_location = $4, updated_at = NOW() WHERE id = $5 RETURNING *;`,
+                [first_name, last_name, position, service_location, id]
+            );
+            if (rows.length === 0) return response.status(404).json({ error: 'رکورد یافت نشد.'});
+            return response.status(200).json({ message: 'اطلاعات پرسنل در ردیف کارانه با موفقیت ویرایش شد.' });
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            console.error("Error in handlePutBonuses (person_details):", error);
+            return response.status(500).json({ error: 'خطا در ویرایش اطلاعات پرسنل.', details: errorMessage });
+        }
+    }
+
     if (!id || !month || bonus_value === undefined || !department || !editor_name) return response.status(400).json({ error: 'اطلاعات برای ویرایش ناقص است (شامل نام ویرایشگر).' });
     try {
         await client.query('BEGIN');
@@ -701,7 +721,7 @@ async function handlePutBonuses(request: VercelRequest, response: VercelResponse
         const oldMonthData = oldDataRows[0].monthly_data?.[month];
         const bonusValueNumber = Number(bonus_value);
         if (isNaN(bonusValueNumber)) { await client.query('ROLLBACK'); return response.status(400).json({ error: 'مبلغ کارانه نامعتبر است.' }); }
-        const { rows } = await (client as any).query(`UPDATE bonuses SET monthly_data = jsonb_set(monthly_data, '{${month}}', $1::jsonb) WHERE id = $2 RETURNING *;`, [JSON.stringify({ bonus: bonusValueNumber, department: department }), id]);
+        const { rows } = await (client as any).query(`UPDATE bonuses SET monthly_data = jsonb_set(monthly_data, '{${month}}', $1::jsonb), updated_at = NOW() WHERE id = $2 RETURNING *;`, [JSON.stringify({ bonus: bonusValueNumber, department: department }), id]);
         const newMonthData = rows[0].monthly_data?.[month];
         if (oldMonthData?.bonus !== newMonthData?.bonus || oldMonthData?.department !== newMonthData?.department) {
              await (client as any).query(`INSERT INTO bonus_edit_logs (bonus_id, personnel_code, editor_name, month, old_bonus_value, new_bonus_value, old_department, new_department) VALUES ($1, $2, $3, $4, $5, $6, $7, $8);`, [id, rows[0].personnel_code, editor_name, month, oldMonthData?.bonus || null, newMonthData?.bonus, oldMonthData?.department || null, newMonthData?.department]);
@@ -725,7 +745,7 @@ async function handleDeleteSingleBonus(request: VercelRequest, response: VercelR
         if (oldDataRows.length === 0) { await client.query('ROLLBACK'); return response.status(404).json({ error: 'رکورد یافت نشد.' }); }
         const oldData = oldDataRows[0];
         const oldMonthData = oldData.monthly_data?.[month];
-        const { rows } = await (client as any).query('UPDATE bonuses SET monthly_data = monthly_data - $1 WHERE id = $2 RETURNING *;', [month, id]);
+        const { rows } = await (client as any).query('UPDATE bonuses SET monthly_data = monthly_data - $1, updated_at = NOW() WHERE id = $2 RETURNING *;', [month, id]);
         if (oldMonthData) {
             await (client as any).query(`INSERT INTO bonus_edit_logs (bonus_id, personnel_code, editor_name, month, old_bonus_value, new_bonus_value, old_department, new_department) VALUES ($1, $2, $3, $4, $5, NULL, $6, NULL);`, [id, oldData.personnel_code, editor_name, month, oldMonthData.bonus, oldMonthData.department]);
         }
@@ -882,7 +902,15 @@ export default async function handler(request: VercelRequest, response: VercelRe
                     await (client as any).query('DELETE FROM bonuses WHERE "year" = $1 AND submitted_by_user = $2;', [year, user]);
                     return response.status(200).json({ message: 'تمام اطلاعات کارانه این کاربر برای سال انتخاب شده حذف شد.' });
                 } else {
-                    return await handleDeleteSingleBonus(request, response, client);
+                    const { id, month, editor_name, delete_person_record } = request.body;
+                    if (delete_person_record && id) {
+                        await (client as any).query('DELETE FROM bonuses WHERE id = $1;', [id]);
+                        return response.status(200).json({ message: 'رکورد کارانه شخص با موفقیت حذف شد.' });
+                    }
+                    if (id && month && editor_name) {
+                        return await handleDeleteSingleBonus(request, response, client);
+                    }
+                    return response.status(400).json({error: 'درخواست حذف نامعتبر است.'});
                 }
             default: response.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE']); return response.status(405).end();
         }

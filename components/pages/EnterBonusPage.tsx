@@ -29,6 +29,87 @@ const formatCurrency = (value: string | number): string => {
     return num.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 };
 
+// New modal for editing a person's details in the bonus record
+const EditBonusPersonModal: React.FC<{
+    isOpen: boolean;
+    onClose: () => void;
+    onSave: (details: Pick<BonusData, 'id' | 'first_name' | 'last_name' | 'position' | 'service_location'>) => Promise<void>;
+    person: BonusData;
+}> = ({ isOpen, onClose, onSave, person }) => {
+    const [formData, setFormData] = useState({
+        first_name: '',
+        last_name: '',
+        position: '',
+        service_location: ''
+    });
+    const [isSaving, setIsSaving] = useState(false);
+
+    useEffect(() => {
+        if (person) {
+            setFormData({
+                first_name: person.first_name,
+                last_name: person.last_name,
+                position: person.position || '',
+                service_location: person.service_location || ''
+            });
+        }
+    }, [person]);
+
+    if (!isOpen) return null;
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsSaving(true);
+        await onSave({ id: person.id, ...formData });
+        setIsSaving(false);
+    };
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+    };
+    
+    const inputClass = "w-full p-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 rounded-md";
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex justify-center items-center p-4" onClick={onClose}>
+            <div className="bg-white dark:bg-slate-800 rounded-lg shadow-xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
+                <div className="flex justify-between items-center p-4 border-b dark:border-slate-700">
+                    <h3 className="text-xl font-semibold">ویرایش اطلاعات {person.first_name} {person.last_name}</h3>
+                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 dark:hover:text-white">&times;</button>
+                </div>
+                <form onSubmit={handleSubmit}>
+                    <div className="p-6 space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium mb-1">نام</label>
+                            <input name="first_name" value={formData.first_name} onChange={handleChange} className={inputClass} required />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1">نام خانوادگی</label>
+                            <input name="last_name" value={formData.last_name} onChange={handleChange} className={inputClass} required />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1">پست سازمانی</label>
+                            <input name="position" value={formData.position} onChange={handleChange} className={inputClass} />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium mb-1">محل خدمت</label>
+                            <input name="service_location" value={formData.service_location} onChange={handleChange} className={inputClass} />
+                        </div>
+                    </div>
+                    <div className="flex justify-end items-center p-4 border-t bg-gray-50 dark:bg-slate-900/50 dark:border-slate-700 rounded-b-lg">
+                        <button type="button" onClick={onClose} className="px-6 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 dark:bg-slate-600 dark:text-slate-200 dark:border-slate-500" disabled={isSaving}>انصراف</button>
+                        <button type="submit" className="mr-3 px-6 py-2 text-sm text-white bg-blue-600 rounded-lg hover:bg-blue-700" disabled={isSaving}>
+                            {isSaving ? 'در حال ذخیره...' : 'ذخیره تغییرات'}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
+
 // Main Component
 const EnterBonusPage: React.FC = () => {
     const currentUser = useMemo(() => JSON.parse(sessionStorage.getItem('currentUser') || '{}'), []);
@@ -55,6 +136,9 @@ const EnterBonusPage: React.FC = () => {
     // Edit Modal State
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [editingBonusInfo, setEditingBonusInfo] = useState<{ person: BonusData, month: string } | null>(null);
+    const [isPersonEditModalOpen, setIsPersonEditModalOpen] = useState(false);
+    const [editingPerson, setEditingPerson] = useState<BonusData | null>(null);
+
 
     // Manual entry states
     const [showManualForm, setShowManualForm] = useState(false);
@@ -309,6 +393,52 @@ const EnterBonusPage: React.FC = () => {
         }
     };
 
+    const handlePersonEditClick = (person: BonusData) => {
+        setEditingPerson(person);
+        setIsPersonEditModalOpen(true);
+    };
+
+    const handlePersonDeleteClick = async (id: number) => {
+        if (window.confirm('آیا از حذف تمام اطلاعات کارانه این شخص برای سال انتخاب شده اطمینان دارید؟')) {
+            setStatus({ type: 'info', message: 'در حال حذف رکورد...' });
+            try {
+                const response = await fetch('/api/personnel?type=bonuses', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id, delete_person_record: true }),
+                });
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.error);
+                setStatus({ type: 'success', message: result.message });
+                fetchBonuses(selectedYear);
+            } catch (err) {
+                setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در حذف' });
+            } finally {
+                setTimeout(() => setStatus(null), 5000);
+            }
+        }
+    };
+
+    const handleSavePersonDetails = async (personDetails: Pick<BonusData, 'id' | 'first_name' | 'last_name' | 'position' | 'service_location'>) => {
+        setStatus({ type: 'info', message: 'در حال ذخیره اطلاعات پرسنل...' });
+        try {
+            const response = await fetch('/api/personnel?type=bonuses', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ id: personDetails.id, person_details: personDetails }),
+            });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error);
+            setStatus({ type: 'success', message: result.message });
+            fetchBonuses(selectedYear);
+            setIsPersonEditModalOpen(false);
+        } catch (err) {
+            setStatus({ type: 'error', message: err instanceof Error ? err.message : 'خطا در ذخیره' });
+        } finally {
+            setTimeout(() => setStatus(null), 5000);
+        }
+    };
+
     if (!canView) {
         return <div className="p-6 text-center"><h2 className="text-2xl font-bold mb-4">عدم دسترسی</h2><p>شما به این صفحه دسترسی ندارید.</p></div>;
     }
@@ -329,7 +459,7 @@ const EnterBonusPage: React.FC = () => {
             
             {status && <div className={`p-4 mb-4 text-sm rounded-lg ${statusColor[status.type]}`}>{status.message}</div>}
 
-            {activeView === 'table' && <BonusDataTable {...{loading, error, selectedYear, setSelectedYear, selectedMonth, setSelectedMonth, bonusData, filteredBonusData, paginatedBonusData, currentPage, totalPages, setCurrentPage, searchTerm, setSearchTerm, departmentFilter, setDepartmentFilter, uniqueDepartments, showManualForm, setShowManualForm, manualEntry, setManualEntry, handleManualSubmit, fileInputRef, handleDownloadSample, handleFileImport, handleExport, handleEditClick: (p: BonusData, m: string) => { setEditingBonusInfo({ person: p, month: m }); setIsEditModalOpen(true); }, handleDeleteClick, handleFinalize, handleDeleteAll }} />}
+            {activeView === 'table' && <BonusDataTable {...{loading, error, selectedYear, setSelectedYear, selectedMonth, setSelectedMonth, bonusData, filteredBonusData, paginatedBonusData, currentPage, totalPages, setCurrentPage, searchTerm, setSearchTerm, departmentFilter, setDepartmentFilter, uniqueDepartments, showManualForm, setShowManualForm, manualEntry, setManualEntry, handleManualSubmit, fileInputRef, handleDownloadSample, handleFileImport, handleExport, handleEditClick: (p: BonusData, m: string) => { setEditingBonusInfo({ person: p, month: m }); setIsEditModalOpen(true); }, handleDeleteClick, handleFinalize, handleDeleteAll, handlePersonEditClick, handlePersonDeleteClick }} />}
             {activeView === 'analysis' && <BonusAnalysis bonusData={bonusData} allDepartments={uniqueDepartments} />}
             {activeView === 'audit' && isAdmin && <AuditLogView logs={auditLogs} loading={auditLoading} />}
 
@@ -342,12 +472,20 @@ const EnterBonusPage: React.FC = () => {
                     month={editingBonusInfo.month}
                 />
             )}
+            {isPersonEditModalOpen && editingPerson && (
+                <EditBonusPersonModal
+                    isOpen={isPersonEditModalOpen}
+                    onClose={() => setIsPersonEditModalOpen(false)}
+                    onSave={handleSavePersonDetails}
+                    person={editingPerson}
+                />
+            )}
         </div>
     );
 };
 
-const BonusDataTable = ({ loading, error, selectedYear, setSelectedYear, selectedMonth, setSelectedMonth, bonusData, paginatedBonusData, currentPage, totalPages, setCurrentPage, searchTerm, setSearchTerm, departmentFilter, setDepartmentFilter, uniqueDepartments, showManualForm, setShowManualForm, manualEntry, setManualEntry, handleManualSubmit, fileInputRef, handleDownloadSample, handleFileImport, handleExport, handleEditClick, handleDeleteClick, handleFinalize, handleDeleteAll }: any) => {
-    const headers = ['کد پرسنلی', 'نام و نام خانوادگی', 'پست', 'محل خدمت', 'کاربر ثبت کننده', ...PERSIAN_MONTHS];
+const BonusDataTable = ({ loading, error, selectedYear, setSelectedYear, selectedMonth, setSelectedMonth, bonusData, paginatedBonusData, currentPage, totalPages, setCurrentPage, searchTerm, setSearchTerm, departmentFilter, setDepartmentFilter, uniqueDepartments, showManualForm, setShowManualForm, manualEntry, setManualEntry, handleManualSubmit, fileInputRef, handleDownloadSample, handleFileImport, handleExport, handleEditClick, handleDeleteClick, handleFinalize, handleDeleteAll, handlePersonEditClick, handlePersonDeleteClick }: any) => {
+    const headers = ['کد پرسنلی', 'نام و نام خانوادگی', 'پست', 'محل خدمت', 'کاربر ثبت کننده', ...PERSIAN_MONTHS, 'عملیات'];
     const inputClass = "w-full p-2 border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 rounded-md";
     
     return (
@@ -430,6 +568,12 @@ const BonusDataTable = ({ loading, error, selectedYear, setSelectedYear, selecte
                                     </td>
                                 );
                             })}
+                             <td className="px-4 py-3 text-sm">
+                                <div className="flex items-center justify-center gap-1">
+                                    <button onClick={() => handlePersonEditClick(person)} className="p-1 text-blue-600 hover:text-blue-500" title="ویرایش اطلاعات شخص"><PencilIcon className="w-5 h-5" /></button>
+                                    <button onClick={() => handlePersonDeleteClick(person.id)} className="p-1 text-red-600 hover:text-red-500" title="حذف کل رکورد شخص"><TrashIcon className="w-5 h-5" /></button>
+                                </div>
+                            </td>
                         </tr>
                     ))}
                 </tbody>
